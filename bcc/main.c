@@ -5,7 +5,7 @@
 #include "startup.h"
 #include "lexer.h"
 #include "parser.h"
-#include "c_ast.h"
+#include "ast.h"
 #include "compiler.h"
 
 void preProcess();

@@ -3,7 +3,7 @@
 //
 
 #include <stdlib.h>
-#include "asm_ast.h"
+#include "asm.h"
 
 void asm_program_free(struct AsmProgram *program) {
     if (program->function) asm_function_free(program->function);

@@ -8,39 +8,45 @@
 #include "utils.h"
 
 #define INITIAL_TOKEN_BUFFER_SIZE 128
+// This is a pretty long line, but generated code can be longer.
+#define INITIAL_LINE_BUFFER_SIZE 512
 
-char  *token_text;
-char *tokenBuf;
-int tokenBufLength = 0;
-int tokenBufSize = 0;
+char *lineBuffer = NULL;
+int lineBufferSize = 0;
+int lineNumber = 0;
+
+// Pointer to next character in line buffer.
+const char *pBuffer;
+// Pointer to beginning of current token, in line buffer
+const char *token_begin;
+// Pointer to end of current token, in line buffer
+const char *token_end;
 
 struct Token current_token;
 
-const char *token_names[NUM_TOKEN_TYPES];
+const char *token_names[NUM_TOKEN_TYPES] = {
+#define X(a,b) b
+    TOKENS__
+#undef X
+};
 
 char const *sourceFileName;
 FILE *sourceFile = NULL;
 int atEOF = 1;
 
+// Forwards
+
 void tokens_set_init(void);
 const char * tokens_set_insert(const char *str);
 int tokens_set_contains(const char *str);
+static int read_next_line(void);
+// lex a numeric token_text
+enum TK numericToken(void);
+// lex a word token_text (keyword or identifier)
+enum TK wordToken(void);
+// append a character to the token_text buffer.
+void storeCh(int intCh);
 
-
-void init_token_names() {
-    token_names[TK_UNKNOWN] = "!! unknown !!";
-    token_names[TK_INT] = "int";
-    token_names[TK_VOID] = "void";
-    token_names[TK_RETURN] = "return";
-    token_names[TK_SEMI] = ";";
-    token_names[TK_L_PAREN] = "(";
-    token_names[TK_R_PAREN] = ")";
-    token_names[TK_L_BRACE] = "{";
-    token_names[TK_R_BRACE] = "}";
-    token_names[TK_ID] = "an identifier";
-    token_names[TK_CONSTANT] = "a constant";
-    token_names[TK_EOF] = "eof";
-}
 
 /**
  * Opens a source file for lexing. Initializes the token_text buffer on first call.
@@ -62,23 +68,16 @@ int lex_openFile(char const *fname) {
     }
     sourceFileName = strdup(fname);
     atEOF = 0;
-    if (tokenBuf == NULL) {
-        init_token_names();
-        tokenBufSize = INITIAL_TOKEN_BUFFER_SIZE;
-        tokenBuf = malloc(tokenBufSize);
-        tokenBufLength = 0;
-        *(token_text=tokenBuf) = '\0';
+    if (lineBuffer == NULL) {
+        lineBufferSize = INITIAL_LINE_BUFFER_SIZE;
+        lineBuffer = malloc(lineBufferSize);
+        lineBuffer[0] = '\0';
+        pBuffer = lineBuffer;
+
         tokens_set_init();
     }
     return 1;
 }
-
-// lex a numeric token_text
-enum TK numericToken(int intCh);
-// lex a word token_text (keyword or identifier)
-enum TK wordToken(int intCh);
-// append a character to the token_text buffer.
-void storeCh(int intCh);
 
 const char *lex_token_name(enum TK token) {
     return token_names[token];
@@ -88,7 +87,14 @@ enum TK internal_take_token(void);
 struct Token lex_take_token(void) {
     enum TK tk = internal_take_token();
     current_token.token = tk;
-    current_token.text = tokens_set_insert(token_text);
+    if (tk == TK_ID || tk == TK_CONSTANT) {
+        char saved = *token_end;
+        *(char *) token_end = '\0';  // const_cast<char*>()
+        current_token.text = tokens_set_insert(token_begin);
+        *(char *) token_end = saved;
+    } else {
+        current_token.text = lex_token_name(tk);
+    }
     return current_token;
 }
 
@@ -97,83 +103,99 @@ struct Token lex_take_token(void) {
  * @return the token_text, or TK_EOF when no more.
  */
 enum TK internal_take_token(void) {
-    if (atEOF) {
-        return TK_EOF;
-    }
-    // reset token_text text
-    *(token_text=tokenBuf) = '\0';
-    tokenBufLength = 0;
-    // skip whitespace
-    int intCh;
-    while ((intCh=getc(sourceFile)) != EOF && isspace(intCh));
-    if (intCh == EOF) {
-        atEOF = 1;
-        return TK_EOF;
-    }
-    // starts with alpha or _ ?
-    if (isalpha(intCh) || intCh == '_') {
-        return wordToken(intCh);
-    }
-    // starts with digit?
-    if (isdigit(intCh)) {
-        return numericToken(intCh);
+    // Skip whitespace. At the end of line, read another line.
+    while (isspace(*pBuffer) || *pBuffer=='\0') {
+        if (*pBuffer == '\0') {
+            if (read_next_line())
+                pBuffer = lineBuffer;
+            else
+                return TK_EOF;
+        } else {
+            ++pBuffer;
+        }
     }
 
-    storeCh(intCh);
-    if (intCh == '(') return TK_L_PAREN;
-    if (intCh == ')') return TK_R_PAREN;
-    if (intCh == '{') return TK_L_BRACE;
-    if (intCh == '}') return TK_R_BRACE;
-    if (intCh == ';') return TK_SEMI;
-    return TK_UNKNOWN;
+    // pBuffer points to a non-whitespace character. Look there for a token; none yet.
+    token_end = token_begin = pBuffer;
+
+    // Starts with alpha or '_'? keyword or identifier
+    if (isalpha(*pBuffer) || *pBuffer=='_') {
+        return wordToken();
+    }
+
+    // Starts with digit (todo: or . followed by digit)? Numeric literal
+    if (isdigit(*pBuffer) /* || *pBuffer=='.' && isdigit(*pBuffer+1) */ ) {
+        return numericToken();
+    }
+
+    // Assume a one-character token.
+    ++token_end;
+    // See what we really have.
+    switch (*pBuffer) {
+        case '(':
+            ++pBuffer;
+            return TK_L_PAREN;
+        case ')':
+            ++pBuffer;
+            return TK_R_PAREN;
+        case '{':
+            ++pBuffer;
+            return TK_L_BRACE;
+        case '}':
+            ++pBuffer;
+            return TK_R_BRACE;
+        case ';':
+            ++pBuffer;
+            return TK_SEMI;
+        case '~':
+            ++pBuffer;
+            return TK_COMPLEMENT;
+        case '-': {
+            ++pBuffer;
+            if (*pBuffer+1 == '-') {
+                ++pBuffer;
+                ++token_end;
+                return TK_DECREMENT;
+            }
+            return TK_MINUS;
+        }
+        default:
+            ++pBuffer;
+            return TK_UNKNOWN;
+    }
 }
 
 /**
  * Reads a "word" token_text from the stream.
- * @param intCh
- * @return
+ * @return the TK type.
  */
-enum TK wordToken(int intCh) {
-    storeCh(intCh);
-    while (isalnum(intCh=getc(sourceFile)) || intCh=='_')
-        storeCh(intCh);
-    // Put back any non-word character
-    if (intCh != EOF) {
-        ungetc(intCh, sourceFile);
+enum TK wordToken(/*int intCh*/) {
+    while (isalnum(*pBuffer) || *pBuffer=='_') {
+        ++pBuffer;
     }
+    token_end = pBuffer; // next character after token
+
     // Is it a keyword?
-    if (strcmp(token_text, "int") == 0) return TK_INT;
-    if (strcmp(token_text, "void") == 0) return TK_VOID;
-    if (strcmp(token_text, "return") == 0) return TK_RETURN;
+    int token_length = (int)(token_end - token_begin);
+    for (int kwix=TK_KEYWORDS_BEGIN; kwix < TK_KEYWORDS_END; ++kwix) {
+        if (token_end-token_begin == strlen(token_names[kwix]) &&
+                memcmp(token_begin, token_names[kwix], token_length) == 0)
+            return kwix;
+    }
 
     return TK_ID;
 }
 
-enum TK numericToken(int intCh) {
+enum TK numericToken(void) {
     // Only reads decimal constants.
-    storeCh(intCh);
-    while (isdigit(intCh=getc(sourceFile)))
-        storeCh(intCh);
-    // Put back any non-digit character
-    if (intCh != EOF) {
-        ungetc(intCh, sourceFile);
-    }
+    while (isdigit(*pBuffer))
+        ++pBuffer;
+    token_end = pBuffer;
 
-    if (isalpha(intCh) || intCh=='_') {
+    if (isalpha(*pBuffer) || *pBuffer=='_') {
         return TK_UNKNOWN;
     }
     return TK_CONSTANT;
-}
-
-void storeCh(int intCh) {
-    if (tokenBufLength == tokenBufSize-1) {
-        char *newBuf = malloc(tokenBufSize*=2);
-        strcpy(tokenBuf, newBuf);
-        free(tokenBuf);
-        token_text = tokenBuf = newBuf;
-    }
-    tokenBuf[tokenBufLength++] = (char)intCh;
-    tokenBuf[tokenBufLength] = '\0';
 }
 
 struct SetOfStr {
@@ -270,4 +292,52 @@ int tokens_set_contains(const char *str) {
 }
 const char * tokens_set_insert(const char *str) {
     return set_of_str_insert(&token_strings, str);
+}
+
+static int read_next_line(void) {
+    if (atEOF) return 0;
+    char *pBuf = lineBuffer;
+    char *pEnd = lineBuffer + lineBufferSize;
+    int intCh;
+    int readAnything = 0;
+    while ((intCh=fgetc(sourceFile)) != EOF) {
+        readAnything = 1;
+        // Checking for end of line. First check for LF
+        if (intCh == '\n') {
+            ++lineNumber;
+            break;
+        } else if (intCh == '\r') {
+            ++lineNumber;
+            // If CR, look at next character.
+            intCh = fgetc(sourceFile);
+            // If not an LF, put it back. If LF, consume it as well.
+            if (intCh != '\n' && intCh != EOF) {
+                ungetc(intCh, sourceFile);
+            }
+            break;
+        }
+        // Keep the character.
+        *pBuf++ = (char)intCh;
+        // Is buffer full now?
+        if (pBuf == pEnd) {
+            // Alocate a new buffer 2x size of old, copy data.
+            char *newBuf = malloc(lineBufferSize * 2);
+            memcpy(newBuf, lineBuffer, lineBufferSize);
+            newBuf[lineBufferSize] = '\0';
+            free(lineBuffer);
+            lineBuffer = newBuf;
+            // pBuf should point just past the old data.
+            pBuf = lineBuffer + lineBufferSize;
+            lineBufferSize += 2;
+            pEnd = lineBuffer + lineBufferSize;
+        }
+    }
+    // Null terminate the line.
+    *pBuf = '\0';
+    if (intCh == EOF) {
+        atEOF = 1;
+        // If all we read was EOF, return 0. If we read anything, even an empty line, return 1.
+        return readAnything;
+    }
+    return 1;
 }

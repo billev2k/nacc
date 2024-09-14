@@ -3,7 +3,7 @@
 //
 
 #include <stdlib.h>
-#include "c_ast.h"
+#include "ast.h"
 #include "parser.h"
 #include "tokens.h"
 #include "lexer.h"

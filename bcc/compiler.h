@@ -5,8 +5,8 @@
 #ifndef BCC_COMPILER_H
 #define BCC_COMPILER_H
 
-#include "c_ast.h"
-#include "asm_ast.h"
+#include "ast.h"
+#include "asm.h"
 
 extern struct AsmProgram *c2asm(struct CProgram *cProgram);
 

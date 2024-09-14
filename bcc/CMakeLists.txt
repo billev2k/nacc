@@ -13,10 +13,10 @@ add_executable(bcc main.c
         utils.h
         parser.c
         parser.h
-        c_ast.c
-        c_ast.h
-        asm_ast.c
-        asm_ast.h
+        ast.c
+        ast.h
+        asm.c
+        asm.h
         compiler.c
         compiler.h
 )

@@ -2,8 +2,8 @@
 // Created by Bill Evans on 8/31/24.
 //
 
-#ifndef BCC_ASM_AST_H
-#define BCC_ASM_AST_H
+#ifndef BCC_ASM_H
+#define BCC_ASM_H
 
 #include <stdio.h>
 
@@ -47,4 +47,4 @@ struct AsmOperand {
 };
 extern void asm_operand_free(struct AsmOperand *operand);
 
-#endif //BCC_ASM_AST_H
+#endif //BCC_ASM_H

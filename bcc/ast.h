@@ -2,8 +2,8 @@
 // Created by Bill Evans on 8/28/24.
 //
 
-#ifndef BCC_C_AST_H
-#define BCC_C_AST_H
+#ifndef BCC_AST_H
+#define BCC_AST_H
 
 enum STMT {
     STMT_RETURN
@@ -39,4 +39,4 @@ struct CExpression {
 };
 extern void c_expression_free(struct CExpression *expression);
 
-#endif //BCC_C_AST_H
+#endif //BCC_AST_H

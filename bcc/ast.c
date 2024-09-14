@@ -4,7 +4,7 @@
 
 #include <stdlib.h>
 #include <printf.h>
-#include "c_ast.h"
+#include "ast.h"
 
 void c_program_free(struct CProgram *program) {
     if (!program) return;
