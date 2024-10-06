@@ -5,8 +5,10 @@
 #ifndef BCC_STARTUP_H
 #define BCC_STARTUP_H
 
+extern int configOptTest;
 extern int configOptLex;
 extern int configOptParse;
+extern int configOptTacky;
 extern int configOptCodegen;
 extern int configOptAsm;
 

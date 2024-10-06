@@ -17,7 +17,9 @@ struct Token {
 
 extern int lex_openFile(char const *fname);
 
+extern struct Token lex_peek_token(void);
 extern struct Token lex_take_token(void);
+
 extern const char *lex_token_name(enum TK token);
 extern struct Token current_token;
 

@@ -6,15 +6,21 @@
 
 #include "startup.h"
 
+#define TEST_OPT "--test"
 #define LEX_OPT "--lex"
 #define PARSE_OPT "--parse"
+#define TACKY_OPT "--tacky"
 #define CODEGEN_OPT "--codegen"
 #define ASM_OPT "-S"
 
+// if 1, run unit tests.
+int configOptTest = 0;
 // if 1, lex only, then stop
 int configOptLex = 0;
 // if 1, parse only (build C AST), then stop
 int configOptParse = 0;
+// if 1, parse, generate TACKY, then stop
+int configOptTacky = 0;
 // if 1, generate assembly (build asm AST), but don't write any files
 int configOptCodegen = 0;
 // if 1, create assembly output; don't assemble or link
@@ -54,12 +60,18 @@ int parseConfig(int argc, char **argv) {
     int configOptsFound = 0;
     int ok = 1;
     for (int i=1; i<argc; ++i) {
-        if (strcasecmp(argv[i], LEX_OPT) == 0) {
+        if (strcasecmp(argv[i], TEST_OPT) == 0) {
+            ++configOptsFound;
+            configOptTest = 1;
+        } else if (strcasecmp(argv[i], LEX_OPT) == 0) {
             ++configOptsFound;
             configOptLex = 1;
         } else if (strcasecmp(argv[i], PARSE_OPT) == 0) {
             ++configOptsFound;
             configOptParse = 1;
+        } else if (strcasecmp(argv[i], TACKY_OPT) == 0) {
+            ++configOptsFound;
+            configOptTacky = 1;
         } else if (strcasecmp(argv[i], CODEGEN_OPT) == 0) {
             ++configOptsFound;
             configOptCodegen = 1;
@@ -70,6 +82,6 @@ int parseConfig(int argc, char **argv) {
             ok |= parseInputFilename(argv[i]);
         }
     }
-    return ok && inputFname && *inputFname;
+    return ok && (inputFname && *inputFname || configOptTest);
 }
 

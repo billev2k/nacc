@@ -15,8 +15,21 @@ add_executable(bcc main.c
         parser.h
         ast.c
         ast.h
-        asm.c
-        asm.h
-        compiler.c
-        compiler.h
+        amd64.c
+        amd64.h
+        ast2amd64.c
+        ast2amd64.h
+        IR.c
+        IR.h
+        ast2ir.c
+        ast2ir.h
+        print_ir.c
+        print_ir.h
+        SetOfItemTest.c
+        SetOfItemTest.h
+)
+
+add_executable(bcc_test SetOfItemTest.c
+        utils.c
+        utils.h
 )

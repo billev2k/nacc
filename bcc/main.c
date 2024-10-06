@@ -6,7 +6,11 @@
 #include "lexer.h"
 #include "parser.h"
 #include "ast.h"
-#include "compiler.h"
+#include "ast2amd64.h"
+#include "ast2ir.h"
+#include "print_ir.h"
+
+#include "SetOfItemTest.h"
 
 void preProcess();
 
@@ -20,6 +24,10 @@ int main(int argc, char **argv, char **envv) {
     if (!parseConfig(argc, argv)) {
         fprintf(stderr, "Error in command line args.");
         return -1;
+    }
+    if (configOptTest) {
+        unit_tests(argc, argv);
+        exit(0);
     }
     preProcess();
     compile();
@@ -64,15 +72,23 @@ void compile() {
             c_program_free(cProgram);
             return;
         }
-        struct AsmProgram *asmProgram = c2asm(cProgram);
+        struct IrProgram *irProgram = ast2ir(cProgram);
+        if (configOptTacky) {
+            c_program_print(cProgram);
+            print_ir(irProgram, stdout);
+            c_program_free(cProgram);
+            IrProgram_free(irProgram);
+            return;
+        }
+        struct Amd64Program *asmProgram = ast2amd64(cProgram);
         if (configOptCodegen) {
-            asm_program_emit(asmProgram, stdout);
-            asm_program_free(asmProgram);
+            amd64_program_emit(asmProgram, stdout);
+            amd64_program_free(asmProgram);
             c_program_free(cProgram);
             return;
         }
         FILE *asmf = fopen(asmFname, "w");
-        asm_program_emit(asmProgram, asmf);
+        amd64_program_emit(asmProgram, asmf);
         fclose(asmf);
 
         assembleAndLink();

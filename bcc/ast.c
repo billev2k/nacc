@@ -28,6 +28,8 @@ void c_statement_free(struct CStatement *statement) {
 void c_expression_free(struct CExpression *expression) {
     if (!expression) return;
     // Don't free expression's 'value'; owned by global name table.
+    // But if there is a wrapped expression, free it.
+    if (expression->exp != NULL) c_expression_free(expression->exp);
     free(expression);
 }
 
@@ -53,5 +55,23 @@ void c_statement_print(struct CStatement *statement, int depth) {
     printf("    )\n");
 }
 void expression_print(struct CExpression *expression, int depth) {
-    printf("      Constant(%s)\n", expression->value);
+    for (int i=0; i<depth; ++i) printf("  ");
+    switch (expression->type) {
+        case EXP_CONST_INT:
+            printf("      Constant(%s)\n", expression->value);
+            break;
+        case EXP_NEGATE:
+            printf("      Negate(\n");
+            expression_print(expression->exp, depth+1);
+            for (int i=0; i<depth; ++i) printf("  ");
+            printf("      )\n");
+            break;
+        case EXP_COMPLEMENT:
+            printf("      Complement(\n");
+            expression_print(expression->exp, depth+1);
+            for (int i=0; i<depth; ++i) printf("  ");
+            printf("      )\n");
+            break;
+            break;
+    }
 }

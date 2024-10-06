@@ -10,7 +10,9 @@ enum STMT {
 };
 
 enum EXP {
-    EXP_CONSTANT
+    EXP_CONST_INT,
+    EXP_NEGATE,
+    EXP_COMPLEMENT
 };
 
 struct CFunction;
@@ -36,6 +38,7 @@ extern void c_statement_free(struct CStatement *statement);
 struct CExpression {
     enum EXP type;
     const char *value;
+    struct CExpression *exp;
 };
 extern void c_expression_free(struct CExpression *expression);
 
