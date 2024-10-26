@@ -3,7 +3,7 @@
 //
 
 #include <stdlib.h>
-#include "IR.h"
+#include "ir.h"
 
 DYN_LIST_OF_P_IMPL(IrInstruction)
 

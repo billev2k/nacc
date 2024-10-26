@@ -5,7 +5,7 @@
 #include <stdlib.h>
 #include <ctype.h>
 #include "lexer.h"
-#include "utils.h"
+#include "../utils/utils.h"
 
 #define INITIAL_TOKEN_BUFFER_SIZE 128
 // This is a pretty long line, but generated code can be longer.

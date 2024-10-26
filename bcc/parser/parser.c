@@ -5,8 +5,8 @@
 #include <stdlib.h>
 #include "ast.h"
 #include "parser.h"
-#include "tokens.h"
-#include "lexer.h"
+#include "../lexer/tokens.h"
+#include "../lexer/lexer.h"
 
 
 static struct CProgram * parse_program();

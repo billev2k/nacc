@@ -6,7 +6,7 @@
 #define BCC_PRINT_IR_H
 
 #include <stdio.h>
-#include "IR.h"
+#include "ir.h"
 
 extern void print_ir(struct IrProgram *program, FILE *file);
 

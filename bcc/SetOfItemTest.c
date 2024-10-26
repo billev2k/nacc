@@ -5,7 +5,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include <printf.h>
-#include "utils.h"
+#include "utils/utils.h"
 
 struct set_of_str str_set;
 

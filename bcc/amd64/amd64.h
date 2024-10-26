@@ -6,7 +6,7 @@
 #define BCC_AMD64_H
 
 #include <stdio.h>
-#include "utils.h"
+#include "../utils/utils.h"
 
 enum INST {
     INST_MOV,

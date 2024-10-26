@@ -2,13 +2,13 @@
 #include <string.h>
 #include <stdlib.h>
 
-#include "startup.h"
-#include "lexer.h"
-#include "parser.h"
-#include "ast.h"
-#include "ir2amd64.h"
-#include "ast2ir.h"
-#include "print_ir.h"
+#include "utils/startup.h"
+#include "lexer/lexer.h"
+#include "parser/parser.h"
+#include "parser/ast.h"
+#include "amd64/ir2amd64.h"
+#include "ir/ast2ir.h"
+#include "ir/print_ir.h"
 
 #include "SetOfItemTest.h"
 

@@ -9,7 +9,7 @@
 #define TEST_OPT "--test"
 #define LEX_OPT "--lex"
 #define PARSE_OPT "--parse"
-#define TACKY_OPT "--tacky"
+#define TACKY_OPT "--ir"
 #define CODEGEN_OPT "--codegen"
 #define ASM_OPT "-S"
 

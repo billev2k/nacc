@@ -5,7 +5,7 @@
 #ifndef BCC_IR_H
 #define BCC_IR_H
 
-#include "utils.h"
+#include "../utils/utils.h"
 
 enum IR_OP {
     IR_OP_RET,

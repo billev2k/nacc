@@ -5,7 +5,7 @@
 #ifndef BCC_IR2AMD64_H
 #define BCC_IR2AMD64_H
 
-#include "IR.h"
+#include "../ir/ir.h"
 #include "amd64.h"
 
 extern struct Amd64Program *ir2amd64(struct IrProgram* irProgram);
