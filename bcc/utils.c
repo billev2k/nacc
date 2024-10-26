@@ -33,6 +33,23 @@ void dyn_list_of_p_append_impl(void *v_list, void *item) {
     list->items[list->list_count++] = item;
 }
 
+void dyn_list_of_p_insert_impl(void *v_list, void *new_item, int ixAt) {
+    struct dyn_list_of_p *list = (struct dyn_list_of_p *)v_list;
+    if (list->list_count == list->list_size) {
+        list->list_size = list->list_size ? list->list_size * 2 : 8;
+        void **newInstructions = malloc(
+                list->list_size * sizeof(void *));
+        for (int i = 0; i < list->list_count; ++i)
+            newInstructions[i] = list->items[i];
+        free(list->items);
+        list->items = newInstructions;
+    }
+    for (int i=list->list_count++; i>ixAt; --i) {
+        list->items[i] = list->items[i-1];
+    }
+    list->items[ixAt] = new_item;
+}
+
 ///////////////////////////////////////////////////////////////////////////////
 //
 // Set implementation.

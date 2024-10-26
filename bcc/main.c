@@ -6,7 +6,7 @@
 #include "lexer.h"
 #include "parser.h"
 #include "ast.h"
-#include "ast2amd64.h"
+#include "ir2amd64.h"
 #include "ast2ir.h"
 #include "print_ir.h"
 
@@ -80,7 +80,7 @@ void compile() {
             IrProgram_free(irProgram);
             return;
         }
-        struct Amd64Program *asmProgram = ast2amd64(cProgram);
+        struct Amd64Program *asmProgram = ir2amd64(irProgram);
         if (configOptCodegen) {
             amd64_program_emit(asmProgram, stdout);
             amd64_program_free(asmProgram);

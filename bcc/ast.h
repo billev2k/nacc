@@ -10,9 +10,16 @@ enum STMT {
 };
 
 enum EXP {
+    EXP_CONST,
+    EXP_UNARY,
+};
+
+enum EXP_CONST_TYPE {
     EXP_CONST_INT,
-    EXP_NEGATE,
-    EXP_COMPLEMENT
+};
+enum EXP_UNARY_OP {
+    EXP_UNARY_NEGATE,
+    EXP_UNARY_COMPLEMENT,
 };
 
 struct CFunction;
@@ -37,6 +44,10 @@ extern void c_statement_free(struct CStatement *statement);
 
 struct CExpression {
     enum EXP type;
+    union {
+        enum EXP_CONST_TYPE const_type;
+        enum EXP_UNARY_OP unary_op;
+    };
     const char *value;
     struct CExpression *exp;
 };

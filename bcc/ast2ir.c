@@ -30,7 +30,7 @@ void compile_statement(struct CStatement *statement, struct IrFunction *function
     switch (statement->type) {
         case STMT_RETURN:
             src = compile_expression(statement->expression, function);
-            inst = ir_instruction_new_unary(IR_OP_RET, src, NULL);
+            inst = ir_instruction_new_nonary(IR_OP_RET, src);
             ir_function_append_instruction(function, inst);
             break;
     }
@@ -48,19 +48,27 @@ struct IrValue *compile_expression(struct CExpression *cExpression, struct IrFun
     struct IrValue *src;
     struct IrValue *dst;
     struct IrInstruction *inst;
-    enum IR_OP op;
+    enum IR_UNARY_OP unary_op;
     switch (cExpression->type) {
-        case EXP_CONST_INT:
-            return IrValue_new(IR_VAL_CONST_INT, cExpression->value);
-        case EXP_NEGATE:
-            op = IR_OP_NEGATE;
-            goto emit_unary_op;
-        case EXP_COMPLEMENT:
-            op = IR_OP_COMPLEMENT;
+        case EXP_CONST:
+            switch (cExpression->const_type) {
+                case EXP_CONST_INT:
+                    return IrValue_new(IR_VAL_CONST_INT, cExpression->value);
+            }
+            break;
+        case EXP_UNARY:
+            switch (cExpression->unary_op) {
+                case EXP_UNARY_NEGATE:
+                    unary_op = IR_UNARY_NEGATE;
+                    goto emit_unary_op;
+                case EXP_UNARY_COMPLEMENT:
+                    unary_op = IR_UNARY_COMPLEMENT;
+                    goto emit_unary_op;
+            }
         emit_unary_op:
             src = compile_expression(cExpression->exp, irFunction);
             dst = make_temporary(irFunction);
-            inst = ir_instruction_new_unary(op, src, dst);
+            inst = ir_instruction_new_unary(unary_op, src, dst);
             ir_function_append_instruction(irFunction, inst);
             return dst;
     }

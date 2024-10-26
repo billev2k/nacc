@@ -14,27 +14,32 @@ struct dyn_list_of_p {
 };
 
 extern void dyn_list_of_p_append_impl(void *list, void *item);
+extern void dyn_list_of_p_insert_impl(void *list, void *item, int ix);
 
-#define DYN_LIST_OF_P_DECL(P_TYPE)                      \
-    struct P_TYPE##_list {                              \
-        struct P_TYPE **items;                          \
-        int list_count;                                 \
-        int list_size;                                  \
-    };                                                  \
-    extern void P_TYPE##_list_append(struct P_TYPE##_list *list, struct P_TYPE *newItem); \
+#define DYN_LIST_OF_P_DECL(P_TYPE)                                                                          \
+    struct P_TYPE##_list {                                                                                  \
+        struct P_TYPE **items;                                                                              \
+        int list_count;                                                                                     \
+        int list_size;                                                                                      \
+    };                                                                                                      \
+    extern void P_TYPE##_list_append(struct P_TYPE##_list *list, struct P_TYPE *newItem);                   \
+    extern void P_TYPE##_list_insert(struct P_TYPE##_list *list, struct P_TYPE *newItem, int ixAt);         \
     extern void P_TYPE##_list_free(struct P_TYPE##_list *list);
 
-#define DYN_LIST_OF_P_IMPL(P_TYPE)                      \
-    void P_TYPE##_list_append(struct P_TYPE##_list *list, struct P_TYPE *new_item) { \
-        dyn_list_of_p_append_impl(list, new_item);      \
-    }                                                   \
-    void P_TYPE##_list_free(struct P_TYPE##_list *list) {  \
-        for (int i=0; i<list->list_count; ++i)          \
-            P_TYPE##_free(list->items[i]);              \
-        list->list_count = 0;                           \
-        list->list_size = 0;                            \
-        free(list->items);                              \
-        list->items = NULL;                             \
+#define DYN_LIST_OF_P_IMPL(P_TYPE)                                                                          \
+    void P_TYPE##_list_append(struct P_TYPE##_list *list, struct P_TYPE *new_item) {                        \
+        dyn_list_of_p_append_impl(list, new_item);                                                          \
+    }                                                                                                       \
+    void P_TYPE##_list_insert(struct P_TYPE##_list *list, struct P_TYPE *new_item, int ixAt) {              \
+        dyn_list_of_p_insert_impl(list, new_item, ixAt);                                                    \
+    }                                                                                                       \
+    void P_TYPE##_list_free(struct P_TYPE##_list *list) {                                                   \
+        for (int i=0; i<list->list_count; ++i)                                                              \
+            P_TYPE##_free(list->items[i]);                                                                  \
+        list->list_count = 0;                                                                               \
+        list->list_size = 0;                                                                                \
+        free(list->items);                                                                                  \
+        list->items = NULL;                                                                                 \
     }
 
 #pragma clang diagnostic push

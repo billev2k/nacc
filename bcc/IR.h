@@ -9,8 +9,12 @@
 
 enum IR_OP {
     IR_OP_RET,
-    IR_OP_COMPLEMENT,
-    IR_OP_NEGATE,
+    IR_OP_UNARY,
+};
+
+enum IR_UNARY_OP {
+    IR_UNARY_COMPLEMENT,
+    IR_UNARY_NEGATE,
 };
 
 enum IR_VAL {
@@ -36,12 +40,15 @@ extern void ir_function_append_instruction(struct IrFunction *function, struct I
 
 struct IrInstruction {
     enum IR_OP inst;
+    union {
+        enum IR_UNARY_OP unary_op;
+    };
     struct IrValue *a;
     struct IrValue *b;
     struct IrValue *c;
 };
 extern struct IrInstruction *ir_instruction_new_nonary(enum IR_OP inst, struct IrValue *src);
-extern struct IrInstruction *ir_instruction_new_unary(enum IR_OP inst, struct IrValue *src, struct IrValue *dst);
+extern struct IrInstruction *ir_instruction_new_unary(enum IR_UNARY_OP op, struct IrValue *src, struct IrValue *dst);
 extern void IrInstruction_free(struct IrInstruction *instruction);
 
 struct IrValue {

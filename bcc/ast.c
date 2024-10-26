@@ -57,21 +57,24 @@ void c_statement_print(struct CStatement *statement, int depth) {
 void expression_print(struct CExpression *expression, int depth) {
     for (int i=0; i<depth; ++i) printf("  ");
     switch (expression->type) {
-        case EXP_CONST_INT:
+        case EXP_CONST:
             printf("      Constant(%s)\n", expression->value);
             break;
-        case EXP_NEGATE:
-            printf("      Negate(\n");
-            expression_print(expression->exp, depth+1);
-            for (int i=0; i<depth; ++i) printf("  ");
-            printf("      )\n");
-            break;
-        case EXP_COMPLEMENT:
-            printf("      Complement(\n");
-            expression_print(expression->exp, depth+1);
-            for (int i=0; i<depth; ++i) printf("  ");
-            printf("      )\n");
-            break;
+        case EXP_UNARY:
+            switch (expression->unary_op) {
+                case EXP_UNARY_NEGATE:
+                    printf("      Negate(\n");
+                    expression_print(expression->exp, depth+1);
+                    for (int i=0; i<depth; ++i) printf("  ");
+                    printf("      )\n");
+                    break;
+                case EXP_UNARY_COMPLEMENT:
+                    printf("      Complement(\n");
+                    expression_print(expression->exp, depth+1);
+                    for (int i=0; i<depth; ++i) printf("  ");
+                    printf("      )\n");
+                    break;
+            }
             break;
     }
 }

@@ -46,9 +46,10 @@ struct IrInstruction *ir_instruction_new_nonary(enum IR_OP inst, struct IrValue 
     return instruction;
 }
 
-struct IrInstruction *ir_instruction_new_unary(enum IR_OP inst, struct IrValue *src, struct IrValue *dst) {
+struct IrInstruction *ir_instruction_new_unary(enum IR_UNARY_OP op, struct IrValue *src, struct IrValue *dst) {
     struct IrInstruction *instruction = (struct IrInstruction*)malloc(sizeof(struct IrInstruction));
-    instruction->inst = inst;
+    instruction->inst = IR_OP_UNARY;
+    instruction->unary_op = op;
     instruction->a = src;
     instruction->b = dst;
     return instruction;

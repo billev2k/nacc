@@ -58,13 +58,16 @@ struct CExpression *parse_expression() {
     struct Token next_token = lex_take_token();
     if (next_token.token == TK_CONSTANT) {
         result->value = current_token.text;
-        result->type = EXP_CONST_INT;
+        result->type = EXP_CONST;
+        result->const_type = EXP_CONST_INT;
     } else if (next_token.token == TK_MINUS) {
         result->exp = parse_expression();
-        result->type = EXP_NEGATE;
+        result->type = EXP_UNARY;
+        result->unary_op = EXP_UNARY_NEGATE;
     } else if (next_token.token == TK_COMPLEMENT) {
         result->exp = parse_expression();
-        result->type = EXP_COMPLEMENT;
+        result->type = EXP_UNARY;
+        result->unary_op = EXP_UNARY_COMPLEMENT;
     } else if (next_token.token == TK_L_PAREN) {
         free(result); // No fields set, so simply free it.
         result = parse_expression();

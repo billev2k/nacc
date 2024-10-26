@@ -27,19 +27,23 @@ void print_ir_instruction(struct IrInstruction *instruction, FILE *file) {
             print_ir_value(instruction->a, file);
             fputc('\n', file);
             break;
-        case IR_OP_COMPLEMENT:
-            fputs("    CMPL    ", file);
-            print_ir_value(instruction->a, file);
-            fputs(", ", file);
-            print_ir_value(instruction->b, file);
-            fputc('\n', file);
-            break;
-        case IR_OP_NEGATE:
-            fputs("    NEG     ", file);
-            print_ir_value(instruction->a, file);
-            fputs(", ", file);
-            print_ir_value(instruction->b, file);
-            fputc('\n', file);
+        case IR_OP_UNARY:
+            switch (instruction->unary_op) {
+                case IR_UNARY_COMPLEMENT:
+                    fputs("    CMPL    ", file);
+                    print_ir_value(instruction->a, file);
+                    fputs(", ", file);
+                    print_ir_value(instruction->b, file);
+                    fputc('\n', file);
+                    break;
+                case IR_UNARY_NEGATE:
+                    fputs("    NEG     ", file);
+                    print_ir_value(instruction->a, file);
+                    fputs(", ", file);
+                    print_ir_value(instruction->b, file);
+                    fputc('\n', file);
+                    break;
+            }
             break;
     }
 }
