@@ -1,3 +1,5 @@
+#pragma clang diagnostic push
+#pragma ide diagnostic ignored "misc-no-recursion"
 //
 // Created by Bill Evans on 8/28/24.
 //
@@ -12,10 +14,11 @@
 static struct CProgram * parse_program();
 static struct CFunction * parse_function();
 static struct CStatement * parse_statement();
-static struct CExpression * parse_expression();
+static struct CExpression * parse_expression(int minimum_precedence);
+static struct CExpression * parse_factor();
 
 static int expect(enum TK expected);
-static void fail(void);
+static void fail(const char * msg);
 
 struct CProgram * parser_go(void) {
     struct CProgram *program = parse_program();
@@ -47,33 +50,62 @@ struct CFunction *parse_function() {
 struct CStatement *parse_statement() {
     expect(TK_RETURN);
     struct CStatement *result = (struct CStatement *)malloc(sizeof(struct CStatement));
-    result->expression = parse_expression();
+    result->expression = parse_expression(0);
     result->type = STMT_RETURN;
     expect(TK_SEMI);
     return result;
 }
 
-struct CExpression *parse_expression() {
-    struct CExpression *result = (struct CExpression *) malloc(sizeof(struct CExpression));
+static int get_binop_precedence(enum TK tk) {
+    if (!TK_IS_BINOP(tk)) return -1;
+    enum AST_BINARY_OP binop = TK_GET_BINOP(tk);
+    int precedence = AST_BINARY_PRECEDENCE[binop];
+    return precedence;
+}
+
+static enum AST_BINARY_OP parse_binop() {
+    struct Token token = lex_take_token();
+    if (!TK_IS_BINOP(token.token)) {
+        fprintf(stderr, "Expected binary-op but got %s\n", token.text);
+        exit(1);
+    }
+    enum AST_BINARY_OP binop = TK_GET_BINOP(token.token);
+    return binop;
+}
+
+struct CExpression *parse_expression(int minimum_precedence) {
+    struct CExpression* left_exp = parse_factor();
+    struct Token next_token = lex_peek_token();
+    int op_precedence;
+    while (TK_IS_BINOP(next_token.token) && (op_precedence=get_binop_precedence(next_token.token)) >= minimum_precedence) {
+        enum AST_BINARY_OP binary_op = parse_binop();
+        struct CExpression* right_exp = parse_expression(op_precedence+1);
+        left_exp = c_expression_new_binop(binary_op, left_exp, right_exp);
+        next_token = lex_peek_token();
+    }
+    return left_exp;
+}
+
+static struct CExpression* parse_factor() {
+    struct CExpression *result;
     struct Token next_token = lex_take_token();
     if (next_token.token == TK_CONSTANT) {
-        result->value = current_token.text;
-        result->type = EXP_CONST;
-        result->const_type = EXP_CONST_INT;
-    } else if (next_token.token == TK_MINUS) {
-        result->exp = parse_expression();
-        result->type = EXP_UNARY;
-        result->unary_op = EXP_UNARY_NEGATE;
-    } else if (next_token.token == TK_COMPLEMENT) {
-        result->exp = parse_expression();
-        result->type = EXP_UNARY;
-        result->unary_op = EXP_UNARY_COMPLEMENT;
+        result = c_expression_new_const(AST_CONST_INT, next_token.text);
+    } else if (next_token.token == TK_HYPHEN) {
+        struct CExpression *operand = parse_factor();
+        result = c_expression_new_unop(AST_UNARY_NEGATE, operand);
+    } else if (next_token.token == TK_TILDE) {
+        struct CExpression *operand = parse_factor();
+        result = c_expression_new_unop(AST_UNARY_COMPLEMENT, operand);
+    } else if (next_token.token == TK_PLUS) {
+        // "+x" is simply "x". Skip the '+' and return the factor.
+        result = parse_factor();
     } else if (next_token.token == TK_L_PAREN) {
-        free(result); // No fields set, so simply free it.
-        result = parse_expression();
+        result = parse_expression(0);
         expect(TK_R_PAREN);
     } else {
-        fail();
+        result = NULL;
+        fail("Malformed factor");
     }
     return result;
 }
@@ -87,7 +119,12 @@ static int expect(enum TK expected) {
     return 1;
 }
 
-static void fail(void) {
-    fprintf(stderr, "Malformed expression");
+#pragma clang diagnostic push
+#pragma ide diagnostic ignored "ConstantParameter"
+static void fail(const char * msg) {
+    fprintf(stderr, "Fail: %s\n", msg);
     exit(1);
 }
+#pragma clang diagnostic pop
+
+#pragma clang diagnostic pop

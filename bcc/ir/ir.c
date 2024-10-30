@@ -5,6 +5,17 @@
 #include <stdlib.h>
 #include "ir.h"
 
+const char * const IR_UNARY_NAMES[] = {
+#define X(a,b) b
+    IR_UNARY_OP_LIST__
+#undef X            
+};
+const char * const IR_BINARY_NAMES[] = {
+#define X(a,b) b
+        IR_BINARY_OP_LIST__
+#undef X
+};
+
 DYN_LIST_OF_P_IMPL(IrInstruction)
 
 struct IrProgram * ir_program_new() {
@@ -55,11 +66,25 @@ struct IrInstruction *ir_instruction_new_unary(enum IR_UNARY_OP op, struct IrVal
     return instruction;
 }
 
+struct IrInstruction *ir_instruction_new_binary(enum IR_BINARY_OP op, struct IrValue *src1, struct IrValue *src2, struct IrValue *dst) {
+    struct IrInstruction *instruction = (struct IrInstruction*)malloc(sizeof(struct IrInstruction));
+    instruction->inst = IR_OP_BINARY;
+    instruction->binary_op = op;
+    instruction->a = src1;
+    instruction->b = src2;
+    instruction->c = dst;
+    return instruction;
+}
+
 /**
  * Releases the memory associated with an IrInstruction.
  * @param value the IrInstruction to be freed.
  */
 void IrInstruction_free(struct IrInstruction *instruction) {
+    // TODO: FIX LEAK!
+    //    if (instruction->a) ir_value_free(instruction->a);
+//    if (instruction->b) ir_value_free(instruction->b);
+//    if (instruction->c) ir_value_free(instruction->c);
     free(instruction);
 }
 
@@ -70,7 +95,7 @@ void IrInstruction_free(struct IrInstruction *instruction) {
  *      must have a lifetime greater than the IrValue).
  * @return A pointer to the new IrValue.
  */
-struct IrValue * IrValue_new(enum IR_VAL valType, const char *valText) {
+struct IrValue * ir_value_new(enum IR_VAL valType, const char *valText) {
     struct IrValue * result = (struct IrValue *)malloc(sizeof(struct IrValue));
     result->type = valType;
     result->text = valText;
@@ -81,7 +106,7 @@ struct IrValue * IrValue_new(enum IR_VAL valType, const char *valText) {
  * Releases the memory associated with an IrValue.
  * @param value the IrValue to be freed.
  */
-void IrValue_free(struct IrValue *value) {
+void ir_value_free(struct IrValue *value) {
     free(value);
 }
 

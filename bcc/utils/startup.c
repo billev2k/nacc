@@ -26,6 +26,8 @@ int configOptCodegen = 0;
 // if 1, create assembly output; don't assemble or link
 int configOptAsm = 0;
 
+int traceAstMem = 1;
+
 // Name of the input file (.c file)
 char const *inputFname;
 // Name of the output file(s) (constructed from input file name)

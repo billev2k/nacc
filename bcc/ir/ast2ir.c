@@ -3,6 +3,7 @@
 //
 
 #include <stdio.h>
+#include "../parser/ast.h"
 #include "ast2ir.h"
 
 static struct IrFunction *compile_function(struct CFunction *cFunction);
@@ -46,29 +47,31 @@ void compile_statement(struct CStatement *statement, struct IrFunction *function
  */
 struct IrValue *compile_expression(struct CExpression *cExpression, struct IrFunction *irFunction) { // NOLINT(*-no-recursion)
     struct IrValue *src;
+    struct IrValue *src2;
     struct IrValue *dst;
     struct IrInstruction *inst;
     enum IR_UNARY_OP unary_op;
+    enum IR_BINARY_OP binary_op;
     switch (cExpression->type) {
-        case EXP_CONST:
+        case AST_EXP_CONST:
             switch (cExpression->const_type) {
-                case EXP_CONST_INT:
-                    return IrValue_new(IR_VAL_CONST_INT, cExpression->value);
+                case AST_CONST_INT:
+                    return ir_value_new(IR_VAL_CONST_INT, cExpression->value);
             }
             break;
-        case EXP_UNARY:
-            switch (cExpression->unary_op) {
-                case EXP_UNARY_NEGATE:
-                    unary_op = IR_UNARY_NEGATE;
-                    goto emit_unary_op;
-                case EXP_UNARY_COMPLEMENT:
-                    unary_op = IR_UNARY_COMPLEMENT;
-                    goto emit_unary_op;
-            }
-        emit_unary_op:
-            src = compile_expression(cExpression->exp, irFunction);
+        case AST_EXP_UNOP:
+            unary_op = AST_TO_IR_UNARY[cExpression->unary_op];
+            src = compile_expression(cExpression->operand, irFunction);
             dst = make_temporary(irFunction);
             inst = ir_instruction_new_unary(unary_op, src, dst);
+            ir_function_append_instruction(irFunction, inst);
+            return dst;
+        case AST_EXP_BINOP:
+            binary_op = AST_TO_IR_BINARY[cExpression->binary_op];
+            src = compile_expression(cExpression->left, irFunction);
+            src2 = compile_expression(cExpression->right, irFunction);
+            dst = make_temporary(irFunction);
+            inst = ir_instruction_new_binary(binary_op, src, src2, dst);
             ir_function_append_instruction(irFunction, inst);
             return dst;
     }
@@ -91,7 +94,7 @@ struct IrValue * make_temporary(struct IrFunction *function) {
     if (counter == 0) tmp_vars_init();
     sprintf(name_buf, "%.100s.tmp.%d", function->name, ++counter);
     const char *tmp_name = tmp_vars_insert(name_buf);
-    struct IrValue *result = IrValue_new(IR_VAL_ID, tmp_name);
+    struct IrValue *result = ir_value_new(IR_VAL_ID, tmp_name);
     return result;
 }
 

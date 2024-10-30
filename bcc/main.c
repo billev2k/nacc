@@ -11,6 +11,7 @@
 #include "ir/print_ir.h"
 
 #include "SetOfItemTest.h"
+#include "parser/print_ast.h"
 
 void preProcess();
 

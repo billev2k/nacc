@@ -12,6 +12,8 @@ extern int configOptTacky;
 extern int configOptCodegen;
 extern int configOptAsm;
 
+extern int traceAstMem;
+
 extern char const *inputFname;
 extern char const *ppFname;
 extern char const *asmFname;

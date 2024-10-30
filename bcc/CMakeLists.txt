@@ -15,6 +15,8 @@ add_executable(bcc main.c
         parser/parser.h
         parser/ast.c
         parser/ast.h
+        parser/print_ast.c
+        parser/print_ast.h
         amd64/amd64.c
         amd64/amd64.h
         amd64/ir2amd64.c

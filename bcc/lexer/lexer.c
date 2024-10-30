@@ -5,9 +5,9 @@
 #include <stdlib.h>
 #include <ctype.h>
 #include "lexer.h"
+#include "../parser/ast.h"
 #include "../utils/utils.h"
 
-#define INITIAL_TOKEN_BUFFER_SIZE 128
 // This is a pretty long line, but generated code can be longer.
 #define INITIAL_LINE_BUFFER_SIZE 512
 
@@ -25,8 +25,13 @@ const char *token_end;
 struct Token current_token;
 
 const char *token_names[NUM_TOKEN_TYPES] = {
-#define X(a,b) b
+#define X(a,b,c) b
     TOKENS__
+#undef X
+};
+enum TOKEN_FLAGS TOKEN_FLAGS[] = {
+#define X(a,b,c) c
+        TOKENS__
 #undef X
 };
 
@@ -36,16 +41,14 @@ int atEOF = 1;
 
 // Forwards
 
-void tokens_set_init(void);
-const char * tokens_set_insert(const char *str);
+static void tokens_set_init(void);
+static const char * tokens_set_insert(const char *str);
 int tokens_set_contains(const char *str);
 static int read_next_line(void);
 // lex a numeric token_text
-enum TK numericToken(void);
+static enum TK numericToken(void);
 // lex a word token_text (keyword or identifier)
-enum TK wordToken(void);
-// append a character to the token_text buffer.
-void storeCh(int intCh);
+static enum TK wordToken(void);
 
 
 /**
@@ -83,15 +86,34 @@ const char *lex_token_name(enum TK token) {
     return token_names[token];
 }
 
-enum TK internal_take_token(void);
+static struct Token internal_take_token(void);
+static enum TK tokenizer(void);
+
+struct Token readahead;
+int have_readahead = 0;
 
 struct Token lex_peek_token(void) {
-    fprintf(stderr, "peek token NYI\n");
-    exit(-1);
+    if (!have_readahead) {
+        readahead = internal_take_token();
+        have_readahead = 1;
+    }
+    printf("Peek token (%d) %s\n", readahead.token, readahead.text);
+    return readahead;
 }
 
 struct Token lex_take_token(void) {
-    enum TK tk = internal_take_token();
+    if (have_readahead) {
+        have_readahead = 0;
+        printf("Take ra token (%d) %s\n", readahead.token, readahead.text);
+        return readahead;
+    }
+    struct Token token = internal_take_token();
+    printf("Take token (%d) %s\n", token.token, token.text);
+    return token;
+}
+
+static struct Token internal_take_token(void) {
+    enum TK tk = tokenizer();
     current_token.token = tk;
     if (tk == TK_ID || tk == TK_CONSTANT) {
         char saved = *token_end;
@@ -108,7 +130,7 @@ struct Token lex_take_token(void) {
  * Gets the next token_text from the input stream.
  * @return the token_text, or TK_EOF when no more.
  */
-enum TK internal_take_token(void) {
+static enum TK tokenizer(void) {
     // Skip whitespace. At the end of line, read another line.
     while (isspace(*pBuffer) || *pBuffer=='\0') {
         if (*pBuffer == '\0') {
@@ -153,9 +175,14 @@ enum TK internal_take_token(void) {
         case ';':
             ++pBuffer;
             return TK_SEMI;
-        case '~':
+        case '+':
             ++pBuffer;
-            return TK_COMPLEMENT;
+            if (*pBuffer+1 == '+') {
+                ++pBuffer;
+                ++token_end;
+                return TK_INCREMENT;
+            }
+            return TK_PLUS;
         case '-': {
             ++pBuffer;
             if (*pBuffer+1 == '-') {
@@ -163,8 +190,45 @@ enum TK internal_take_token(void) {
                 ++token_end;
                 return TK_DECREMENT;
             }
-            return TK_MINUS;
+            return TK_HYPHEN;
         }
+        case '*':
+            ++pBuffer;
+            return TK_ASTERISK;
+        case '/':
+            ++pBuffer;
+            return TK_SLASH;
+        case '%':
+            ++pBuffer;
+            return TK_PERCENT;
+        case '&':
+            ++pBuffer;
+            return TK_AMPERSAND;
+        case '|':
+            ++pBuffer;
+            return TK_BAR;
+        case '^':
+            ++pBuffer;
+            return TK_CARET;
+        case '<':
+            ++pBuffer;
+            if (*pBuffer+1 == '<') {
+                ++pBuffer;
+                ++token_end;
+                return TK_LSHIFT;
+            }
+            return TK_L_ANGLE;
+        case '>':
+            ++pBuffer;
+            if (*pBuffer+1 == '>') {
+                ++pBuffer;
+                ++token_end;
+                return TK_RSHIFT;
+            }
+            return TK_R_ANGLE;
+        case '~':
+            ++pBuffer;
+            return TK_TILDE;
         default:
             ++pBuffer;
             return TK_UNKNOWN;

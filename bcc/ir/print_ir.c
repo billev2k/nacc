@@ -4,6 +4,8 @@
 
 #include "print_ir.h"
 
+#define inst_fmt "    %-8s"
+
 static void print_ir_function(struct IrFunction *function, FILE *file);
 static void print_ir_instruction(struct IrInstruction *instruction, FILE *file);
 static void print_ir_value(struct IrValue *value, FILE *file);
@@ -28,22 +30,20 @@ void print_ir_instruction(struct IrInstruction *instruction, FILE *file) {
             fputc('\n', file);
             break;
         case IR_OP_UNARY:
-            switch (instruction->unary_op) {
-                case IR_UNARY_COMPLEMENT:
-                    fputs("    CMPL    ", file);
-                    print_ir_value(instruction->a, file);
-                    fputs(", ", file);
-                    print_ir_value(instruction->b, file);
-                    fputc('\n', file);
-                    break;
-                case IR_UNARY_NEGATE:
-                    fputs("    NEG     ", file);
-                    print_ir_value(instruction->a, file);
-                    fputs(", ", file);
-                    print_ir_value(instruction->b, file);
-                    fputc('\n', file);
-                    break;
-            }
+            fprintf(file, inst_fmt, IR_UNARY_NAMES[instruction->unary_op]);
+            print_ir_value(instruction->a, file);
+            fputs(", ", file);
+            print_ir_value(instruction->b, file);
+            fputc('\n', file);
+            break;
+        case IR_OP_BINARY:
+            fprintf(file, inst_fmt, IR_BINARY_NAMES[instruction->binary_op]);
+            print_ir_value(instruction->a, file);
+            fputs(", ", file);
+            print_ir_value(instruction->b, file);
+            fputs(", ", file);
+            print_ir_value(instruction->c, file);
+            fputc('\n', file);
             break;
     }
 }

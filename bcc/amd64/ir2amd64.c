@@ -86,6 +86,8 @@ static int compile_instruction(struct Amd64Function *asmFunction, struct IrInstr
             }
             amd64_function_append_instruction(asmFunction, inst);
             break;
+        case IR_OP_BINARY:
+            break;
     }
     return 1;
 }
@@ -135,9 +137,9 @@ static int allocate_pseudo_registers(struct Amd64Function* function) {
 }
 
 /**
- * Fixes up pseudo-registers in an instruction operand.
+ * Fixes up pseudo-registers in an instruction factor.
  * @param locations - a set of previously assigned offsets for pseudo-registers.
- * @param operand - the operand to be fixed.
+ * @param operand - the factor to be fixed.
  * @param previously_allocated - number of bytes already allocated in the functions frame.
  * @return number of bytes allocated for this pseudo-registers.
  */
