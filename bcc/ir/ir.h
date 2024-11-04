@@ -27,7 +27,7 @@ extern const char * const IR_UNARY_NAMES[];
     X(ADD,          "ADD"),             \
     X(SUBTRACT,     "SUB"),             \
     X(MULTIPLY,     "MULT"),            \
-    X(DIVIDE,       "DIV"),             \
+    X(DIVIDE,       "IDIV"),            \
     X(REMAINDER,    "MOD"),             \
     X(OR,           "OR"),              \
     X(AND,          "AND"),             \

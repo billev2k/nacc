@@ -7,6 +7,7 @@
 #include "lexer.h"
 #include "../parser/ast.h"
 #include "../utils/utils.h"
+#include "../utils/startup.h"
 
 // This is a pretty long line, but generated code can be longer.
 #define INITIAL_LINE_BUFFER_SIZE 512
@@ -97,25 +98,25 @@ struct Token lex_peek_token(void) {
         readahead = internal_take_token();
         have_readahead = 1;
     }
-    printf("Peek token (%d) %s\n", readahead.token, readahead.text);
+    if (traceTokens) printf("Peek token (%d) %s\n", readahead.token, readahead.text);
     return readahead;
 }
 
 struct Token lex_take_token(void) {
     if (have_readahead) {
         have_readahead = 0;
-        printf("Take ra token (%d) %s\n", readahead.token, readahead.text);
+        if (traceTokens) printf("Take ra token (%d) %s\n", readahead.token, readahead.text);
         return readahead;
     }
     struct Token token = internal_take_token();
-    printf("Take token (%d) %s\n", token.token, token.text);
+    if (traceTokens) printf("Take token (%d) %s\n", token.token, token.text);
     return token;
 }
 
 static struct Token internal_take_token(void) {
     enum TK tk = tokenizer();
     current_token.token = tk;
-    if (tk == TK_ID || tk == TK_CONSTANT) {
+    if (tk == TK_ID || tk == TK_LITERAL) {
         char saved = *token_end;
         *(char *) token_end = '\0';  // const_cast<char*>()
         current_token.text = tokens_set_insert(token_begin);
@@ -265,7 +266,7 @@ enum TK numericToken(void) {
     if (isalpha(*pBuffer) || *pBuffer=='_') {
         return TK_UNKNOWN;
     }
-    return TK_CONSTANT;
+    return TK_LITERAL;
 }
 
 struct set_of_str token_strings;

@@ -3,12 +3,23 @@
 //
 
 #include <stdlib.h>
+#include <string.h>
 #include "amd64.h"
 
 struct Amd64Operand amd64_operand_none = {.operand_type = OPERAND_NONE};
 char const * register_names[] = {
 #define X(r,n) n
         REGISTERS__
+#undef X
+};
+const char * const instruction_names[] = {
+#define X(a,b,c) b
+    INSTRUCTION_LIST__
+#undef X
+};
+const enum INSTRUCTION_FLAGS instruction_flags[] = {
+#define X(a,b,c) c
+    INSTRUCTION_LIST__
 #undef X
 };
 
@@ -83,77 +94,3 @@ struct Amd64Operand amd64_operand_stack(int offset) {
     return stack_operand;
 };
 
-static int amd64_function_print(struct Amd64Function *amd64Function, FILE *out);
-void amd64_program_emit(struct Amd64Program *amd64Program, FILE *out) {
-    amd64_function_print(amd64Program->function, out);
-}
-
-#define inst_fmt "       %-8s"
-
-static int amd64_instruction_print(struct Amd64Instruction *inst, FILE *out);
-static int amd64_function_print(struct Amd64Function *amd64Function, FILE *out) {
-    fprintf(out, "       .globl _%s\n", amd64Function->name);
-    fprintf(out, "_%s:\n", amd64Function->name);
-    fprintf(out, inst_fmt "%%rbp\n", "pushq");
-    fprintf(out, inst_fmt "%%rsp, %%rbp\n", "movq");
-    if (amd64Function->stack_allocations) {
-        fprintf(out, inst_fmt "$%d, %%rsp\n", "subq", amd64Function->stack_allocations);
-    }
-    for (int ix=0; ix < amd64Function->instructions.list_count; ++ix) {
-        struct Amd64Instruction *inst = amd64Function->instructions.items[ix];
-        amd64_instruction_print(inst, out);
-    }
-    return 1;
-}
-
-
-static int amd64_operand_print(struct Amd64Operand operand, FILE *out);
-static int amd64_instruction_print(struct Amd64Instruction *inst, FILE *out) {
-    switch (inst->instruction) {
-        case INST_MOV:
-            fprintf(out, inst_fmt, "movl");
-            amd64_operand_print(inst->src, out);
-            fprintf(out, ",");
-            amd64_operand_print(inst->dst, out);
-            fprintf(out, "\n");
-            break;
-        case INST_RET:
-            fprintf(out, inst_fmt "%%rbp, %%rsp\n", "movq");
-            fprintf(out, inst_fmt "%%rbp\n", "popq");
-            fprintf(out, "       ret\n");
-            break;
-        case INST_NEG:
-            fprintf(out, "       negl    ");
-            amd64_operand_print(inst->src, out);
-            fprintf(out, "\n");
-            break;
-        case INST_NOT:
-            fprintf(out, "       notl    ");
-            amd64_operand_print(inst->src, out);
-            fprintf(out, "\n");
-            break;
-    }
-    return 1;
-}
-static int amd64_operand_print(struct Amd64Operand operand, FILE *out) {
-    switch (operand.operand_type) {
-        case OPERAND_IMM_LIT:
-            fprintf(out, "$%s", operand.name);
-            break;
-        case OPERAND_IMM_CONST:
-            fprintf(out, "$%d", operand.value);
-            break;
-        case OPERAND_REGISTER:
-            fprintf(out, "%s", register_names[operand.reg]);
-            break;
-        case OPERAND_PSEUDO:
-            fprintf(out, "%%%s", operand.name);
-            break;
-        case OPERAND_STACK:
-            fprintf(out, "%d(%%rbp)", operand.offset);
-            break;
-        case OPERAND_NONE:
-            break;
-    }
-    return 1;
-}

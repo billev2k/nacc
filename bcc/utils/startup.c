@@ -10,6 +10,7 @@
 #define LEX_OPT "--lex"
 #define PARSE_OPT "--parse"
 #define TACKY_OPT "--ir"
+#define TACKY_OPT2 "--tacky"
 #define CODEGEN_OPT "--codegen"
 #define ASM_OPT "-S"
 
@@ -26,7 +27,8 @@ int configOptCodegen = 0;
 // if 1, create assembly output; don't assemble or link
 int configOptAsm = 0;
 
-int traceAstMem = 1;
+int traceAstMem = 0;
+int traceTokens = 0;
 
 // Name of the input file (.c file)
 char const *inputFname;
@@ -71,7 +73,7 @@ int parseConfig(int argc, char **argv) {
         } else if (strcasecmp(argv[i], PARSE_OPT) == 0) {
             ++configOptsFound;
             configOptParse = 1;
-        } else if (strcasecmp(argv[i], TACKY_OPT) == 0) {
+        } else if (strcasecmp(argv[i], TACKY_OPT) == 0 || strcasecmp(argv[i], TACKY_OPT2) == 0) {
             ++configOptsFound;
             configOptTacky = 1;
         } else if (strcasecmp(argv[i], CODEGEN_OPT) == 0) {

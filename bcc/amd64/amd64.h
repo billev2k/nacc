@@ -6,19 +6,34 @@
 #define BCC_AMD64_H
 
 #include <stdio.h>
+#include "../ir/ir.h"
 #include "../utils/utils.h"
+ 
+enum INSTRUCTION_FLAGS {
+    IF_NO_2_REG       = 0x01,
+    IF_SIZED          = 0x02,
+};
+#define IS_NO_2_REG(inst) (instruction_flags[inst]&IF_NO_2_REG?1:0)
+#define IS_SIZED(inst)    (instruction_flags[inst]&IF_SIZED?1:0)
+#define INSTRUCTION_LIST__ \
+    X(MOV,      "mov",          IF_NO_2_REG|IF_SIZED),          \
+    X(RET,      "ret",          0),                             \
+    X(NEG,      "neg",          IF_SIZED),                      \
+    X(NOT,      "not",          IF_SIZED),                      \
+    X(ADD,      "add",          IF_NO_2_REG|IF_SIZED),          \
+    X(SUB,      "sub",          IF_NO_2_REG|IF_SIZED),          \
+    X(MULT,     "imul",         IF_SIZED),                      \
+    X(IDIV,     "idiv",         IF_SIZED),                      \
+    X(CDQ,      "cdq",          0),                             \
+    X(POP,      "pop",          IF_SIZED),
 
 enum INST {
-    INST_MOV,
-    INST_RET,
-    INST_NEG,
-    INST_NOT,
+#define X(a,b,c) INST_##a
+    INSTRUCTION_LIST__
+#undef X
 };
-
-enum UNARY_OP {
-    UNARY_OP_NEGATE,
-    UNARY_OP_NOT,
-};
+extern const enum INSTRUCTION_FLAGS instruction_flags[];
+extern const char * const instruction_names[];
 
 enum OPERAND {
     OPERAND_NONE,
@@ -31,7 +46,9 @@ enum OPERAND {
 
 #define REGISTERS__ \
     X(AX,  "%eax"),         \
+    X(DX,  "%edx"),         \
     X(R10, "%r10d"),        \
+    X(R11, "%r11d"),        \
     X(BP,  "%rbp"),         \
     X(SP,  "%rsp")
 
@@ -40,7 +57,7 @@ enum REGISTER {
     REGISTERS__
 #undef X
 };
-extern char const * register_names_[];
+extern char const * register_names[];
 
 DYN_LIST_OF_P_DECL(Amd64Instruction) // Amd64Instruction_list, ..._append, ..._free
 
@@ -76,8 +93,6 @@ extern struct Amd64Operand amd64_operand_imm_const(int value);
 extern struct Amd64Operand amd64_operand_reg(enum REGISTER reg);
 extern struct Amd64Operand amd64_operand_pseudo(const char* pseudo_name);
 extern struct Amd64Operand amd64_operand_stack(int offset);
-
-
 
 struct Amd64Instruction {
     enum INST instruction;

@@ -51,7 +51,7 @@ void print_ir_instruction(struct IrInstruction *instruction, FILE *file) {
 void print_ir_value(struct IrValue *value, FILE *file) {
     switch (value->type) {
         case IR_VAL_CONST_INT:
-            fprintf(file, "Constant(%s)", value->text);
+            fprintf(file, "$%s", value->text);
             break;
         case IR_VAL_ID:
             fprintf(file, "Var(%s)", value->text);

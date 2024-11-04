@@ -13,6 +13,7 @@ extern int configOptCodegen;
 extern int configOptAsm;
 
 extern int traceAstMem;
+extern int traceTokens;
 
 extern char const *inputFname;
 extern char const *ppFname;
