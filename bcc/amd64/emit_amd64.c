@@ -2,11 +2,9 @@
 // Created by Bill Evans on 11/3/24.
 //
 
-#include <stdlib.h>
 #include <string.h>
 
 #include "amd64.h"
-#include "emit_amd64.h"
 
 static int amd64_function_print(struct Amd64Function *amd64Function, FILE *out);
 void amd64_program_emit(struct Amd64Program *amd64Program, FILE *out) {

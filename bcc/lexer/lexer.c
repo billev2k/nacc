@@ -6,7 +6,6 @@
 #include <ctype.h>
 #include "lexer.h"
 #include "../parser/ast.h"
-#include "../utils/utils.h"
 #include "../utils/startup.h"
 
 // This is a pretty long line, but generated code can be longer.
@@ -178,7 +177,7 @@ static enum TK tokenizer(void) {
             return TK_SEMI;
         case '+':
             ++pBuffer;
-            if (*pBuffer+1 == '+') {
+            if (*pBuffer == '+') {
                 ++pBuffer;
                 ++token_end;
                 return TK_INCREMENT;
@@ -186,7 +185,7 @@ static enum TK tokenizer(void) {
             return TK_PLUS;
         case '-': {
             ++pBuffer;
-            if (*pBuffer+1 == '-') {
+            if (*pBuffer == '-') {
                 ++pBuffer;
                 ++token_end;
                 return TK_DECREMENT;
@@ -213,7 +212,7 @@ static enum TK tokenizer(void) {
             return TK_CARET;
         case '<':
             ++pBuffer;
-            if (*pBuffer+1 == '<') {
+            if (*pBuffer == '<') {
                 ++pBuffer;
                 ++token_end;
                 return TK_LSHIFT;
@@ -221,7 +220,7 @@ static enum TK tokenizer(void) {
             return TK_L_ANGLE;
         case '>':
             ++pBuffer;
-            if (*pBuffer+1 == '>') {
+            if (*pBuffer == '>') {
                 ++pBuffer;
                 ++token_end;
                 return TK_RSHIFT;

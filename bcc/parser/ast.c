@@ -8,7 +8,6 @@
 #include <printf.h>
 
 #include "ast.h"
-#include "../lexer/tokens.h"
 #include "../utils/startup.h"
 
 const char * const ASM_CONST_TYPE_NAMES[] = {

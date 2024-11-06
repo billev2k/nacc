@@ -12,7 +12,7 @@ struct pseudo_register {
     const char *name;
     int offset;
 };
-SET_OF_ITEM_DECL(pseudo_register, struct pseudo_register*);
+SET_OF_ITEM_DECL(pseudo_register, struct pseudo_register*)
 unsigned long pseudo_register_hash(struct pseudo_register* pl) {
     return hash_str(pl->name);
 }
@@ -77,19 +77,18 @@ static enum INST binary_ir_to_inst(enum IR_BINARY_OP ir) {
         case IR_BINARY_MULTIPLY:
             return INST_MULT;
         case IR_BINARY_DIVIDE:
-            break;
         case IR_BINARY_REMAINDER:
             break;
         case IR_BINARY_OR:
-            break;
+            return INST_OR;
         case IR_BINARY_AND:
-            break;
+            return INST_AND;
         case IR_BINARY_XOR:
-            break;
+            return INST_XOR;
         case IR_BINARY_LSHIFT:
-            break;
+            return INST_SAL;
         case IR_BINARY_RSHIFT:
-            break;
+            return INST_SAR;
     }
     return 0;
 }
@@ -139,6 +138,22 @@ static int compile_instruction(struct Amd64Function *asmFunction, struct IrInstr
                     inst = amd64_instruction_new(INST_MOV, result_register, dst);
                     amd64_function_append_instruction(asmFunction, inst);
                     break;
+                case IR_BINARY_LSHIFT:
+                    amd_inst = INST_SAL;
+                    goto shift_common;
+                case IR_BINARY_RSHIFT:
+                    amd_inst = INST_SAR;
+                shift_common:
+                    src = make_operand(irInstruction->a);
+                    src2 = make_operand(irInstruction->b);
+                    dst = make_operand(irInstruction->c);
+                    inst = amd64_instruction_new(INST_MOV, src, amd64_operand_reg(REG_AX));
+                    amd64_function_append_instruction(asmFunction, inst);
+                    inst = amd64_instruction_new(amd_inst, src2, amd64_operand_reg(REG_AX));
+                    amd64_function_append_instruction(asmFunction, inst);
+                    inst = amd64_instruction_new(INST_MOV, amd64_operand_reg(REG_AX), dst);
+                    amd64_function_append_instruction(asmFunction, inst);
+                    break;
                 default:
                     src = make_operand(irInstruction->a);
                     src2 = make_operand(irInstruction->b);
@@ -171,7 +186,7 @@ static struct Amd64Operand make_operand(struct IrValue* value) {
 static void fixup_stack_to_stack_moves(struct Amd64Function* function) {
     for (int i = 0; i < function->instructions.list_count; ++i) {
         struct Amd64Instruction* inst = function->instructions.items[i];
-        if (inst->instruction==INST_MULT && inst->dst.operand_type == OPERAND_STACK) {
+        if (IS_DEST_IS_REG(inst->instruction) && inst->dst.operand_type != OPERAND_REGISTER) {
             // The stack address that we must flow through a scratch register.
             struct Amd64Operand dst = inst->dst;
             inst->dst = amd64_operand_reg(REG_R11);
@@ -186,15 +201,7 @@ static void fixup_stack_to_stack_moves(struct Amd64Function* function) {
         } else if (inst->src.operand_type == OPERAND_STACK &&
             inst->dst.operand_type == OPERAND_STACK) {
             // Fix instructions that can't use two stack locations.
-            /*if (inst->instruction == INST_MOV) {
-                // Look for instructions like "mov -4(%rbp), -8(%rbp)". rewrite them to
-                //   mov     -4(%rbp), %r10d
-                //   mov     %r10d, -8(%rbp)
-                struct Amd64Operand dst = inst->dst;
-                inst->dst = amd64_operand_reg(REG_R10);
-                struct Amd64Instruction *fixup = amd64_instruction_new(INST_MOV, amd64_operand_reg(REG_R10), dst);
-                Amd64Instruction_list_insert(&function->instructions, fixup, ++i);
-            } else*/ if (IS_NO_2_REG(inst->instruction)) {
+            if (IS_NO_2_REG(inst->instruction)) {
                 // Look for "add -4(%rbp),-8(%rbp)" and use a scratch register.
                 // Change the instruction to use the scratch register.
                 struct Amd64Operand src = inst->src;
@@ -211,6 +218,16 @@ static void fixup_stack_to_stack_moves(struct Amd64Function* function) {
                 inst->src = amd64_operand_reg(REG_R10);
                 // Load the scratch register before the instruction.
                 struct Amd64Instruction *fixup = amd64_instruction_new(INST_MOV, src, amd64_operand_reg(REG_R10));
+                Amd64Instruction_list_insert(&function->instructions, fixup, i);
+                i+=1;
+            }
+        } else if (IS_SHIFT_CONST_OR_CL(inst->instruction)) {
+            if (! (inst->src.operand_type == OPERAND_IMM_LIT ||
+                    (inst->src.operand_type==OPERAND_REGISTER && inst->src.reg==REG_CL)) ) {
+                // if the src operand isn't a constant, and isn't CX, use CX.
+                struct Amd64Operand src = inst->src;
+                inst->src = amd64_operand_reg(REG_CL);
+                struct Amd64Instruction *fixup = amd64_instruction_new(INST_MOV, src, amd64_operand_reg(REG_CX));
                 Amd64Instruction_list_insert(&function->instructions, fixup, i);
                 i+=1;
             }

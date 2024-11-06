@@ -10,11 +10,15 @@
 #include "../utils/utils.h"
  
 enum INSTRUCTION_FLAGS {
-    IF_NO_2_REG       = 0x01,
-    IF_SIZED          = 0x02,
+    IF_NO_2_REG             = 0x01,
+    IF_SIZED                = 0x02,
+    IF_DEST_IS_REG          = 0x04,
+    IF_SHIFT_CONST_OR_CL   = 0x08,
 };
-#define IS_NO_2_REG(inst) (instruction_flags[inst]&IF_NO_2_REG?1:0)
-#define IS_SIZED(inst)    (instruction_flags[inst]&IF_SIZED?1:0)
+#define IS_NO_2_REG(inst)           (instruction_flags[inst]&IF_NO_2_REG?1:0)
+#define IS_SIZED(inst)              (instruction_flags[inst]&IF_SIZED?1:0)
+#define IS_DEST_IS_REG(inst)        (instruction_flags[inst]&IF_DEST_IS_REG?1:0)
+#define IS_SHIFT_CONST_OR_CL(inst) (instruction_flags[inst]&IF_SHIFT_CONST_OR_CL?1:0)
 #define INSTRUCTION_LIST__ \
     X(MOV,      "mov",          IF_NO_2_REG|IF_SIZED),          \
     X(RET,      "ret",          0),                             \
@@ -22,10 +26,15 @@ enum INSTRUCTION_FLAGS {
     X(NOT,      "not",          IF_SIZED),                      \
     X(ADD,      "add",          IF_NO_2_REG|IF_SIZED),          \
     X(SUB,      "sub",          IF_NO_2_REG|IF_SIZED),          \
-    X(MULT,     "imul",         IF_SIZED),                      \
+    X(MULT,     "imul",         IF_DEST_IS_REG|IF_SIZED),       \
     X(IDIV,     "idiv",         IF_SIZED),                      \
     X(CDQ,      "cdq",          0),                             \
-    X(POP,      "pop",          IF_SIZED),
+    X(POP,      "pop",          IF_SIZED),                      \
+    X(SAL,      "sal",          IF_SHIFT_CONST_OR_CL|IF_SIZED),\
+    X(SAR,      "sar",          IF_SHIFT_CONST_OR_CL|IF_SIZED),\
+    X(AND,      "and",          IF_NO_2_REG|IF_SIZED),          \
+    X(OR,       "or",           IF_NO_2_REG|IF_SIZED),          \
+    X(XOR,      "xor",          IF_NO_2_REG|IF_SIZED),          \
 
 enum INST {
 #define X(a,b,c) INST_##a
@@ -46,6 +55,8 @@ enum OPERAND {
 
 #define REGISTERS__ \
     X(AX,  "%eax"),         \
+    X(CL,  "%cl"),          \
+    X(CX,  "%ecx"),         \
     X(DX,  "%edx"),         \
     X(R10, "%r10d"),        \
     X(R11, "%r11d"),        \
