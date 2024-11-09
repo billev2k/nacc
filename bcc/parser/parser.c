@@ -100,6 +100,9 @@ static struct CExpression* parse_factor() {
     } else if (next_token.token == TK_PLUS) {
         // "+x" is simply "x". Skip the '+' and return the factor.
         result = parse_factor();
+    } else if (next_token.token == TK_L_NOT) {
+        struct CExpression *operand = parse_factor();
+        result = c_expression_new_unop(AST_UNARY_L_NOT, operand);
     } else if (next_token.token == TK_L_PAREN) {
         result = parse_expression(0);
         expect(TK_R_PAREN);

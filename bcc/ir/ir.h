@@ -11,11 +11,17 @@ enum IR_OP {
     IR_OP_RET,
     IR_OP_UNARY,
     IR_OP_BINARY,
+    IR_OP_COPY,
+    IR_OP_JUMP,
+    IR_OP_JUMP_ZERO,
+    IR_OP_JUMP_NZERO,
+    IR_OP_LABEL
 };
 
 #define IR_UNARY_OP_LIST__ \
-    X(NEGATE,       "CMP"),        \
-    X(COMPLEMENT,   "NOT")
+    X(NEGATE,       "neg"),         \
+    X(COMPLEMENT,   "cmpl"),         \
+    X(L_NOT,        "not")
 enum IR_UNARY_OP {
 #define X(a,b) IR_UNARY_##a
     IR_UNARY_OP_LIST__
@@ -33,7 +39,15 @@ extern const char * const IR_UNARY_NAMES[];
     X(AND,          "AND"),             \
     X(XOR,          "XOR"),             \
     X(LSHIFT,       "LSHIFT"),          \
-    X(RSHIFT,       "RSHIFT"),
+    X(RSHIFT,       "RSHIFT"),          \
+    X(L_AND,        "&&"),              \
+    X(L_OR,         "||"),              \
+    X(EQ,           "=="),              \
+    X(NE,           "!="),              \
+    X(LT,           "<"),               \
+    X(LE,           "<="),              \
+    X(GT,           ">"),               \
+    X(GE,           ">="),
 
 enum IR_BINARY_OP {
 #define X(a,b) IR_BINARY_##a
@@ -48,6 +62,11 @@ enum IR_VAL {
 };
 
 DYN_LIST_OF_P_DECL(IrInstruction) // Amd64Instruction_list, ..._append, ..._free
+
+struct IrValue {
+    enum IR_VAL type;
+    const char *text;
+};
 
 struct IrProgram {
     struct IrFunction *function;
@@ -66,23 +85,48 @@ extern void ir_function_append_instruction(struct IrFunction *function, struct I
 struct IrInstruction {
     enum IR_OP inst;
     union {
-        enum IR_UNARY_OP unary_op;
-        enum IR_BINARY_OP binary_op;
+        struct {
+             struct IrValue value;
+        } ret;
+        struct {
+            enum IR_UNARY_OP op;
+            struct IrValue src;
+            struct IrValue dst;
+        } unary;
+        struct {
+            enum IR_BINARY_OP op;
+            struct IrValue src1;
+            struct IrValue src2;
+            struct IrValue dst;
+        } binary;
+        struct {
+            struct IrValue src;
+            struct IrValue dst;
+        } copy;
+        struct {
+            struct IrValue target; // must be "IR_VAL_ID"
+        } jump;
+        struct {
+            struct IrValue cond;
+            struct IrValue target; // must be "IR_VAL_ID"
+        } cjump;
+        struct {
+            struct IrValue label;
+        } label;
     };
-    struct IrValue *a;
-    struct IrValue *b;
-    struct IrValue *c;
 };
-extern struct IrInstruction *ir_instruction_new_nonary(enum IR_OP inst, struct IrValue *src);
-extern struct IrInstruction *ir_instruction_new_unary(enum IR_UNARY_OP op, struct IrValue *src, struct IrValue *dst);
-extern struct IrInstruction *ir_instruction_new_binary(enum IR_BINARY_OP op, struct IrValue *src1, struct IrValue *src2, struct IrValue *dst);
+extern struct IrInstruction* ir_instruction_new_ret(struct IrValue value);
+extern struct IrInstruction *ir_instruction_new_unary(enum IR_UNARY_OP op, struct IrValue src, struct IrValue dst);
+extern struct IrInstruction *ir_instruction_new_binary(enum IR_BINARY_OP op, struct IrValue src1, struct IrValue src2, struct IrValue dst);
+extern struct IrInstruction* ir_instruction_new_copy(struct IrValue src, struct IrValue dst);
+extern struct IrInstruction* ir_instruction_new_jump(struct IrValue target);
+extern struct IrInstruction* ir_instruction_new_jumpz(struct IrValue cond, struct IrValue target);
+extern struct IrInstruction* ir_instruction_new_jumpnz(struct IrValue cond, struct IrValue target);
+extern struct IrInstruction* ir_instruction_new_label(struct IrValue label);
 extern void IrInstruction_free(struct IrInstruction *instruction);
 
-struct IrValue {
-    enum IR_VAL type;
-    const char *text;
-};
-extern struct IrValue * ir_value_new(enum IR_VAL valType, const char *valText);
-extern void ir_value_free(struct IrValue *value);
+extern struct IrValue ir_value_new(enum IR_VAL valType, const char *valText);
+extern struct IrValue ir_value_new_id(const char* id);
+extern struct IrValue ir_value_new_const(const char* text);
 
 #endif //BCC_IR_H

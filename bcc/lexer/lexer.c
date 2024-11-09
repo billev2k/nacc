@@ -203,29 +203,63 @@ static enum TK tokenizer(void) {
             return TK_PERCENT;
         case '&':
             ++pBuffer;
+            if (*pBuffer == '&') {
+                ++pBuffer;
+                ++token_end;
+                return TK_L_AND;
+            }
             return TK_AMPERSAND;
         case '|':
             ++pBuffer;
-            return TK_BAR;
+            if (*pBuffer == '|') {
+                ++pBuffer;
+                ++token_end;
+                return TK_L_OR;
+            }
+            return TK_OR;
         case '^':
             ++pBuffer;
             return TK_CARET;
+        case '!':
+            ++pBuffer;
+            if (*pBuffer == '=') {
+                ++pBuffer;
+                ++token_end;
+                return TK_NE;
+            }
+            return TK_L_NOT;
+        case '=':
+            ++pBuffer;
+            if (*pBuffer == '=') {
+                ++pBuffer;
+                ++token_end;
+                return TK_EQ;
+            }
+            return TK_NE; // TODO: Shoudl be "assign"
         case '<':
             ++pBuffer;
             if (*pBuffer == '<') {
                 ++pBuffer;
                 ++token_end;
                 return TK_LSHIFT;
+            } else if (*pBuffer == '=') {
+                ++pBuffer;
+                ++token_end;
+                return TK_LE;
             }
-            return TK_L_ANGLE;
+            return TK_LT;
         case '>':
             ++pBuffer;
             if (*pBuffer == '>') {
                 ++pBuffer;
                 ++token_end;
                 return TK_RSHIFT;
+            } else if (*pBuffer == '=') {
+                ++pBuffer;
+                ++token_end;
+                return TK_GE;
             }
-            return TK_R_ANGLE;
+            return TK_GT;
         case '~':
             ++pBuffer;
             return TK_TILDE;

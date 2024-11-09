@@ -28,33 +28,40 @@ extern enum TOKEN_FLAGS TOKEN_FLAGS[];
 
 // token ID, print value, corresponding AST UNOP, BINOP
 #define TOKENS__ \
-    X(TK_UNKNOWN, "!! unknown !!",  0),                                      \
-    X(TK_INT, "int",                0),                                      \
-    X(TK_VOID, "void",              0),                                      \
-    X(TK_RETURN, "return",          0),                                      \
-    X(TK_SEMI, ";",                 0),                                      \
-    X(TK_L_PAREN, "(",              0),                                      \
-    X(TK_R_PAREN, ")",              0),                                      \
-    X(TK_L_BRACE, "{",              0),                                      \
-    X(TK_R_BRACE, "}",              0),                                      \
-    X(TK_PLUS, "+",                 TK_BINOP(ADD)),                          \
-    X(TK_HYPHEN, "-",               TK_UNOP(NEGATE) | TK_BINOP(SUBTRACT)),   \
-    X(TK_ASTERISK, "*",             TK_BINOP(MULTIPLY)),                     \
-    X(TK_SLASH, "/",                TK_BINOP(DIVIDE)),                       \
-    X(TK_PERCENT, "%",              TK_BINOP(REMAINDER)),                    \
-    X(TK_AMPERSAND, "&",            TK_BINOP(AND)),                          \
-    X(TK_CARET, "^",                TK_BINOP(XOR)),                          \
-    X(TK_BAR, "|",                  TK_BINOP(OR)),                           \
-    X(TK_L_ANGLE, "<",              0),                                      \
-    X(TK_R_ANGLE, ">",              0),                                      \
-    X(TK_LSHIFT, "<<",              TK_BINOP(LSHIFT)),                       \
-    X(TK_RSHIFT, ">>",              TK_BINOP(RSHIFT)),                       \
-    X(TK_INCREMENT, "++",           0),                                      \
-    X(TK_DECREMENT, "--",           0),                                      \
-    X(TK_TILDE, "~",                TK_UNOP(COMPLEMENT)),                    \
-    X(TK_ID, "an identifier",       0),                                      \
-    X(TK_LITERAL, "a literal",      0),                                      \
-    X(TK_EOF, "eof",                0),
+    X(TK_UNKNOWN,       "!! unknown !!",    0),                                      \
+    X(TK_INT,           "int",              0),                                      \
+    X(TK_VOID,          "void",             0),                                      \
+    X(TK_RETURN,        "return",           0),                                      \
+    X(TK_SEMI,          ";",                0),                                      \
+    X(TK_L_PAREN,       "(",                0),                                      \
+    X(TK_R_PAREN,       ")",                0),                                      \
+    X(TK_L_BRACE,       "{",                0),                                      \
+    X(TK_R_BRACE,       "}",                0),                                      \
+    X(TK_PLUS,          "+",                TK_BINOP(ADD)),                          \
+    X(TK_HYPHEN,        "-",                TK_UNOP(NEGATE) | TK_BINOP(SUBTRACT)),   \
+    X(TK_ASTERISK,      "*",                TK_BINOP(MULTIPLY)),                     \
+    X(TK_SLASH,         "/",                TK_BINOP(DIVIDE)),                       \
+    X(TK_PERCENT,       "%",                TK_BINOP(REMAINDER)),                    \
+    X(TK_AMPERSAND,     "&",                TK_BINOP(AND)),                          \
+    X(TK_CARET,         "^",                TK_BINOP(XOR)),                          \
+    X(TK_OR,            "|",                TK_BINOP(OR)),                           \
+    X(TK_L_AND,         "&&",               TK_BINOP(L_AND)),                        \
+    X(TK_L_OR,          "||",               TK_BINOP(L_OR)),                         \
+    X(TK_EQ,            "==",               TK_BINOP(EQ)),                           \
+    X(TK_NE,            "!=",               TK_BINOP(NE)),                           \
+    X(TK_LT,            "<",                TK_BINOP(LT)),                           \
+    X(TK_GT,            ">",                TK_BINOP(GT)),                           \
+    X(TK_LE,            "<=",               TK_BINOP(LE)),                           \
+    X(TK_GE,            ">=",               TK_BINOP(GE)),                           \
+    X(TK_LSHIFT,        "<<",               TK_BINOP(LSHIFT)),                       \
+    X(TK_RSHIFT,        ">>",               TK_BINOP(RSHIFT)),                       \
+    X(TK_INCREMENT,     "++",               0),                                      \
+    X(TK_DECREMENT,     "--",               0),                                      \
+    X(TK_L_NOT,         "!",                TK_UNOP(L_NOT)),                         \
+    X(TK_TILDE,         "~",                TK_UNOP(COMPLEMENT)),                    \
+    X(TK_ID,            "an identifier",    0),                                      \
+    X(TK_LITERAL,       "a literal",        0),                                      \
+    X(TK_EOF,           "eof",              0),
 
  enum TK {
 #define X(a,b,c) a

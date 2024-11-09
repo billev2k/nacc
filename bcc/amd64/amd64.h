@@ -30,8 +30,8 @@ enum INSTRUCTION_FLAGS {
     X(IDIV,     "idiv",         IF_SIZED),                      \
     X(CDQ,      "cdq",          0),                             \
     X(POP,      "pop",          IF_SIZED),                      \
-    X(SAL,      "sal",          IF_SHIFT_CONST_OR_CL|IF_SIZED),\
-    X(SAR,      "sar",          IF_SHIFT_CONST_OR_CL|IF_SIZED),\
+    X(SAL,      "sal",          IF_SHIFT_CONST_OR_CL|IF_SIZED), \
+    X(SAR,      "sar",          IF_SHIFT_CONST_OR_CL|IF_SIZED), \
     X(AND,      "and",          IF_NO_2_REG|IF_SIZED),          \
     X(OR,       "or",           IF_NO_2_REG|IF_SIZED),          \
     X(XOR,      "xor",          IF_NO_2_REG|IF_SIZED),          \

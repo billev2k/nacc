@@ -37,7 +37,7 @@ SET_OF_ITEM_IMPL(pseudo_register, struct pseudo_register*, setOfPseudoLocationHe
 
 static struct Amd64Function *compile_function(struct IrFunction *irFunction);
 static int compile_instruction(struct Amd64Function *asmFunction, struct IrInstruction *irInstruction);
-static struct Amd64Operand make_operand(struct IrValue* value);
+static struct Amd64Operand make_operand(struct IrValue value);
 static void fixup_stack_to_stack_moves(struct Amd64Function* function);
 static int allocate_pseudo_registers(struct Amd64Function* function);
 static int fixup_pseudo_register(struct set_of_pseudo_register* locations, struct Amd64Operand* operand, int previously_allocated);
@@ -66,7 +66,10 @@ static enum INST unary_ir_to_inst(enum IR_UNARY_OP ir) {
             return INST_NEG;
         case IR_UNARY_COMPLEMENT:
             return INST_NOT;
+        case IR_UNARY_L_NOT:
+            break;
     }
+    return -1;
 }
 static enum INST binary_ir_to_inst(enum IR_BINARY_OP ir) {
     switch (ir) {
@@ -89,6 +92,22 @@ static enum INST binary_ir_to_inst(enum IR_BINARY_OP ir) {
             return INST_SAL;
         case IR_BINARY_RSHIFT:
             return INST_SAR;
+        case IR_BINARY_EQ:
+            break;
+        case IR_BINARY_NE:
+            break;
+        case IR_BINARY_LT:
+            break;
+        case IR_BINARY_GT:
+            break;
+        case IR_BINARY_LE:
+            break;
+        case IR_BINARY_GE:
+            break;
+        case IR_BINARY_L_AND:
+            break;
+        case IR_BINARY_L_OR:
+            break;
     }
     return 0;
 }
@@ -102,7 +121,7 @@ static int compile_instruction(struct Amd64Function *asmFunction, struct IrInstr
     struct Amd64Operand result_register;
     switch (irInstruction->inst) {
         case IR_OP_RET:
-            src = make_operand(irInstruction->a);
+            src = make_operand(irInstruction->ret.value);
             dst = amd64_operand_reg(REG_AX);
             inst = amd64_instruction_new(INST_MOV, src, dst);
             amd64_function_append_instruction(asmFunction, inst);
@@ -110,25 +129,25 @@ static int compile_instruction(struct Amd64Function *asmFunction, struct IrInstr
             amd64_function_append_instruction(asmFunction, inst);
             break;
         case IR_OP_UNARY:
-            src = make_operand(irInstruction->a);
-            dst = make_operand(irInstruction->b);
+            src = make_operand(irInstruction->unary.src);
+            dst = make_operand(irInstruction->unary.dst);
             inst = amd64_instruction_new(INST_MOV, src, dst);
             amd64_function_append_instruction(asmFunction, inst);
-            amd_inst = unary_ir_to_inst(irInstruction->unary_op);
+            amd_inst = unary_ir_to_inst(irInstruction->unary.op);
             inst = amd64_instruction_new(amd_inst, dst, amd64_operand_none);
             amd64_function_append_instruction(asmFunction, inst);
             break;
         case IR_OP_BINARY:
-            switch (irInstruction->binary_op) {
+            src = make_operand(irInstruction->binary.src1);
+            src2 = make_operand(irInstruction->binary.src2);
+            dst = make_operand(irInstruction->binary.dst);
+            switch (irInstruction->binary.op) {
                 case IR_BINARY_DIVIDE:
                     result_register = amd64_operand_reg(REG_AX);
                     goto idiv_mod_common;
                 case IR_BINARY_REMAINDER:
                     result_register = amd64_operand_reg(REG_DX);
                 idiv_mod_common:
-                    src = make_operand(irInstruction->a);
-                    src2 = make_operand(irInstruction->b);
-                    dst = make_operand(irInstruction->c);
                     inst = amd64_instruction_new(INST_MOV, src, amd64_operand_reg(REG_AX));
                     amd64_function_append_instruction(asmFunction, inst);
                     inst = amd64_instruction_new(INST_CDQ, amd64_operand_none, amd64_operand_none);
@@ -144,9 +163,6 @@ static int compile_instruction(struct Amd64Function *asmFunction, struct IrInstr
                 case IR_BINARY_RSHIFT:
                     amd_inst = INST_SAR;
                 shift_common:
-                    src = make_operand(irInstruction->a);
-                    src2 = make_operand(irInstruction->b);
-                    dst = make_operand(irInstruction->c);
                     inst = amd64_instruction_new(INST_MOV, src, amd64_operand_reg(REG_AX));
                     amd64_function_append_instruction(asmFunction, inst);
                     inst = amd64_instruction_new(amd_inst, src2, amd64_operand_reg(REG_AX));
@@ -155,29 +171,36 @@ static int compile_instruction(struct Amd64Function *asmFunction, struct IrInstr
                     amd64_function_append_instruction(asmFunction, inst);
                     break;
                 default:
-                    src = make_operand(irInstruction->a);
-                    src2 = make_operand(irInstruction->b);
-                    dst = make_operand(irInstruction->c);
                     inst = amd64_instruction_new(INST_MOV, src, dst);
                     amd64_function_append_instruction(asmFunction, inst);
-                    amd_inst = binary_ir_to_inst(irInstruction->binary_op);
+                    amd_inst = binary_ir_to_inst(irInstruction->binary.op);
                     inst = amd64_instruction_new(amd_inst, src2, dst);
                     amd64_function_append_instruction(asmFunction, inst);
                     break;
             }
             break;
+        case IR_OP_COPY:
+            break;
+        case IR_OP_JUMP:
+            break;
+        case IR_OP_JUMP_ZERO:
+            break;
+        case IR_OP_JUMP_NZERO:
+            break;
+        case IR_OP_LABEL:
+            break;
     }
     return 1;
 }
 
-static struct Amd64Operand make_operand(struct IrValue* value) {
+static struct Amd64Operand make_operand(struct IrValue value) {
     struct Amd64Operand operand;
-    switch (value->type) {
+    switch (value.type) {
         case IR_VAL_CONST_INT:
-            operand = amd64_operand_imm_literal(value->text);
+            operand = amd64_operand_imm_literal(value.text);
             break;
         case IR_VAL_ID:
-            operand = amd64_operand_pseudo(value->text);
+            operand = amd64_operand_pseudo(value.text);
             break;
     }
     return operand;

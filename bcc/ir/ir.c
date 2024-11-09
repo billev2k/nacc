@@ -50,29 +50,59 @@ void ir_function_append_instruction(struct IrFunction *function, struct IrInstru
     IrInstruction_list_append(&function->body, instruction);
 }
 
-struct IrInstruction *ir_instruction_new_nonary(enum IR_OP inst, struct IrValue *src) {
+static struct IrInstruction* ir_instruction_new(enum IR_OP inst) {
     struct IrInstruction *instruction = (struct IrInstruction*)malloc(sizeof(struct IrInstruction));
     instruction->inst = inst;
-    instruction->a = src;
+    return instruction;
+}
+struct IrInstruction* ir_instruction_new_ret(struct IrValue value) {
+    struct IrInstruction *instruction = ir_instruction_new(IR_OP_RET);
+    instruction->ret.value = value;
     return instruction;
 }
 
-struct IrInstruction *ir_instruction_new_unary(enum IR_UNARY_OP op, struct IrValue *src, struct IrValue *dst) {
-    struct IrInstruction *instruction = (struct IrInstruction*)malloc(sizeof(struct IrInstruction));
-    instruction->inst = IR_OP_UNARY;
-    instruction->unary_op = op;
-    instruction->a = src;
-    instruction->b = dst;
+struct IrInstruction *ir_instruction_new_unary(enum IR_UNARY_OP op, struct IrValue src, struct IrValue dst) {
+    struct IrInstruction *instruction = ir_instruction_new(IR_OP_UNARY);
+    instruction->unary.op = op;
+    instruction->unary.src = src;
+    instruction->unary.dst = dst;
     return instruction;
 }
 
-struct IrInstruction *ir_instruction_new_binary(enum IR_BINARY_OP op, struct IrValue *src1, struct IrValue *src2, struct IrValue *dst) {
-    struct IrInstruction *instruction = (struct IrInstruction*)malloc(sizeof(struct IrInstruction));
-    instruction->inst = IR_OP_BINARY;
-    instruction->binary_op = op;
-    instruction->a = src1;
-    instruction->b = src2;
-    instruction->c = dst;
+struct IrInstruction *ir_instruction_new_binary(enum IR_BINARY_OP op, struct IrValue src1, struct IrValue src2, struct IrValue dst) {
+    struct IrInstruction *instruction = ir_instruction_new(IR_OP_BINARY);
+    instruction->binary.op = op;
+    instruction->binary.src1 = src1;
+    instruction->binary.src2 = src2;
+    instruction->binary.dst = dst;
+    return instruction;
+}
+struct IrInstruction* ir_instruction_new_copy(struct IrValue src, struct IrValue dst) {
+    struct IrInstruction *instruction = ir_instruction_new(IR_OP_COPY);
+    instruction->copy.src = src;
+    instruction->copy.dst = dst;
+    return instruction;
+}
+struct IrInstruction* ir_instruction_new_jump(struct IrValue target) {
+    struct IrInstruction *instruction = ir_instruction_new(IR_OP_JUMP);
+    instruction->jump.target = target;
+    return instruction;
+}
+struct IrInstruction* ir_instruction_new_jumpz(struct IrValue cond, struct IrValue target) {
+    struct IrInstruction *instruction = ir_instruction_new(IR_OP_JUMP_ZERO);
+    instruction->cjump.cond = cond;
+    instruction->cjump.target = target;
+    return instruction;
+}
+struct IrInstruction* ir_instruction_new_jumpnz(struct IrValue cond, struct IrValue target) {
+    struct IrInstruction *instruction = ir_instruction_new(IR_OP_JUMP_NZERO);
+    instruction->cjump.cond = cond;
+    instruction->cjump.target = target;
+    return instruction;
+}
+struct IrInstruction* ir_instruction_new_label(struct IrValue label) {
+    struct IrInstruction *instruction = ir_instruction_new(IR_OP_LABEL);
+    instruction->label.label = label;
     return instruction;
 }
 
@@ -81,32 +111,24 @@ struct IrInstruction *ir_instruction_new_binary(enum IR_BINARY_OP op, struct IrV
  * @param value the IrInstruction to be freed.
  */
 void IrInstruction_free(struct IrInstruction *instruction) {
-    // TODO: FIX LEAK!
-    //    if (instruction->a) ir_value_free(instruction->a);
-//    if (instruction->b) ir_value_free(instruction->b);
-//    if (instruction->c) ir_value_free(instruction->c);
     free(instruction);
 }
 
 /**
- * Allocate and initialize a new IrValue.
+ * Initialize a new IrValue.
  * @param valType The type of value, a member of IR_VAL.
  * @param valText The text representation; a variable name, register name, or constant literal (which
  *      must have a lifetime greater than the IrValue).
- * @return A pointer to the new IrValue.
+ * @return The new IrValue.
  */
-struct IrValue * ir_value_new(enum IR_VAL valType, const char *valText) {
-    struct IrValue * result = (struct IrValue *)malloc(sizeof(struct IrValue));
-    result->type = valType;
-    result->text = valText;
+struct IrValue ir_value_new(enum IR_VAL valType, const char *valText) {
+    struct IrValue result = {.type = valType, .text = valText};
     return result;
 }
 
-/**
- * Releases the memory associated with an IrValue.
- * @param value the IrValue to be freed.
- */
-void ir_value_free(struct IrValue *value) {
-    free(value);
+struct IrValue ir_value_new_id(const char* id) {
+    return ir_value_new(IR_VAL_ID, id);
 }
-
+struct IrValue ir_value_new_const(const char* text) {
+    return ir_value_new(IR_VAL_CONST_INT, text);
+}

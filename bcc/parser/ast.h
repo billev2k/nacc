@@ -26,9 +26,14 @@ enum AST_CONST_TYPE {
 };
 extern const char * const ASM_CONST_TYPE_NAMES[];
 
+// This list also expands to reference items from IR_UNARY_OP_LIST__
+// Every unary operator here must have a corresponding IR unary
+// operator; the converse is not true, IR can support unary ops that
+// C does not need.
 #define AST_UNARY_LIST__ \
-    X(NEGATE,       "-"),           \
-    X(COMPLEMENT,   "~"),
+    X(NEGATE,       "-"),       \
+    X(COMPLEMENT,   "~"),       \
+    X(L_NOT,        "!"),       
 enum AST_UNARY_OP {
 #define X(a,b) AST_UNARY_##a
     AST_UNARY_LIST__
@@ -37,17 +42,32 @@ enum AST_UNARY_OP {
 extern const char * const AST_UNARY_NAMES[];
 extern enum IR_UNARY_OP const AST_TO_IR_UNARY[];
 
+// This list also expands to reference items from IR_BINARY_OP_LIST__
+// Every binary operator here must have a corresponding IR binary
+// operator; the converse is not true, IR can support binary ops that
+// C does not need.
 #define AST_BINARY_LIST__ \
-    X(ADD,        "+",    45),      \
-    X(SUBTRACT,   "-",    45),      \
     X(MULTIPLY,   "*",    50),      \
     X(DIVIDE,     "/",    50),      \
     X(REMAINDER,  "%",    50),      \
+    X(ADD,        "+",    45),      \
+    X(SUBTRACT,   "-",    45),      \
     X(OR,         "|",    20),      \
     X(AND,        "&",    25),      \
     X(XOR,        "^",    23),      \
     X(LSHIFT,     "<<",   40),      \
-    X(RSHIFT,     ">>",   40),
+    X(RSHIFT,     ">>",   40),      \
+    X(LT,         "<",    35),      \
+    X(LE,         "<=",   35),      \
+    X(GT,         ">",    35),      \
+    X(GE,         ">=",   35),      \
+    X(EQ,         "==",   30),      \
+    X(NE,         "!=",   30),      \
+    X(L_AND,      "&&",   10),      \
+    X(L_OR,       "||",    5),      \
+
+
+
 
 enum AST_BINARY_OP {
 #define X(a,b,c) AST_BINARY_##a
