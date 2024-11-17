@@ -11,10 +11,10 @@
 enum TOKEN_FLAGS  {
     TF_UNOP         = 0x00000001,
     TF_BINOP        = 0x00000002,
-    TF_UNOP_MASK    = 0x0000ff00,
-    TF_UNOP_SHIFT   = 8,
-    TF_BINOP_MASK   = 0x00ff0000,
-    TF_BINOP_SHIFT  = 16,
+    TF_UNOP_MASK    = 0x0000ff00,   // Mask for unop operation.
+    TF_UNOP_SHIFT   = 8,            // How much to shift unop operation to move it to LSB position.
+    TF_BINOP_MASK   = 0x00ff0000,   // Mask for the binop flags
+    TF_BINOP_SHIFT  = 16,           // // How much to shift binop operation to move it to LSB position.
 };
 extern enum TOKEN_FLAGS TOKEN_FLAGS[];
 
@@ -26,7 +26,7 @@ extern enum TOKEN_FLAGS TOKEN_FLAGS[];
 #define TK_IS_BINOP(tk) (TOKEN_FLAGS[tk] & TF_BINOP)
 #define TK_GET_BINOP(tk) ((enum AST_BINARY_OP)(TK_IS_BINOP(tk) ? ((TOKEN_FLAGS[tk] & TF_BINOP_MASK)>>TF_BINOP_SHIFT) : -1))
 
-// token ID, print value, corresponding AST UNOP, BINOP
+// token ID, print value, corresponding AST UNOP or BINOP (or both, eg, '-' is negate unop and subtract binop)
 #define TOKENS__ \
     X(TK_UNKNOWN,       "!! unknown !!",    0),                                      \
     X(TK_INT,           "int",              0),                                      \

@@ -4,6 +4,7 @@
 // Created by Bill Evans on 9/2/24.
 //
 
+#include <stddef.h>
 #include <stdlib.h>
 #include <string.h>
 #include "ir2amd64.h"
@@ -38,11 +39,35 @@ SET_OF_ITEM_IMPL(pseudo_register, struct pseudo_register*, setOfPseudoLocationHe
 static struct Amd64Function *compile_function(struct IrFunction *irFunction);
 static int compile_instruction(struct Amd64Function *asmFunction, struct IrInstruction *irInstruction);
 static struct Amd64Operand make_operand(struct IrValue value);
-static void fixup_stack_to_stack_moves(struct Amd64Function* function);
+static void fixup_stack_accesses(struct Amd64Function* function);
 static int allocate_pseudo_registers(struct Amd64Function* function);
 static int fixup_pseudo_register(struct set_of_pseudo_register* locations, struct Amd64Operand* operand, int previously_allocated);
 
+struct Amd64Operand zero = {
+        .operand_type = OPERAND_IMM_LIT,
+        .name = "0"
+};
+struct Amd64Operand one = {
+        .operand_type = OPERAND_IMM_LIT,
+        .name = "1"
+};
+
+static void validate_Amd54Instruction_offsets(void) {
+    int offset = offsetof(struct Amd64Instruction, mov.src);
+    if ((offsetof(struct Amd64Instruction, unary.operand) != offset) != 0 ||
+        (offsetof(struct Amd64Instruction, cmp.operand1) != offset) ||
+        (offsetof(struct Amd64Instruction, idiv.operand) != offset) ||
+        (offsetof(struct Amd64Instruction, jmp.identifier) != offset) ||
+        (offsetof(struct Amd64Instruction, jmpcc.identifier) != offset) ||
+        (offsetof(struct Amd64Instruction, setcc.operand) != offset) ||
+        (offsetof(struct Amd64Instruction, label.identifier) != offset)) {
+        fprintf(stderr, "Internal error: operand offset mismatch in struct Amd64Instruction.\n");
+        exit(1);
+    }
+}
+
 struct Amd64Program *ir2amd64(struct IrProgram* irProgram) {
+    validate_Amd54Instruction_offsets();
     struct Amd64Program *result = amd64_program_new();
     result->function = compile_function(irProgram->function);
     return result;
@@ -56,86 +81,76 @@ static struct Amd64Function *compile_function(struct IrFunction *irFunction) {
     }
     // Allocate the pseudo registers
     function->stack_allocations = allocate_pseudo_registers(function);
-    fixup_stack_to_stack_moves(function);
+    fixup_stack_accesses(function);
     return function;
 }
 
-static enum INST unary_ir_to_inst(enum IR_UNARY_OP ir) {
-    switch (ir) {
-        case IR_UNARY_NEGATE:
-            return INST_NEG;
-        case IR_UNARY_COMPLEMENT:
-            return INST_NOT;
-        case IR_UNARY_L_NOT:
-            break;
-    }
-    return -1;
+static enum UNARY_OP unary_ir_to_inst(enum IR_UNARY_OP ir) {
+    return (enum UNARY_OP) ir;
 }
-static enum INST binary_ir_to_inst(enum IR_BINARY_OP ir) {
-    switch (ir) {
-        case IR_BINARY_ADD:
-            return INST_ADD;
-        case IR_BINARY_SUBTRACT:
-            return INST_SUB;
-        case IR_BINARY_MULTIPLY:
-            return INST_MULT;
-        case IR_BINARY_DIVIDE:
-        case IR_BINARY_REMAINDER:
-            break;
-        case IR_BINARY_OR:
-            return INST_OR;
-        case IR_BINARY_AND:
-            return INST_AND;
-        case IR_BINARY_XOR:
-            return INST_XOR;
-        case IR_BINARY_LSHIFT:
-            return INST_SAL;
-        case IR_BINARY_RSHIFT:
-            return INST_SAR;
+static enum BINARY_OP binary_ir_to_inst(enum IR_BINARY_OP ir) {
+    return (enum BINARY_OP) ir;
+}
+static enum COND_CODE cc_for_binary_op(enum IR_BINARY_OP binary_op) {
+    switch (binary_op) {
         case IR_BINARY_EQ:
-            break;
+            return CC_EQ;
         case IR_BINARY_NE:
-            break;
+            return CC_NE;
         case IR_BINARY_LT:
-            break;
-        case IR_BINARY_GT:
-            break;
+            return CC_LT;
         case IR_BINARY_LE:
-            break;
+            return CC_LE;
+        case IR_BINARY_GT:
+            return CC_GT;
         case IR_BINARY_GE:
-            break;
-        case IR_BINARY_L_AND:
-            break;
-        case IR_BINARY_L_OR:
-            break;
+            return CC_GE;
+        default:
+            return -1;
     }
-    return 0;
-}
+} 
 
 static int compile_instruction(struct Amd64Function *asmFunction, struct IrInstruction *irInstruction) {
-    enum INST amd_inst;
     struct Amd64Instruction *inst;
     struct Amd64Operand src;
     struct Amd64Operand src2;
     struct Amd64Operand dst;
+    struct Amd64Operand immediate;
     struct Amd64Operand result_register;
+    enum COND_CODE cc;
     switch (irInstruction->inst) {
         case IR_OP_RET:
             src = make_operand(irInstruction->ret.value);
             dst = amd64_operand_reg(REG_AX);
-            inst = amd64_instruction_new(INST_MOV, src, dst);
+            inst = amd64_instruction_new_mov(src, dst);
             amd64_function_append_instruction(asmFunction, inst);
-            inst = amd64_instruction_new(INST_RET, amd64_operand_none, amd64_operand_none);
+            inst = amd64_instruction_new_ret();
             amd64_function_append_instruction(asmFunction, inst);
             break;
         case IR_OP_UNARY:
             src = make_operand(irInstruction->unary.src);
             dst = make_operand(irInstruction->unary.dst);
-            inst = amd64_instruction_new(INST_MOV, src, dst);
-            amd64_function_append_instruction(asmFunction, inst);
-            amd_inst = unary_ir_to_inst(irInstruction->unary.op);
-            inst = amd64_instruction_new(amd_inst, dst, amd64_operand_none);
-            amd64_function_append_instruction(asmFunction, inst);
+            switch (irInstruction->unary.op) {
+                case IR_UNARY_NEGATE:
+                case IR_UNARY_COMPLEMENT:
+                    inst = amd64_instruction_new_mov(src, dst);
+                    amd64_function_append_instruction(asmFunction, inst);
+                    inst = amd64_instruction_new_unary((enum UNARY_OP) irInstruction->unary.op, dst);
+                    amd64_function_append_instruction(asmFunction, inst);
+                    break;
+                case IR_UNARY_L_NOT:
+                    // !x => x?0:1
+                    // Cmp(Imm(0), src)
+                    // Mov(Imm(0), dst)
+                    // SetCC(E, dst)
+                    inst = amd64_instruction_new_cmp(zero, src);
+                    amd64_function_append_instruction(asmFunction, inst);
+                    inst = amd64_instruction_new_mov(zero, dst);
+                    amd64_function_append_instruction(asmFunction, inst);
+                    inst = amd64_instruction_new_setcc(CC_EQ, dst);
+                    amd64_function_append_instruction(asmFunction, inst);
+                    break;
+            }
             break;
         case IR_OP_BINARY:
             src = make_operand(irInstruction->binary.src1);
@@ -143,51 +158,90 @@ static int compile_instruction(struct Amd64Function *asmFunction, struct IrInstr
             dst = make_operand(irInstruction->binary.dst);
             switch (irInstruction->binary.op) {
                 case IR_BINARY_DIVIDE:
-                    result_register = amd64_operand_reg(REG_AX);
-                    goto idiv_mod_common;
                 case IR_BINARY_REMAINDER:
-                    result_register = amd64_operand_reg(REG_DX);
-                idiv_mod_common:
-                    inst = amd64_instruction_new(INST_MOV, src, amd64_operand_reg(REG_AX));
+                    result_register = irInstruction->binary.op==IR_BINARY_DIVIDE
+                            ? amd64_operand_reg(REG_AX)
+                            : amd64_operand_reg(REG_DX);
+                    inst = amd64_instruction_new_mov(src, amd64_operand_reg(REG_AX));
                     amd64_function_append_instruction(asmFunction, inst);
-                    inst = amd64_instruction_new(INST_CDQ, amd64_operand_none, amd64_operand_none);
+                    inst = amd64_instruction_new_cdq();
                     amd64_function_append_instruction(asmFunction, inst);
-                    inst = amd64_instruction_new(INST_IDIV, src2, amd64_operand_none);
+                    inst = amd64_instruction_new_idiv(src2);
                     amd64_function_append_instruction(asmFunction, inst);
-                    inst = amd64_instruction_new(INST_MOV, result_register, dst);
+                    inst = amd64_instruction_new_mov(result_register, dst);
                     amd64_function_append_instruction(asmFunction, inst);
                     break;
                 case IR_BINARY_LSHIFT:
-                    amd_inst = INST_SAL;
-                    goto shift_common;
                 case IR_BINARY_RSHIFT:
-                    amd_inst = INST_SAR;
-                shift_common:
-                    inst = amd64_instruction_new(INST_MOV, src, amd64_operand_reg(REG_AX));
+                    inst = amd64_instruction_new_mov(src, amd64_operand_reg(REG_AX));
                     amd64_function_append_instruction(asmFunction, inst);
-                    inst = amd64_instruction_new(amd_inst, src2, amd64_operand_reg(REG_AX));
+                    inst = amd64_instruction_new_binary((enum BINARY_OP) irInstruction->binary.op, src2, amd64_operand_reg(REG_AX));
                     amd64_function_append_instruction(asmFunction, inst);
-                    inst = amd64_instruction_new(INST_MOV, amd64_operand_reg(REG_AX), dst);
+                    inst = amd64_instruction_new_mov(amd64_operand_reg(REG_AX), dst);
                     amd64_function_append_instruction(asmFunction, inst);
                     break;
-                default:
-                    inst = amd64_instruction_new(INST_MOV, src, dst);
+                case IR_BINARY_ADD:
+                case IR_BINARY_SUBTRACT:
+                case IR_BINARY_MULTIPLY:
+                case IR_BINARY_OR:
+                case IR_BINARY_AND:
+                case IR_BINARY_XOR:
+                    inst = amd64_instruction_new_mov(src, dst);
                     amd64_function_append_instruction(asmFunction, inst);
-                    amd_inst = binary_ir_to_inst(irInstruction->binary.op);
-                    inst = amd64_instruction_new(amd_inst, src2, dst);
+                    inst = amd64_instruction_new_binary((enum BINARY_OP) irInstruction->binary.op, src2, dst);
                     amd64_function_append_instruction(asmFunction, inst);
+                    break;
+                case IR_BINARY_EQ:
+                case IR_BINARY_NE:
+                case IR_BINARY_LT:
+                case IR_BINARY_LE:
+                case IR_BINARY_GT:
+                case IR_BINARY_GE:
+                    // x = a < b; becomes cmpl  b,a    (remember how "a - b" becomes "sub  b,a"
+                    //                    setl  x
+                    // a can't be immediate, and setXX only sets one byte, so we need to clear the entire destination.
+                    cc = cc_for_binary_op(irInstruction->binary.op);
+                    inst = amd64_instruction_new_cmp(src2, src);
+                    amd64_function_append_instruction(asmFunction, inst);
+                    inst = amd64_instruction_new_mov(zero, dst);
+                    amd64_function_append_instruction(asmFunction, inst);
+                    inst = amd64_instruction_new_setcc(cc, dst);
+                    amd64_function_append_instruction(asmFunction, inst);
+                    break;
+                case IR_BINARY_L_AND:
+                case IR_BINARY_L_OR:
+                    // internal error; && and || are translated earlier, to implement short circuits
                     break;
             }
             break;
         case IR_OP_COPY:
+            src = make_operand(irInstruction->copy.src);
+            dst = make_operand(irInstruction->copy.dst);
+            inst = amd64_instruction_new_mov(src, dst);
+            amd64_function_append_instruction(asmFunction, inst);
             break;
         case IR_OP_JUMP:
+            dst = make_operand(irInstruction->jump.target);
+            inst = amd64_instruction_new_jmp(dst);
+            amd64_function_append_instruction(asmFunction, inst);
             break;
         case IR_OP_JUMP_ZERO:
-            break;
+            // Cmp(Imm(0), condition)
+            // JmpCC(E, target)
         case IR_OP_JUMP_NZERO:
+            // Cmp(Imm(0), condition)
+            // JmpCC(NE, target)
+            cc = irInstruction->inst==IR_OP_JUMP_ZERO ? CC_EQ : CC_NE;
+            src = make_operand(irInstruction->cjump.value);
+            dst = make_operand(irInstruction->cjump.target);
+            inst = amd64_instruction_new_cmp(zero, src);
+            amd64_function_append_instruction(asmFunction, inst);
+            inst = amd64_instruction_new_jmpcc(cc, dst);
+            amd64_function_append_instruction(asmFunction, inst);
             break;
         case IR_OP_LABEL:
+            inst = amd64_instruction_new_label(make_operand(irInstruction->label.label));
+            amd64_function_append_instruction(asmFunction, inst);
             break;
     }
     return 1;
@@ -202,57 +256,91 @@ static struct Amd64Operand make_operand(struct IrValue value) {
         case IR_VAL_ID:
             operand = amd64_operand_pseudo(value.text);
             break;
+        case IR_VAL_LABEL:
+            operand = amd64_operand_label(value.text);
+            break;
     }
     return operand;
 }
 
-static void fixup_stack_to_stack_moves(struct Amd64Function* function) {
+static int is_multiply(struct Amd64Instruction* inst) {
+    return inst->instruction == INST_BINARY && inst->binary.op == BINARY_OP_MULTIPLY;
+}
+static int is_shift(struct Amd64Instruction* inst) {
+    return inst->instruction == INST_BINARY &&
+            (inst->binary.op == BINARY_OP_LSHIFT || inst->binary.op == BINARY_OP_RSHIFT);
+}
+
+static void fixup_stack_accesses(struct Amd64Function* function) {
     for (int i = 0; i < function->instructions.list_count; ++i) {
         struct Amd64Instruction* inst = function->instructions.items[i];
-        if (IS_DEST_IS_REG(inst->instruction) && inst->dst.operand_type != OPERAND_REGISTER) {
+        
+        if (is_multiply(inst) && inst->binary.operand2.operand_type != OPERAND_REGISTER) {
             // The stack address that we must flow through a scratch register.
-            struct Amd64Operand dst = inst->dst;
-            inst->dst = amd64_operand_reg(REG_R11);
+            struct Amd64Operand operand2 = inst->binary.operand2;
+            inst->binary.operand2 = amd64_operand_reg(REG_R11);
             // Load the scratch register before the mult instruction
-            struct Amd64Instruction *fixup = amd64_instruction_new(INST_MOV, dst, amd64_operand_reg(REG_R11));
+            struct Amd64Instruction *fixup = amd64_instruction_new_mov(operand2, amd64_operand_reg(REG_R11));
             Amd64Instruction_list_insert(&function->instructions, fixup, i);
             // Save the scratch register after the mult instruction
-            fixup = amd64_instruction_new(INST_MOV, amd64_operand_reg(REG_R11), dst);
+            fixup = amd64_instruction_new_mov(amd64_operand_reg(REG_R11), operand2);
             Amd64Instruction_list_insert(&function->instructions, fixup, i+2);
             // Fix up loop index to skip the instruction we've already fixed. Two instructions inserted.
             i+=2;
-        } else if (inst->src.operand_type == OPERAND_STACK &&
-            inst->dst.operand_type == OPERAND_STACK) {
-            // Fix instructions that can't use two stack locations.
-            if (IS_NO_2_REG(inst->instruction)) {
-                // Look for "add -4(%rbp),-8(%rbp)" and use a scratch register.
-                // Change the instruction to use the scratch register.
-                struct Amd64Operand src = inst->src;
-                inst->src = amd64_operand_reg(REG_R10);
+        }
+        else if (inst->instruction == INST_IDIV) {
+            if (inst->idiv.operand.operand_type != OPERAND_REGISTER) {
+                struct Amd64Operand operand = inst->idiv.operand;
+                inst->idiv.operand = amd64_operand_reg(REG_R10);
                 // Load the scratch register before the instruction.
-                struct Amd64Instruction *fixup = amd64_instruction_new(INST_MOV, src, amd64_operand_reg(REG_R10));
+                struct Amd64Instruction *fixup = amd64_instruction_new_mov(operand, amd64_operand_reg(REG_R10));
+                Amd64Instruction_list_insert(&function->instructions, fixup, i);
+                i+=1;
+            }
+        }
+        else if (is_shift(inst)) {
+            if (! (inst->binary.operand1.operand_type == OPERAND_IMM_LIT ||
+                    (inst->binary.operand1.operand_type==OPERAND_REGISTER && inst->binary.operand1.reg==REG_CL)) ) {
+                // if the operand1 operand isn't a constant, and isn't CX, use CX.
+                struct Amd64Operand operand1 = inst->binary.operand1;
+                inst->binary.operand1 = amd64_operand_reg(REG_CL);
+                struct Amd64Instruction *fixup = amd64_instruction_new_mov(operand1, amd64_operand_reg(REG_CX));
+                Amd64Instruction_list_insert(&function->instructions, fixup, i);
+                i+=1;
+            }
+        }
+        else if ((inst->instruction == INST_BINARY || inst->instruction == INST_MOV) &&
+                 inst->binary.operand1.operand_type == OPERAND_STACK &&
+                 inst->binary.operand2.operand_type == OPERAND_STACK) {
+            // Fix instructions that can't use two stack locations.
+            // Look for "add -4(%rbp),-8(%rbp)" and use a scratch register.
+            // Change the instruction to use the scratch register.
+            struct Amd64Operand operand1 = inst->binary.operand1;
+            inst->binary.operand1 = amd64_operand_reg(REG_R10);
+            // Load the scratch register before the instruction.
+            struct Amd64Instruction *fixup = amd64_instruction_new_mov(operand1, amd64_operand_reg(REG_R10));
+            Amd64Instruction_list_insert(&function->instructions, fixup, i);
+            // Fix up loop index to skip the instruction we've already fixed. One instruction inserted.
+            i += 1;
+        } else if (inst->instruction == INST_CMP) {
+            if (inst->cmp.operand1.operand_type == OPERAND_STACK &&
+                    inst->cmp.operand2.operand_type == OPERAND_STACK) {
+                struct Amd64Operand operand1 = inst->cmp.operand1;
+                inst->cmp.operand1 = amd64_operand_reg(REG_R10);
+                // Load the scratch register before the instruction.
+                struct Amd64Instruction *fixup = amd64_instruction_new_mov(operand1, amd64_operand_reg(REG_R10));
                 Amd64Instruction_list_insert(&function->instructions, fixup, i);
                 // Fix up loop index to skip the instruction we've already fixed. One instruction inserted.
-                i+=1;
-            }
-        } else if (inst->instruction == INST_IDIV) {
-            if (inst->src.operand_type != OPERAND_REGISTER) {
-                struct Amd64Operand src = inst->src;
-                inst->src = amd64_operand_reg(REG_R10);
+                i += 1;
+            } else if (inst->cmp.operand2.operand_type == OPERAND_IMM_LIT) {
+                // The second operand of a cmp instruction can't be a literal. Load literals into R11
+                struct Amd64Operand operand2 = inst->cmp.operand2;
+                inst->cmp.operand2 = amd64_operand_reg(REG_R11);
                 // Load the scratch register before the instruction.
-                struct Amd64Instruction *fixup = amd64_instruction_new(INST_MOV, src, amd64_operand_reg(REG_R10));
+                struct Amd64Instruction *fixup = amd64_instruction_new_mov(operand2, amd64_operand_reg(REG_R11));
                 Amd64Instruction_list_insert(&function->instructions, fixup, i);
-                i+=1;
-            }
-        } else if (IS_SHIFT_CONST_OR_CL(inst->instruction)) {
-            if (! (inst->src.operand_type == OPERAND_IMM_LIT ||
-                    (inst->src.operand_type==OPERAND_REGISTER && inst->src.reg==REG_CL)) ) {
-                // if the src operand isn't a constant, and isn't CX, use CX.
-                struct Amd64Operand src = inst->src;
-                inst->src = amd64_operand_reg(REG_CL);
-                struct Amd64Instruction *fixup = amd64_instruction_new(INST_MOV, src, amd64_operand_reg(REG_CX));
-                Amd64Instruction_list_insert(&function->instructions, fixup, i);
-                i+=1;
+                // Fix up loop index to skip the instruction we've already fixed. One instruction inserted.
+                i += 1;
             }
         }
     }
@@ -264,11 +352,13 @@ static int allocate_pseudo_registers(struct Amd64Function* function) {
     int bytes_allocated = 0;
     for (int i=0; i<function->instructions.list_count; ++i) {
         struct Amd64Instruction* inst = function->instructions.items[i];
-        if (inst->src.operand_type == OPERAND_PSEUDO) {
-            bytes_allocated += fixup_pseudo_register(&pseudo_registers, &inst->src, bytes_allocated);
-        }
-        if (inst->dst.operand_type == OPERAND_PSEUDO) {
-            bytes_allocated += fixup_pseudo_register(&pseudo_registers, &inst->dst, bytes_allocated);
+        if (inst->instruction != INST_ALLOC_STACK) {
+            if (inst->binary.operand1.operand_type == OPERAND_PSEUDO) {
+                bytes_allocated += fixup_pseudo_register(&pseudo_registers, &inst->binary.operand1, bytes_allocated);
+            }
+            if (inst->binary.operand2.operand_type == OPERAND_PSEUDO) {
+                bytes_allocated += fixup_pseudo_register(&pseudo_registers, &inst->binary.operand2, bytes_allocated);
+            }
         }
     }
     set_of_pseudo_register_free(&pseudo_registers);

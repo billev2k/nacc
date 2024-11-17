@@ -8,49 +8,101 @@
 #include <stdio.h>
 #include "../ir/ir.h"
 #include "../utils/utils.h"
- 
-enum INSTRUCTION_FLAGS {
-    IF_NO_2_REG             = 0x01,
-    IF_SIZED                = 0x02,
-    IF_DEST_IS_REG          = 0x04,
-    IF_SHIFT_CONST_OR_CL   = 0x08,
-};
-#define IS_NO_2_REG(inst)           (instruction_flags[inst]&IF_NO_2_REG?1:0)
-#define IS_SIZED(inst)              (instruction_flags[inst]&IF_SIZED?1:0)
-#define IS_DEST_IS_REG(inst)        (instruction_flags[inst]&IF_DEST_IS_REG?1:0)
-#define IS_SHIFT_CONST_OR_CL(inst) (instruction_flags[inst]&IF_SHIFT_CONST_OR_CL?1:0)
-#define INSTRUCTION_LIST__ \
-    X(MOV,      "mov",          IF_NO_2_REG|IF_SIZED),          \
-    X(RET,      "ret",          0),                             \
-    X(NEG,      "neg",          IF_SIZED),                      \
-    X(NOT,      "not",          IF_SIZED),                      \
-    X(ADD,      "add",          IF_NO_2_REG|IF_SIZED),          \
-    X(SUB,      "sub",          IF_NO_2_REG|IF_SIZED),          \
-    X(MULT,     "imul",         IF_DEST_IS_REG|IF_SIZED),       \
-    X(IDIV,     "idiv",         IF_SIZED),                      \
-    X(CDQ,      "cdq",          0),                             \
-    X(POP,      "pop",          IF_SIZED),                      \
-    X(SAL,      "sal",          IF_SHIFT_CONST_OR_CL|IF_SIZED), \
-    X(SAR,      "sar",          IF_SHIFT_CONST_OR_CL|IF_SIZED), \
-    X(AND,      "and",          IF_NO_2_REG|IF_SIZED),          \
-    X(OR,       "or",           IF_NO_2_REG|IF_SIZED),          \
-    X(XOR,      "xor",          IF_NO_2_REG|IF_SIZED),          \
 
-enum INST {
-#define X(a,b,c) INST_##a
-    INSTRUCTION_LIST__
+enum INSTRUCTION {
+    INST_MOV,
+    INST_UNARY,
+    INST_BINARY,
+    INST_CMP,
+    INST_IDIV,
+    INST_CDQ,
+    INST_JMP,
+    INST_JMPCC,
+    INST_SETCC,
+    INST_LABEL,
+    INST_ALLOC_STACK,
+    INST_RET,
+};
+
+enum UNARY_OP {
+#define X(a,b) UNARY_OP_##a
+    IR_UNARY_OP_LIST__
 #undef X
 };
-extern const enum INSTRUCTION_FLAGS instruction_flags[];
-extern const char * const instruction_names[];
+
+enum BINARY_OP {
+#define X(a,b) BINARY_OP_##a
+    IR_BINARY_OP_LIST__
+#undef X            
+};
+
+#define COND_CODE_LIST__ \
+    X(EQ,   "eq",   e, E),       \
+    X(NE,   "ne",   ne, NE),      \
+    X(GT,   "gt",   g, G),       \
+    X(GE,   "ge",   ge, GE),      \
+    X(LT,   "lt",   l, L),       \
+    X(LE,   "le",   le, LE),
+
+enum COND_CODE {
+#define X(a,b,c,d) CC_##a
+    COND_CODE_LIST__
+#undef X
+};
+extern const char* const cond_code_suffix[];
+
+// Large enough for any opcode + suffix
+#define OPCODE_BUF_SIZE 8
+#define OPCODE_LIST__ \
+    X(MOV,      "mov"),         \
+    X(RET,      "ret"),         \
+    X(NEG,      "neg"),         \
+    X(NOT,      "not"),         \
+    X(ADD,      "add"),         \
+    X(SUB,      "sub"),         \
+    X(MULT,     "imul"),        \
+    X(IDIV,     "idiv"),        \
+    X(CDQ,      "cdq"),         \
+    X(POP,      "pop"),         \
+    X(SAL,      "sal"),         \
+    X(SAR,      "sar"),         \
+    X(AND,      "and"),         \
+    X(OR,       "or"),          \
+    X(XOR,      "xor"),         \
+    X(CMP,      "cmp"),         \
+    X(JMP,      "jmp"),         \
+    X(JE,       "je"),          \
+    X(JNE,      "jne"),         \
+    X(JL,       "jl"),          \
+    X(JLE,      "jle"),         \
+    X(JG,       "jg"),          \
+    X(JGE,      "jge"),         \
+    X(SETE,     "sete"),        \
+    X(SETNE,    "setne"),       \
+    X(SETL,     "setl"),        \
+    X(SETLE,    "setle"),       \
+    X(SETG,     "setg"),        \
+    X(SETGE,    "setge"),       \
+    \
+
+enum OPCODE {
+#define X(a,b) OPCODE_##a
+    OPCODE_LIST__
+#undef X
+    OPCODE_NONE,
+};
+extern const char * const opcode_names[];
+
+extern const enum OPCODE cond_code_to_jXX[];
+extern const enum OPCODE cond_code_to_setXX[];
 
 enum OPERAND {
     OPERAND_NONE,
     OPERAND_IMM_LIT,
-    OPERAND_IMM_CONST,
     OPERAND_REGISTER,
     OPERAND_PSEUDO,
     OPERAND_STACK,
+    OPERAND_LABEL,
 };
 
 #define REGISTERS__ \
@@ -100,17 +152,78 @@ struct Amd64Operand {
 };
 extern struct Amd64Operand amd64_operand_none;
 extern struct Amd64Operand amd64_operand_imm_literal(const char* value_str);
-extern struct Amd64Operand amd64_operand_imm_const(int value);
 extern struct Amd64Operand amd64_operand_reg(enum REGISTER reg);
 extern struct Amd64Operand amd64_operand_pseudo(const char* pseudo_name);
 extern struct Amd64Operand amd64_operand_stack(int offset);
+extern struct Amd64Operand amd64_operand_label(const char* label);
 
 struct Amd64Instruction {
-    enum INST instruction;
-    struct Amd64Operand src;
-    struct Amd64Operand dst;
+    /**
+     * CRITICAL: The various (first) Amd64Operand members must all occur at
+     * the same offset, for use by fixup_stack_accesses. If keeping these
+     * members in sync becomes a problem, refactor that function.
+     */
+    enum INSTRUCTION instruction;
+    enum OPCODE opcode;
+    union {
+        struct {
+            int unused_subcode__;
+            struct Amd64Operand src;
+            struct Amd64Operand dst;
+        } mov;
+        struct {
+            enum UNARY_OP op;
+            struct Amd64Operand operand;
+        } unary;
+        struct {
+            enum BINARY_OP op;
+            struct Amd64Operand operand1;
+            struct Amd64Operand operand2;
+        } binary;
+        struct {
+            int unused_subcode__;
+            struct Amd64Operand operand1;
+            struct Amd64Operand operand2;
+        } cmp;
+        struct {
+            int unused_subcode__;
+            struct Amd64Operand operand;
+        } idiv;
+        struct {
+            int unused_subcode__;
+            struct Amd64Operand identifier;
+        } jmp;
+        struct {
+            enum COND_CODE cc;
+            struct Amd64Operand identifier;
+        } jmpcc;
+        struct {
+            enum COND_CODE cc;
+            struct Amd64Operand operand;
+        } setcc;
+        struct {
+            int unused_subcode__;
+            struct Amd64Operand identifier;
+        } label;
+        struct {
+            int bytes;
+        } stack;
+    };
 };
-extern struct Amd64Instruction* amd64_instruction_new(enum INST instruction, struct Amd64Operand src, struct Amd64Operand dst);
+extern struct Amd64Instruction* amd64_instruction_new_mov(struct Amd64Operand src, struct Amd64Operand dst);
+extern struct Amd64Instruction* amd64_instruction_new_unary(enum UNARY_OP op, struct Amd64Operand operand);
+extern struct Amd64Instruction* amd64_instruction_new_binary(enum BINARY_OP op, struct Amd64Operand operand1, struct Amd64Operand operand2);
+extern struct Amd64Instruction* amd64_instruction_new_cmp(struct Amd64Operand operand1, struct Amd64Operand operand2);
+extern struct Amd64Instruction* amd64_instruction_new_idiv(struct Amd64Operand operand);
+extern struct Amd64Instruction* amd64_instruction_new_cdq();
+extern struct Amd64Instruction* amd64_instruction_new_jmp(struct Amd64Operand identifier);
+extern struct Amd64Instruction* amd64_instruction_new_jmpcc(enum COND_CODE cc, struct Amd64Operand identifier);
+extern struct Amd64Instruction* amd64_instruction_new_setcc(enum COND_CODE cc, struct Amd64Operand operand);
+extern struct Amd64Instruction* amd64_instruction_new_label(struct Amd64Operand identifier);
+extern struct Amd64Instruction* amd64_instruction_new_alloc_stack(int bytes);
+extern struct Amd64Instruction* amd64_instruction_new_ret();
+
+
 extern void Amd64Instruction_free(struct Amd64Instruction *instruction);
 
 #endif //BCC_AMD64_H

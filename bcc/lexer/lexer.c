@@ -82,6 +82,12 @@ int lex_openFile(char const *fname) {
     return 1;
 }
 
+/**
+ * The name of the given token, like "+" or ">=". Note that the name of an identifier token is not the identifier,
+ * but rather "an identifier".
+ * @param token for which the name is desired.
+ * @return a pointer to the name.
+ */
 const char *lex_token_name(enum TK token) {
     return token_names[token];
 }
@@ -89,9 +95,16 @@ const char *lex_token_name(enum TK token) {
 static struct Token internal_take_token(void);
 static enum TK tokenizer(void);
 
+/**
+ * When it is necessary to look ahead without affecting the "current_token", the "peeked" token is stored here.
+ */
 struct Token readahead;
 int have_readahead = 0;
 
+/**
+ * Peek at the next token without affecting the "current_token".
+ * @return the "next" token.
+ */
 struct Token lex_peek_token(void) {
     if (!have_readahead) {
         readahead = internal_take_token();
@@ -101,29 +114,40 @@ struct Token lex_peek_token(void) {
     return readahead;
 }
 
+/**
+ * Return the next token from the input stream, and advance the token pointer. If the next token
+ * has already been "peeked", returns the peeked token, which becomes the "current_token".
+ * @return the next token.
+ */
 struct Token lex_take_token(void) {
     if (have_readahead) {
         have_readahead = 0;
         if (traceTokens) printf("Take ra token (%d) %s\n", readahead.token, readahead.text);
-        return readahead;
+        current_token = readahead;
+        return current_token;
     }
-    struct Token token = internal_take_token();
-    if (traceTokens) printf("Take token (%d) %s\n", token.token, token.text);
-    return token;
+    current_token = internal_take_token();
+    if (traceTokens) printf("Take token (%d) %s\n", current_token.token, current_token.text);
+    return current_token;
 }
 
+/**
+ * Internal (to the lexer) function to read the next token. May not immediately become the "current_token"
+ * if the parser is looking ahead.
+ * @return the next parsable token.
+ */
 static struct Token internal_take_token(void) {
     enum TK tk = tokenizer();
-    current_token.token = tk;
+    struct Token token = {.token = tk};
     if (tk == TK_ID || tk == TK_LITERAL) {
         char saved = *token_end;
         *(char *) token_end = '\0';  // const_cast<char*>()
-        current_token.text = tokens_set_insert(token_begin);
+        token.text = tokens_set_insert(token_begin);
         *(char *) token_end = saved;
     } else {
-        current_token.text = lex_token_name(tk);
+        token.text = lex_token_name(tk);
     }
-    return current_token;
+    return token;
 }
 
 /**
@@ -156,7 +180,7 @@ static enum TK tokenizer(void) {
         return numericToken();
     }
 
-    // Assume a one-character token.
+    // Assume a one-character token, and adjust if two- or three-character token.
     ++token_end;
     // See what we really have.
     switch (*pBuffer) {
@@ -271,6 +295,7 @@ static enum TK tokenizer(void) {
 
 /**
  * Reads a "word" token_text from the stream.
+ *
  * @return the TK type.
  */
 enum TK wordToken(/*int intCh*/) {
@@ -290,6 +315,11 @@ enum TK wordToken(/*int intCh*/) {
     return TK_ID;
 }
 
+/**
+ * Parse a run of decimal digits.
+ * @return TK_LITERAL if a well-formed number (currently integer), and TK_UNKNOWN if the digit(s) are
+ * prefix to an alpha character or '_'.
+ */
 enum TK numericToken(void) {
     // Only reads decimal constants.
     while (isdigit(*pBuffer))
@@ -316,6 +346,10 @@ const char * tokens_set_insert(const char *str) {
     return set_of_str_insert(&token_strings, str);
 }
 
+/**
+ * Reads the next non-blank line from the input stream. Lines terminate with '\n' or at EOF.
+ * @return non-zero if a line was read, 0 if no more lines.
+ */
 static int read_next_line(void) {
     if (atEOF) return 0;
     char *pBuf = lineBuffer;

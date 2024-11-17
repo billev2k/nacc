@@ -59,14 +59,14 @@ void print_ir_instruction(struct IrInstruction *instruction, FILE *file) {
             break;
         case IR_OP_JUMP_ZERO:
             fprintf(file, inst_fmt, "jz");
-            print_ir_value(instruction->cjump.cond, file);
+            print_ir_value(instruction->cjump.value, file);
             fputs(", ", file);
             print_ir_value(instruction->cjump.target, file);
             fputc('\n', file);
             break;
         case IR_OP_JUMP_NZERO:
             fprintf(file, inst_fmt, "jnz");
-            print_ir_value(instruction->cjump.cond, file);
+            print_ir_value(instruction->cjump.value, file);
             fputs(", ", file);
             print_ir_value(instruction->cjump.target, file);
             fputc('\n', file);
@@ -84,6 +84,7 @@ void print_ir_value(struct IrValue value, FILE *file) {
             fprintf(file, "$%s", value.text);
             break;
         case IR_VAL_ID:
+        case IR_VAL_LABEL:
             fprintf(file, "%s", value.text);
             break;
     }

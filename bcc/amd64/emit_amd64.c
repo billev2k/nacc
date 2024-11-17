@@ -12,19 +12,18 @@ void amd64_program_emit(struct Amd64Program *amd64Program, FILE *out) {
 }
 
 #define inst_fmt "       %-8s"
-static char * inst_op_fmt(enum INST inst, int nbytes, char *dst) {
-    strcpy(dst, instruction_names[inst]);
-    if (IS_SIZED(inst)) {
-        if (nbytes == 4) {
-            strcat(dst, "l");
-        } else if (nbytes == 8) {
-            strcat(dst, "q");
-        }
+static char * inst_op_fmt(enum OPCODE opcode, int nbytes) {
+    static char buf[OPCODE_BUF_SIZE];
+    strcpy(buf, opcode_names[opcode]);
+    if (nbytes == 4) {
+        strcat(buf, "l");
+    } else if (nbytes == 8) {
+        strcat(buf, "q");
     }
-    return dst;
+    return buf;
 }
 
-static int amd64_instruction_print(struct Amd64Instruction *inst, FILE *out);
+static int amd64_instruction_print(struct Amd64Instruction *instruction, FILE *out);
 static int amd64_function_print(struct Amd64Function *amd64Function, FILE *out) {
     fprintf(out, "       .globl _%s\n", amd64Function->name);
     fprintf(out, "_%s:\n", amd64Function->name);
@@ -42,51 +41,83 @@ static int amd64_function_print(struct Amd64Function *amd64Function, FILE *out) 
 }
 
 static int amd64_operand_print(struct Amd64Operand operand, FILE *out);
-static int amd64_instruction_print(struct Amd64Instruction *inst, FILE *out) {
-    char op_buf[12];
-    char op_fmt_buf[12];
-    switch (inst->instruction) {
+static int amd64_instruction_print(struct Amd64Instruction *instruction, FILE *out) {
+    enum OPCODE opcode = instruction->opcode;
+    switch (instruction->instruction) {
         case INST_MOV:
-            fprintf(out, inst_fmt, inst_op_fmt(INST_MOV, 4, op_fmt_buf));
-            amd64_operand_print(inst->src, out);
+            fprintf(out, inst_fmt, inst_op_fmt(opcode, 4));
+            amd64_operand_print(instruction->mov.src, out);
             fprintf(out, ",");
-            amd64_operand_print(inst->dst, out);
+            amd64_operand_print(instruction->mov.dst, out);
             fprintf(out, "\n");
+            break;
+        case INST_UNARY:
+            fprintf(out, inst_fmt, inst_op_fmt(opcode, 4));
+            amd64_operand_print(instruction->unary.operand, out);
+            fprintf(out, "\n");
+            break;
+        case INST_BINARY:
+            fprintf(out, inst_fmt, inst_op_fmt(instruction->opcode, 4));
+            amd64_operand_print(instruction->binary.operand1, out);
+            fprintf(out, ",");
+            amd64_operand_print(instruction->binary.operand2, out);
+            fprintf(out, "\n");
+            break;
+        case INST_CMP:
+            fprintf(out, inst_fmt, inst_op_fmt(instruction->opcode, 4));
+            amd64_operand_print(instruction->cmp.operand1, out);
+            fprintf(out, ",");
+            amd64_operand_print(instruction->cmp.operand2, out);
+            fprintf(out, "\n");
+            break;
+        case INST_IDIV:
+            fprintf(out, inst_fmt, inst_op_fmt(instruction->opcode, 4));
+            amd64_operand_print(instruction->idiv.operand, out);
+            fprintf(out, "\n");
+            break;
+        case INST_CDQ:
+            fprintf(out, inst_fmt "\n", inst_op_fmt(instruction->opcode, 0));
+            break;
+        case INST_JMP:
+            fprintf(out, inst_fmt "%s\n", inst_op_fmt(instruction->opcode, 0), instruction->jmp.identifier.name);
+            break;
+        case INST_JMPCC:
+            fprintf(out, inst_fmt "%s\n", inst_op_fmt(instruction->opcode, 0), instruction->jmpcc.identifier.name);
+            break;
+        case INST_SETCC:
+            fprintf(out, inst_fmt, inst_op_fmt(instruction->opcode, 0));
+            amd64_operand_print(instruction->setcc.operand, out);
+            fprintf(out, "\n");
+            break;
+        case INST_LABEL:
+            fprintf(out, "%s:\n", instruction->label.identifier.name);
+            break;
+        case INST_ALLOC_STACK:
             break;
         case INST_RET:
             fprintf(out, "       # epilog\n");
-            fprintf(out, inst_fmt "%%rbp, %%rsp\n", inst_op_fmt(INST_MOV, 8, op_fmt_buf));
-            fprintf(out, inst_fmt "%%rbp\n", inst_op_fmt(INST_POP, 8, op_fmt_buf));
+            fprintf(out, inst_fmt "%%rbp, %%rsp\n", inst_op_fmt(OPCODE_MOV, 8));
+            fprintf(out, inst_fmt "%%rbp\n", inst_op_fmt(OPCODE_POP, 8));
             fprintf(out, "       ret\n");
             break;
-        default:
-            strcpy(op_buf, instruction_names[inst->instruction]);
-            fprintf(out, inst_fmt, inst_op_fmt(inst->instruction, 4, op_fmt_buf));
-            if (inst->src.operand_type != OPERAND_NONE) {
-                amd64_operand_print(inst->src, out);
-                if (inst->dst.operand_type != OPERAND_NONE) {
-                    fprintf(out, ",");
-                    amd64_operand_print(inst->dst, out);
-                }
-            }
-            fprintf(out, "\n");
-            break;
+
     }
     return 1;
 }
+
 static int amd64_operand_print(struct Amd64Operand operand, FILE *out) {
     switch (operand.operand_type) {
         case OPERAND_IMM_LIT:
             fprintf(out, "$%s", operand.name);
-            break;
-        case OPERAND_IMM_CONST:
-            fprintf(out, "$%d", operand.value);
             break;
         case OPERAND_REGISTER:
             fprintf(out, "%s", register_names[operand.reg]);
             break;
         case OPERAND_PSEUDO:
             fprintf(out, "%%%s", operand.name);
+            break;
+        case OPERAND_LABEL:
+            fprintf(out, "%s", operand.name);
             break;
         case OPERAND_STACK:
             fprintf(out, "%d(%%rbp)", operand.offset);

@@ -88,15 +88,15 @@ struct IrInstruction* ir_instruction_new_jump(struct IrValue target) {
     instruction->jump.target = target;
     return instruction;
 }
-struct IrInstruction* ir_instruction_new_jumpz(struct IrValue cond, struct IrValue target) {
+struct IrInstruction* ir_instruction_new_jumpz(struct IrValue value, struct IrValue target) {
     struct IrInstruction *instruction = ir_instruction_new(IR_OP_JUMP_ZERO);
-    instruction->cjump.cond = cond;
+    instruction->cjump.value = value;
     instruction->cjump.target = target;
     return instruction;
 }
-struct IrInstruction* ir_instruction_new_jumpnz(struct IrValue cond, struct IrValue target) {
+struct IrInstruction* ir_instruction_new_jumpnz(struct IrValue value, struct IrValue target) {
     struct IrInstruction *instruction = ir_instruction_new(IR_OP_JUMP_NZERO);
-    instruction->cjump.cond = cond;
+    instruction->cjump.value = value;
     instruction->cjump.target = target;
     return instruction;
 }

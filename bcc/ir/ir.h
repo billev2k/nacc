@@ -58,7 +58,8 @@ extern const char * const IR_BINARY_NAMES[];
 
 enum IR_VAL {
     IR_VAL_CONST_INT,
-    IR_VAL_ID
+    IR_VAL_ID,
+    IR_VAL_LABEL,
 };
 
 DYN_LIST_OF_P_DECL(IrInstruction) // Amd64Instruction_list, ..._append, ..._free
@@ -104,11 +105,11 @@ struct IrInstruction {
             struct IrValue dst;
         } copy;
         struct {
-            struct IrValue target; // must be "IR_VAL_ID"
+            struct IrValue target; // must be "IR_VAL_LABEL"
         } jump;
         struct {
-            struct IrValue cond;
-            struct IrValue target; // must be "IR_VAL_ID"
+            struct IrValue value;
+            struct IrValue target; // must be "IR_VAL_LABEL"
         } cjump;
         struct {
             struct IrValue label;
@@ -120,8 +121,8 @@ extern struct IrInstruction *ir_instruction_new_unary(enum IR_UNARY_OP op, struc
 extern struct IrInstruction *ir_instruction_new_binary(enum IR_BINARY_OP op, struct IrValue src1, struct IrValue src2, struct IrValue dst);
 extern struct IrInstruction* ir_instruction_new_copy(struct IrValue src, struct IrValue dst);
 extern struct IrInstruction* ir_instruction_new_jump(struct IrValue target);
-extern struct IrInstruction* ir_instruction_new_jumpz(struct IrValue cond, struct IrValue target);
-extern struct IrInstruction* ir_instruction_new_jumpnz(struct IrValue cond, struct IrValue target);
+extern struct IrInstruction* ir_instruction_new_jumpz(struct IrValue value, struct IrValue target);
+extern struct IrInstruction* ir_instruction_new_jumpnz(struct IrValue value, struct IrValue target);
 extern struct IrInstruction* ir_instruction_new_label(struct IrValue label);
 extern void IrInstruction_free(struct IrInstruction *instruction);
 

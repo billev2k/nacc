@@ -178,17 +178,17 @@ static void make_conditional_labels(struct IrFunction *function, struct IrValue*
     if (t) {
         sprintf(name_buf, "%.100s.true.%d", function->name, counter);
         const char *tmp_name = tmp_vars_insert(name_buf);
-        *t = ir_value_new(IR_VAL_ID, tmp_name);
+        *t = ir_value_new(IR_VAL_LABEL, tmp_name);
     }
     if (f) {
         sprintf(name_buf, "%.100s.false.%d", function->name, counter);
         const char *tmp_name = tmp_vars_insert(name_buf);
-        *f = ir_value_new(IR_VAL_ID, tmp_name);
+        *f = ir_value_new(IR_VAL_LABEL, tmp_name);
     }
     if (e) {
         sprintf(name_buf, "%.100s.end.%d", function->name, counter);
         const char *tmp_name = tmp_vars_insert(name_buf);
-        *e = ir_value_new(IR_VAL_ID, tmp_name);
+        *e = ir_value_new(IR_VAL_LABEL, tmp_name);
     }
 }
 
