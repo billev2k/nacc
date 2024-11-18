@@ -11,11 +11,13 @@
 #include "../lexer/lexer.h"
 
 
-static struct CProgram * parse_program();
-static struct CFunction * parse_function();
-static struct CStatement * parse_statement();
+static struct CProgram * parse_program(void);
+static struct CFunction * parse_function(void);
+static struct CBlockItem* parse_block_item(void);
+static struct CDeclaration* parse_declaration(void);
+static struct CStatement * parse_statement(void);
 static struct CExpression * parse_expression(int minimum_precedence);
-static struct CExpression * parse_factor();
+static struct CExpression * parse_factor(void);
 
 static int expect(enum TK expected);
 static void fail(const char * msg);
@@ -40,19 +42,60 @@ struct CFunction *parse_function() {
     expect(TK_VOID);
     expect(TK_R_PAREN);
     expect(TK_L_BRACE);
-    struct CFunction *result = (struct CFunction *)malloc(sizeof(struct CFunction));
-    result->name = name;
-    result->statement = parse_statement();
+    struct CFunction *function = c_function_new(name);
+    struct Token token = lex_peek_token();
+    while (token.token != TK_R_BRACE) {
+        struct CBlockItem* item = parse_block_item();
+        c_function_append_block_item(function, item);
+        token = lex_peek_token();
+    }
     expect(TK_R_BRACE);
+    return function;
+}
+
+struct CBlockItem* parse_block_item() {
+    struct Token token = lex_peek_token();
+    if (token.token == TK_INT) {
+        struct CDeclaration* decl = parse_declaration();
+        return c_block_item_new_decl(decl);
+    } else {
+        struct CStatement* stmt = parse_statement();
+        return c_block_item_new_stmt(stmt);
+    }
+}
+
+struct CDeclaration* parse_declaration() {
+    expect(TK_INT);
+    struct CDeclaration* result;
+    struct Token id = lex_take_token();
+    if (id.token != TK_ID) {
+        fprintf(stderr, "Expected id: %s\n", id.text);
+    }
+    struct Token init = lex_peek_token();
+    if (init.token == TK_ASSIGN) {
+        lex_take_token();
+        struct CExpression* initializer = parse_expression(0);
+        result = c_declaration_new_init(id.text, initializer);
+    } else {
+        result = c_declaration_new(id.text);
+    }
+    expect(TK_SEMI);
     return result;
 }
 
 struct CStatement *parse_statement() {
-    expect(TK_RETURN);
-    struct CStatement *result = (struct CStatement *)malloc(sizeof(struct CStatement));
-    result->expression = parse_expression(0);
-    result->type = STMT_RETURN;
-    expect(TK_SEMI);
+    struct CStatement* result = NULL;
+    struct Token next_token = lex_peek_token();
+    if (next_token.token == TK_RETURN) {
+        lex_take_token();
+        struct CExpression* expression = parse_expression(0);
+        result = c_statement_new_return(expression);
+    } else if (next_token.token != TK_SEMI) {
+        struct CExpression* expression = parse_expression(0);
+        result = c_statement_new_exp(expression);
+    } else {
+        lex_take_token();
+    }
     return result;
 }
 
@@ -78,9 +121,15 @@ struct CExpression *parse_expression(int minimum_precedence) {
     struct Token next_token = lex_peek_token();
     int op_precedence;
     while (TK_IS_BINOP(next_token.token) && (op_precedence=get_binop_precedence(next_token.token)) >= minimum_precedence) {
-        enum AST_BINARY_OP binary_op = parse_binop();
-        struct CExpression* right_exp = parse_expression(op_precedence+1);
-        left_exp = c_expression_new_binop(binary_op, left_exp, right_exp);
+        if (next_token.token == TK_ASSIGN) {
+            lex_take_token();
+            struct CExpression* right_exp = parse_expression(op_precedence);
+            left_exp = c_expression_new_assign(left_exp, right_exp);
+        } else {
+            enum AST_BINARY_OP binary_op = parse_binop();
+            struct CExpression *right_exp = parse_expression(op_precedence + 1);
+            left_exp = c_expression_new_binop(binary_op, left_exp, right_exp);
+        }
         next_token = lex_peek_token();
     }
     return left_exp;
@@ -106,6 +155,8 @@ static struct CExpression* parse_factor() {
     } else if (next_token.token == TK_L_PAREN) {
         result = parse_expression(0);
         expect(TK_R_PAREN);
+    } else if (next_token.token == TK_ID) {
+        result = c_expression_new_var(next_token.text);
     } else {
         result = NULL;
         fail("Malformed factor");

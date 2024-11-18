@@ -19,7 +19,14 @@ struct IrProgram *ast2ir(struct CProgram *cProgram) {
 
 struct IrFunction *compile_function(struct CFunction *cFunction) {
     struct IrFunction *function = ir_function_new(cFunction->name);
-    compile_statement(cFunction->statement, function);
+    for (int ix=0; ix<cFunction->body.list_count; ix++) {
+        struct CBlockItem* bi = cFunction->body.items[ix];
+        if (bi->type == AST_BI_STATEMENT) {
+            compile_statement(bi->statement, function);
+        } else {
+            // TODO: declaration
+        }
+    }
     return function;
 }
 
@@ -34,6 +41,10 @@ void compile_statement(struct CStatement *statement, struct IrFunction *function
             src = compile_expression(statement->expression, function);
             inst = ir_instruction_new_ret(src);
             ir_function_append_instruction(function, inst);
+            break;
+        case STMT_EXP:
+            break;
+        case STMT_NULL:
             break;
     }
 }
@@ -58,20 +69,20 @@ struct IrValue compile_expression(struct CExpression *cExpression, struct IrFunc
     enum IR_BINARY_OP binary_op;
     switch (cExpression->type) {
         case AST_EXP_CONST:
-            switch (cExpression->const_type) {
+            switch (cExpression->literal.type) {
                 case AST_CONST_INT:
-                    return ir_value_new(IR_VAL_CONST_INT, cExpression->value);
+                    return ir_value_new(IR_VAL_CONST_INT, cExpression->literal.value);
             }
             break;
         case AST_EXP_UNOP:
-            unary_op = AST_TO_IR_UNARY[cExpression->unary_op];
-            src = compile_expression(cExpression->operand, irFunction);
+            unary_op = AST_TO_IR_UNARY[cExpression->unary.op];
+            src = compile_expression(cExpression->unary.operand, irFunction);
             dst = make_temporary(irFunction);
             inst = ir_instruction_new_unary(unary_op, src, dst);
             ir_function_append_instruction(irFunction, inst);
             return dst;
         case AST_EXP_BINOP:
-            switch (cExpression->binary_op) {
+            switch (cExpression->binary.op) {
                 case AST_BINARY_MULTIPLY:
                 case AST_BINARY_DIVIDE:
                 case AST_BINARY_REMAINDER:
@@ -88,9 +99,9 @@ struct IrValue compile_expression(struct CExpression *cExpression, struct IrFunc
                 case AST_BINARY_GE:
                 case AST_BINARY_EQ:
                 case AST_BINARY_NE:
-                    binary_op = AST_TO_IR_BINARY[cExpression->binary_op];
-                    src = compile_expression(cExpression->left, irFunction);
-                    src2 = compile_expression(cExpression->right, irFunction);
+                    binary_op = AST_TO_IR_BINARY[cExpression->binary.op];
+                    src = compile_expression(cExpression->binary.left, irFunction);
+                    src2 = compile_expression(cExpression->binary.right, irFunction);
                     dst = make_temporary(irFunction);
                     inst = ir_instruction_new_binary(binary_op, src, src2, dst);
                     ir_function_append_instruction(irFunction, inst);
@@ -99,11 +110,11 @@ struct IrValue compile_expression(struct CExpression *cExpression, struct IrFunc
                     dst = make_temporary(irFunction);
                     make_conditional_labels(irFunction, NULL, &false_label, &end_label);
                     // Evaluate left-hand side of && and, if false, jump to false_label.
-                    src = compile_expression(cExpression->left, irFunction);
+                    src = compile_expression(cExpression->binary.left, irFunction);
                     inst = ir_instruction_new_jumpz(src, false_label);
                     ir_function_append_instruction(irFunction, inst);
                     // Otherwise, evaluate right-hand side of && and, if false, jump to false_label.
-                    src2 = compile_expression(cExpression->right, irFunction);
+                    src2 = compile_expression(cExpression->binary.right, irFunction);
                     inst = ir_instruction_new_jumpz(src2, false_label);
                     ir_function_append_instruction(irFunction, inst);
                     // Not false, so result is 1, then jump to end label.
@@ -124,11 +135,11 @@ struct IrValue compile_expression(struct CExpression *cExpression, struct IrFunc
                     dst = make_temporary(irFunction);
                     make_conditional_labels(irFunction, &true_label, NULL, &end_label);
                     // Evaluate left-hand side of || and, if true, jump to true_label.
-                    src = compile_expression(cExpression->left, irFunction);
+                    src = compile_expression(cExpression->binary.left, irFunction);
                     inst = ir_instruction_new_jumpnz(src, true_label);
                     ir_function_append_instruction(irFunction, inst);
                     // Otherwise, evaluate right-hand side of || and, if true, jump to true_label.
-                    src2 = compile_expression(cExpression->right, irFunction);
+                    src2 = compile_expression(cExpression->binary.right, irFunction);
                     inst = ir_instruction_new_jumpnz(src2, true_label);
                     ir_function_append_instruction(irFunction, inst);
                     // Not true, so result is 0, then jump to end label.
@@ -145,7 +156,14 @@ struct IrValue compile_expression(struct CExpression *cExpression, struct IrFunc
                     inst = ir_instruction_new_label(end_label);
                     ir_function_append_instruction(irFunction, inst);
                     break;
+                case AST_BINARY_ASSIGN:
+                    // This branch is only here to make the compiler happy.
+                    break;
             }
+        case AST_EXP_VAR:
+            break;
+        case AST_EXP_ASSIGNMENT:
+            break;
     }
     return dst;
 }

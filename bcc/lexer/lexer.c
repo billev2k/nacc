@@ -259,7 +259,7 @@ static enum TK tokenizer(void) {
                 ++token_end;
                 return TK_EQ;
             }
-            return TK_NE; // TODO: Shoudl be "assign"
+            return TK_ASSIGN;
         case '<':
             ++pBuffer;
             if (*pBuffer == '<') {

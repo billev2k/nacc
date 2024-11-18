@@ -59,6 +59,7 @@ extern enum TOKEN_FLAGS TOKEN_FLAGS[];
     X(TK_DECREMENT,     "--",               0),                                      \
     X(TK_L_NOT,         "!",                TK_UNOP(L_NOT)),                         \
     X(TK_TILDE,         "~",                TK_UNOP(COMPLEMENT)),                    \
+    X(TK_ASSIGN,        "=",                TK_BINOP(ASSIGN)),                       \
     X(TK_ID,            "an identifier",    0),                                      \
     X(TK_LITERAL,       "a literal",        0),                                      \
     X(TK_EOF,           "eof",              0),

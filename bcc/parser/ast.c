@@ -9,6 +9,9 @@
 
 #include "ast.h"
 #include "../utils/startup.h"
+#include "../utils/utils.h"
+
+DYN_LIST_OF_P_IMPL(CBlockItem) // CBlockItem_list, ..._append, ..._free
 
 const char * const ASM_CONST_TYPE_NAMES[] = {
 #define X(a,b) b 
@@ -51,17 +54,64 @@ void c_program_free(struct CProgram *program) {
     free(program);
 }
 
+struct CFunction* c_function_new(const char* name) {
+    struct CFunction* result = (struct CFunction*)malloc(sizeof(struct CFunction));
+    result->name = name;
+
+    return result;
+}
+
+void c_function_append_block_item(struct CFunction* function, struct CBlockItem* item) {
+    CBlockItem_list_append(&function->body, item);   
+}
+
 void c_function_free(struct CFunction *function) {
     if (!function) return;
     // Don't free 'name'; owned by global name table.
-    if (function->statement) c_statement_free(function->statement);
+    CBlockItem_list_free(&function->body);
     free(function);
 }
 
+static struct CStatement* c_statement_new(enum AST_STMT type) {
+    struct CStatement* result = (struct CStatement*)malloc(sizeof(struct CStatement));
+    result->type = type;
+    return result;
+}
+struct CStatement* c_statement_new_return(struct CExpression* expression) {
+    struct CStatement* result = c_statement_new(STMT_RETURN);
+    result->expression = expression;
+    return result;
+}
+struct CStatement* c_statement_new_exp(struct CExpression* expression) {
+    struct CStatement* result = c_statement_new(STMT_EXP);
+    result->expression = expression;
+    return result;
+}
+struct CStatement* c_statement_new_null(void) {
+    struct CStatement* result = c_statement_new(STMT_NULL);
+    return result;
+}
 void c_statement_free(struct CStatement *statement) {
     if (!statement) return;
     if (statement->expression) c_expression_free(statement->expression);
     free(statement);
+}
+
+struct CDeclaration* c_declaration_new(const char* identifier) {
+    struct CDeclaration* result = (struct CDeclaration*)malloc(sizeof(struct CDeclaration));
+    result->name = identifier;
+    return result;
+}
+struct CDeclaration* c_declaration_new_init(const char* identifier, struct CExpression* initializer) {
+    struct CDeclaration* result = c_declaration_new(identifier);
+    result->initializer = initializer;
+    return result;
+}
+void c_declaration_free(struct CDeclaration* declaration) {
+    if (!declaration) return;
+    if (declaration->initializer) {
+        c_expression_free(declaration->initializer);
+    }
 }
 
 static struct CExpression* c_expression_new(enum AST_EXP_TYPE type) {
@@ -71,21 +121,32 @@ static struct CExpression* c_expression_new(enum AST_EXP_TYPE type) {
 }
 struct CExpression* c_expression_new_const(enum AST_CONST_TYPE const_type, const char *value) {
     struct CExpression* expression = c_expression_new(AST_EXP_CONST);
-    expression->const_type = const_type;
-    expression->value = value;
+    expression->literal.type = const_type;
+    expression->literal.value = value;
     return expression;
 }
 struct CExpression* c_expression_new_unop(enum AST_UNARY_OP op, struct CExpression* operand) {
     struct CExpression* expression = c_expression_new(AST_EXP_UNOP);
-    expression->unary_op = op;
-    expression->operand = operand;
+    expression->unary.op = op;
+    expression->unary.operand = operand;
     return expression;
 }
 struct CExpression* c_expression_new_binop(enum AST_BINARY_OP op, struct CExpression* left, struct CExpression* right) {
     struct CExpression* expression = c_expression_new(AST_EXP_BINOP);
-    expression->binary_op = op;
-    expression->left = left;
-    expression->right = right;
+    expression->binary.op = op;
+    expression->binary.left = left;
+    expression->binary.right = right;
+    return expression;
+}
+struct CExpression* c_expression_new_assign(struct CExpression* dst, struct CExpression* src) {
+    struct CExpression* expression = c_expression_new(AST_EXP_ASSIGNMENT);
+    expression->assign.dst = dst;
+    expression->assign.src = src;
+    return expression;
+}
+struct CExpression* c_expression_new_var(const char* name) {
+    struct CExpression* expression = c_expression_new(AST_EXP_VAR);
+    expression->var.name = name;
     return expression;
 }
 void c_expression_free(struct CExpression *expression) {
@@ -93,17 +154,46 @@ void c_expression_free(struct CExpression *expression) {
     if (traceAstMem) printf("Free expression @ %p\n", expression);
     switch (expression->type) {
         case AST_EXP_BINOP:
-            if (expression->left) c_expression_free(expression->left);
-            if (expression->right) c_expression_free(expression->right);
+            if (expression->binary.left) c_expression_free(expression->binary.left);
+            if (expression->binary.right) c_expression_free(expression->binary.right);
             break;
         case AST_EXP_CONST:
             // Nothing to do; strings owned by global string table.
             break;
         case AST_EXP_UNOP:
-            if (expression->operand) c_expression_free(expression->operand);
+            if (expression->unary.operand) c_expression_free(expression->unary.operand);
+            break;
+        case AST_EXP_VAR:
+            break;
+        case AST_EXP_ASSIGNMENT:
+            if (expression->assign.src) c_expression_free(expression->assign.src);
+            if (expression->assign.dst) c_expression_free(expression->assign.dst);
             break;
     }
     free(expression);
+}
+
+struct CBlockItem* c_block_item_new_decl(struct CDeclaration* declaration) {
+    struct CBlockItem* result = (struct CBlockItem*)malloc(sizeof(struct CBlockItem));
+    result->type = AST_BI_DECLARATION;
+    result->declaration = declaration;
+    return result;
+}
+struct CBlockItem* c_block_item_new_stmt(struct CStatement* statement) {
+    struct CBlockItem* result = (struct CBlockItem*)malloc(sizeof(struct CBlockItem));
+    result->type = AST_BI_STATEMENT;
+    result->statement = statement;
+    return result;
+}
+void c_block_item_free(struct CBlockItem* blockItem) {
+    if (blockItem->type == AST_BI_STATEMENT) {
+        c_statement_free(blockItem->statement);
+    } else {
+        c_declaration_free(blockItem->declaration);
+    }
+}
+void CBlockItem_free(struct CBlockItem* blockItem) {
+    c_block_item_free(blockItem);
 }
 
 #pragma clang diagnostic pop

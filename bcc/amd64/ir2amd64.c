@@ -212,6 +212,8 @@ static int compile_instruction(struct Amd64Function *asmFunction, struct IrInstr
                 case IR_BINARY_L_OR:
                     // internal error; && and || are translated earlier, to implement short circuits
                     break;
+                case IR_BINARY_ASSIGN:
+                    break;
             }
             break;
         case IR_OP_COPY:

@@ -21,30 +21,30 @@ void assembleAndLink();
 
 void cleanup();
 
-int dumbtest() {
-    // allocate locals
-    asm("subq $12,%rsp");
-    // test code
-    asm("movl    $0,%r11d");
-    asm("cmpl    $2,%r11d");
-    asm("movl    $0,-4(%rbp)");
-    asm("setle   -4(%rbp)");
-    asm("movl    $0,%r11d");
-    asm("cmpl    $0,%r11d");
-    asm("movl    $0,-8(%rbp)");
-    asm("setle   -8(%rbp)");
-    asm("movl    -4(%rbp),%r10d");
-    asm("movl    %r10d,-12(%rbp)");
-    asm("movl    -8(%rbp),%r10d");
-    asm("addl    %r10d,-12(%rbp)");
-    asm("movl    -12(%rbp),%eax");
-    // epilog
-    asm("movq    %rbp, %rsp");
-    asm("popq %rbp");
-    asm("retq");
-    // not reached, makes the compiler happy.
-    return 0;
-}
+//int dumbtest() {
+//    // allocate locals
+//    asm("subq $12,%rsp");
+//    // test code
+//    asm("movl    $0,%r11d");
+//    asm("cmpl    $2,%r11d");
+//    asm("movl    $0,-4(%rbp)");
+//    asm("setle   -4(%rbp)");
+//    asm("movl    $0,%r11d");
+//    asm("cmpl    $0,%r11d");
+//    asm("movl    $0,-8(%rbp)");
+//    asm("setle   -8(%rbp)");
+//    asm("movl    -4(%rbp),%r10d");
+//    asm("movl    %r10d,-12(%rbp)");
+//    asm("movl    -8(%rbp),%r10d");
+//    asm("addl    %r10d,-12(%rbp)");
+//    asm("movl    -12(%rbp),%eax");
+//    // epilog
+//    asm("movq    %rbp, %rsp");
+//    asm("popq %rbp");
+//    asm("retq");
+//    // not reached, makes the compiler happy.
+//    return 0;
+//}
 
 int main(int argc, char **argv, char **envv) {
 //    int x = dumbtest();
