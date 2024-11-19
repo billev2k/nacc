@@ -3,6 +3,7 @@
 //
 
 #include <stdlib.h>
+#include <string.h>
 #include "ir.h"
 
 const char * const IR_UNARY_NAMES[] = {
@@ -16,7 +17,10 @@ const char * const IR_BINARY_NAMES[] = {
 #undef X
 };
 
-DYN_LIST_OF_P_IMPL(IrInstruction)
+struct list_of_IrInstruction_helpers IrInstructionHelpers = {
+    .free = IrInstruction_free
+};
+LIST_OF_ITEM_DEFN(IrInstruction, struct IrInstruction*, IrInstructionHelpers)
 
 struct IrProgram * ir_program_new() {
     struct IrProgram * program = (struct IrProgram*)malloc(sizeof(struct IrProgram));
@@ -35,6 +39,7 @@ void IrProgram_free(struct IrProgram *program) {
 struct IrFunction * ir_function_new(const char *name) {
     struct IrFunction *function = (struct IrFunction*)malloc(sizeof(struct IrFunction));
     function->name = name;
+    list_of_IrInstruction_init(&function->body, 10);
     return function;
 }
 
@@ -43,11 +48,11 @@ struct IrFunction * ir_function_new(const char *name) {
  * @param value the IrFunction to be freed.
  */
 void IrFunction_free(struct IrFunction *function) {
-    IrInstruction_list_free(&function->body);
+    list_of_IrInstruction_free(&function->body);
     free(function);
 }
 void ir_function_append_instruction(struct IrFunction *function, struct IrInstruction *instruction) {
-    IrInstruction_list_append(&function->body, instruction);
+    list_of_IrInstruction_append(&function->body, instruction);
 }
 
 static struct IrInstruction* ir_instruction_new(enum IR_OP inst) {

@@ -7,40 +7,58 @@
 
 extern unsigned long hash_str(const char *str);
 
-struct dyn_list_of_p {
-    void **items;
-    int list_count;
-    int list_size;
-};
+#define LIST_OF_ITEM_DECL(NAME, TYPE)                                                                       \
+struct list_of_##NAME##_helpers {                                                                           \
+    void (*free)(TYPE item);                                                                                \
+};                                                                                                          \
+struct list_of_##NAME {                                                                                     \
+    struct list_of_##NAME##_helpers helpers;                                                                \
+    TYPE* items;                                                                                            \
+    int num_items;                                                                                          \
+    int max_num_items;                                                                                      \
+};                                                                                                          \
+extern void list_of_##NAME##_append(struct list_of_##NAME* list, TYPE new_item);                            \
+extern void list_of_##NAME##_insert(struct list_of_##NAME* list, TYPE new_item, int atIx);                  \
+extern void list_of_##NAME##_free(struct list_of_##NAME* list);                                             \
 
-extern void dyn_list_of_p_append_impl(void *list, void *item);
-extern void dyn_list_of_p_insert_impl(void *list, void *item, int ix);
-
-#define DYN_LIST_OF_P_DECL(P_TYPE)                                                                          \
-    struct P_TYPE##_list {                                                                                  \
-        struct P_TYPE **items;                                                                              \
-        int list_count;                                                                                     \
-        int list_size;                                                                                      \
+#define LIST_OF_ITEM_DEFN(NAME, TYPE, HELPERS)                                                              \
+void list_of_##NAME##_init(struct list_of_##NAME *list, int init_size) {                                    \
+    list->helpers = HELPERS;                                                                                \
+    list->num_items = 0;                                                                                    \
+    list->max_num_items = init_size;                                                                        \
+    list->items = (TYPE *)malloc(list->max_num_items * sizeof(TYPE));                                       \
+    memset(list->items, 0, list->max_num_items * sizeof(TYPE));                                             \
+}                                                                                                           \
+void list_of_##NAME##_grow(struct list_of_##NAME* list) {                                                   \
+    list->max_num_items *= 2;                                                                               \
+    TYPE* new_list = malloc(list->max_num_items * sizeof(TYPE));                                            \
+    for (int i=0; i<list->num_items; ++i) {                                                                 \
+        new_list[i] = list->items[i];                                                                       \
     };                                                                                                      \
-    extern void P_TYPE##_list_append(struct P_TYPE##_list *list, struct P_TYPE *newItem);                   \
-    extern void P_TYPE##_list_insert(struct P_TYPE##_list *list, struct P_TYPE *newItem, int ixAt);         \
-    extern void P_TYPE##_list_free(struct P_TYPE##_list *list);
-
-#define DYN_LIST_OF_P_IMPL(P_TYPE)                                                                          \
-    void P_TYPE##_list_append(struct P_TYPE##_list *list, struct P_TYPE *new_item) {                        \
-        dyn_list_of_p_append_impl(list, new_item);                                                          \
+    free(list->items);                                                                                      \
+    list->items = new_list;                                                                                 \
+}                                                                                                           \
+void list_of_##NAME##_append(struct list_of_##NAME* list, TYPE new_item) {                                  \
+    if (list->num_items == list->max_num_items) {                                                           \
+        list_of_##NAME##_grow(list);                                                                        \
     }                                                                                                       \
-    void P_TYPE##_list_insert(struct P_TYPE##_list *list, struct P_TYPE *new_item, int ixAt) {              \
-        dyn_list_of_p_insert_impl(list, new_item, ixAt);                                                    \
+    list->items[(list->num_items)++] = new_item;                                                            \
+}                                                                                                           \
+void list_of_##NAME##_insert(struct list_of_##NAME* list, TYPE new_item, int atIx) {                        \
+    if (list->num_items == list->max_num_items) {                                                           \
+        list_of_##NAME##_grow(list);                                                                        \
     }                                                                                                       \
-    void P_TYPE##_list_free(struct P_TYPE##_list *list) {                                                   \
-        for (int i=0; i<list->list_count; ++i)                                                              \
-            P_TYPE##_free(list->items[i]);                                                                  \
-        list->list_count = 0;                                                                               \
-        list->list_size = 0;                                                                                \
-        free(list->items);                                                                                  \
-        list->items = NULL;                                                                                 \
-    }
+    for (int i=list->num_items++; i>atIx; --i) {                                                            \
+        list->items[i] = list->items[i-1];                                                                  \
+    }                                                                                                       \
+    list->items[atIx] = new_item;                                                                           \
+}                                                                                                           \
+void list_of_##NAME##_free(struct list_of_##NAME* list) {                                                   \
+    for (int i=0; i<list->num_items; ++i) {                                                                 \
+        list->helpers.free(list->items[i]);                                                                 \
+    }                                                                                                       \
+    free(list->items);                                                                                      \
+}                                                                                                           \
 
 #pragma clang diagnostic push
 #pragma ide diagnostic ignored "misc-no-recursion"
@@ -69,7 +87,7 @@ extern void set_of_##NAME##_remove(struct set_of_##NAME *set, TYPE oldItem);    
 extern TYPE set_of_##NAME##_find(struct set_of_##NAME *set, TYPE item);                                     \
 extern void set_of_##NAME##_free(struct set_of_##NAME *set);                                                
 
-#define SET_OF_ITEM_IMPL(NAME, TYPE, HELPERS)                                                               \
+#define SET_OF_ITEM_DEFN(NAME, TYPE, HELPERS)                                                               \
 void set_of_##NAME##_init(struct set_of_##NAME *set, int init_size) {                                       \
     set->v_helpers = HELPERS;                                                                               \
     set->collisions = set->num_items = 0;                                                                   \

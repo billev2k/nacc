@@ -76,7 +76,11 @@ const enum OPCODE cond_code_to_setXX[] = {
 #undef X
 };
 
-DYN_LIST_OF_P_IMPL(Amd64Instruction)
+struct list_of_Amd64Instruction_helpers Amd64Helpers = {
+    .free = Amd64Instruction_free
+};
+LIST_OF_ITEM_DEFN(Amd64Instruction, struct Amd64Instruction*, Amd64Helpers)
+
 
 struct Amd64Program* amd64_program_new(void ) {
     struct Amd64Program *result = (struct Amd64Program *)malloc(sizeof(struct Amd64Program));
@@ -93,10 +97,10 @@ struct Amd64Function* amd64_function_new(const char* name) {
     return result;
 }
 void amd64_function_append_instruction(struct Amd64Function *function, struct Amd64Instruction *instruction) {
-    Amd64Instruction_list_append(&function->instructions, instruction);
+    list_of_Amd64Instruction_append(&function->instructions, instruction);
 }
 void amd64_function_free(struct Amd64Function *function) {
-    Amd64Instruction_list_free(&function->instructions);
+    list_of_Amd64Instruction_free(&function->instructions);
     free(function);
 }
 

@@ -17,7 +17,7 @@ void print_ir(struct IrProgram *program, FILE *file) {
 
 void print_ir_function(struct IrFunction *function, FILE *file) {
     fprintf(file, "Function %s\n", function->name);
-    for (int i=0; i<function->body.list_count; ++i) {
+    for (int i=0; i<function->body.num_items; ++i) {
         print_ir_instruction(function->body.items[i], file);
     }
 }

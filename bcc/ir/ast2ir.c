@@ -19,7 +19,7 @@ struct IrProgram *ast2ir(struct CProgram *cProgram) {
 
 struct IrFunction *compile_function(struct CFunction *cFunction) {
     struct IrFunction *function = ir_function_new(cFunction->name);
-    for (int ix=0; ix<cFunction->body.list_count; ix++) {
+    for (int ix=0; ix<cFunction->body.num_items; ix++) {
         struct CBlockItem* bi = cFunction->body.items[ix];
         if (bi->type == AST_BI_STATEMENT) {
             compile_statement(bi->statement, function);

@@ -58,33 +58,23 @@ enum IR_BINARY_OP {
 };
 extern const char * const IR_BINARY_NAMES[];
 
+//region struct IrValue
 enum IR_VAL {
     IR_VAL_CONST_INT,
     IR_VAL_ID,
     IR_VAL_LABEL,
 };
 
-DYN_LIST_OF_P_DECL(IrInstruction) // Amd64Instruction_list, ..._append, ..._free
-
 struct IrValue {
     enum IR_VAL type;
     const char *text;
 };
+extern struct IrValue ir_value_new(enum IR_VAL valType, const char *valText);
+extern struct IrValue ir_value_new_id(const char* id);
+extern struct IrValue ir_value_new_const(const char* text);
+//endregion VALUE
 
-struct IrProgram {
-    struct IrFunction *function;
-};
-extern struct IrProgram * ir_program_new();
-extern void IrProgram_free(struct IrProgram *program);
-
-struct IrFunction {
-    const char *name;
-    struct IrInstruction_list body;
-};
-extern struct IrFunction * ir_function_new(const char *name);
-extern void IrFunction_free(struct IrFunction *function);
-extern void ir_function_append_instruction(struct IrFunction *function, struct IrInstruction *instruction);
-
+//region struct IrInstruction
 struct IrInstruction {
     enum IR_OP inst;
     union {
@@ -127,9 +117,26 @@ extern struct IrInstruction* ir_instruction_new_jumpz(struct IrValue value, stru
 extern struct IrInstruction* ir_instruction_new_jumpnz(struct IrValue value, struct IrValue target);
 extern struct IrInstruction* ir_instruction_new_label(struct IrValue label);
 extern void IrInstruction_free(struct IrInstruction *instruction);
+//endregion
 
-extern struct IrValue ir_value_new(enum IR_VAL valType, const char *valText);
-extern struct IrValue ir_value_new_id(const char* id);
-extern struct IrValue ir_value_new_const(const char* text);
+//region struct IrFunction
+LIST_OF_ITEM_DECL(IrInstruction, struct IrInstruction*)
+
+struct IrFunction {
+    const char *name;
+    struct list_of_IrInstruction body;
+};
+extern struct IrFunction * ir_function_new(const char *name);
+extern void IrFunction_free(struct IrFunction *function);
+extern void ir_function_append_instruction(struct IrFunction *function, struct IrInstruction *instruction);
+//endregion
+
+//region struct IrProgram
+struct IrProgram {
+    struct IrFunction *function;
+};
+extern struct IrProgram * ir_program_new();
+extern void IrProgram_free(struct IrProgram *program);
+//endregion
 
 #endif //BCC_IR_H

@@ -5,13 +5,17 @@
 //
 
 #include <stdlib.h>
+#include <string.h>
 #include <printf.h>
 
 #include "ast.h"
 #include "../utils/startup.h"
 #include "../utils/utils.h"
 
-DYN_LIST_OF_P_IMPL(CBlockItem) // CBlockItem_list, ..._append, ..._free
+struct list_of_CBlockItem_helpers CBlockItemHelpers = {
+    .free = c_block_item_free
+};
+LIST_OF_ITEM_DEFN(CBlockItem, struct CBlockItem*, CBlockItemHelpers)
 
 const char * const ASM_CONST_TYPE_NAMES[] = {
 #define X(a,b) b 
@@ -57,18 +61,18 @@ void c_program_free(struct CProgram *program) {
 struct CFunction* c_function_new(const char* name) {
     struct CFunction* result = (struct CFunction*)malloc(sizeof(struct CFunction));
     result->name = name;
-
+    list_of_CBlockItem_init(&result->body, 10);
     return result;
 }
 
 void c_function_append_block_item(struct CFunction* function, struct CBlockItem* item) {
-    CBlockItem_list_append(&function->body, item);   
+    list_of_CBlockItem_append(&function->body, item);
 }
 
 void c_function_free(struct CFunction *function) {
     if (!function) return;
     // Don't free 'name'; owned by global name table.
-    CBlockItem_list_free(&function->body);
+    list_of_CBlockItem_free(&function->body);
     free(function);
 }
 

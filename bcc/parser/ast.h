@@ -100,8 +100,6 @@ extern enum IR_UNARY_OP const AST_TO_IR_UNARY[];
     X(ASSIGN,     "=",     1),      \
     
 
-DYN_LIST_OF_P_DECL(CBlockItem) // CBlockItem_list, ..._append, ..._free
-
 enum AST_BINARY_OP {
 #define X(a,b,c) AST_BINARY_##a
     AST_BINARY_LIST__
@@ -111,32 +109,7 @@ extern const char * const AST_BINARY_NAMES[];
 extern const int AST_BINARY_PRECEDENCE[];
 extern const int AST_TO_IR_BINARY[];
 
-struct CFunction;
-struct CProgram {
-    struct CFunction *function;
-};
-extern void c_program_free(struct CProgram *program);
-
-struct CBlockItem;
-struct CStatement;
-struct CFunction {
-    const char *name;
-//    struct CStatement *statement;
-    struct CBlockItem_list body;
-};
-extern struct CFunction* c_function_new(const char* name);
-extern void c_function_append_block_item(struct CFunction* function, struct CBlockItem* item);
-extern void c_function_free(struct CFunction *function);
-
-struct CStatement {
-    enum AST_STMT type;
-    struct CExpression *expression;
-};
-extern struct CStatement* c_statement_new_return(struct CExpression* expression);
-extern struct CStatement* c_statement_new_exp(struct CExpression* expression);
-extern struct CStatement* c_statement_new_null(void);
-extern void c_statement_free(struct CStatement *statement);
-
+//region struct CExpression
 struct CExpression {
     enum AST_EXP_TYPE type;
     union {
@@ -169,7 +142,9 @@ extern struct CExpression* c_expression_new_binop(enum AST_BINARY_OP op, struct 
 extern struct CExpression* c_expression_new_assign(struct CExpression* dst, struct CExpression* src);
 extern struct CExpression* c_expression_new_var(const char* name);
 extern void c_expression_free(struct CExpression *expression);
+//endregion
 
+//region struct CDeclaration
 struct CDeclaration {
     const char *name;
     struct CExpression* initializer;
@@ -177,7 +152,9 @@ struct CDeclaration {
 extern struct CDeclaration* c_declaration_new(const char* identifier);
 extern struct CDeclaration* c_declaration_new_init(const char* identifier, struct CExpression* initializer);
 extern void c_declaration_free(struct CDeclaration* declaration);
+//endregion
 
+//region struct CBlockItem
 struct CBlockItem {
     enum AST_BLOCK_ITEM type;
     union {
@@ -189,5 +166,36 @@ extern struct CBlockItem* c_block_item_new_decl(struct CDeclaration* declaration
 extern struct CBlockItem* c_block_item_new_stmt(struct CStatement* statement);
 extern void c_block_item_free(struct CBlockItem* blockItem);
 extern void CBlockItem_free(struct CBlockItem* blockItem);
+//endregion
+
+//region struct CStatement
+struct CStatement {
+    enum AST_STMT type;
+    struct CExpression *expression;
+};
+extern struct CStatement* c_statement_new_return(struct CExpression* expression);
+extern struct CStatement* c_statement_new_exp(struct CExpression* expression);
+extern struct CStatement* c_statement_new_null(void);
+extern void c_statement_free(struct CStatement *statement);
+//endregion
+
+//region struct CFunction
+LIST_OF_ITEM_DECL(CBlockItem, struct CBlockItem*)
+
+struct CFunction {
+    const char *name;
+    struct list_of_CBlockItem body;
+};
+extern struct CFunction* c_function_new(const char* name);
+extern void c_function_append_block_item(struct CFunction* function, struct CBlockItem* item);
+extern void c_function_free(struct CFunction *function);
+//endregion
+
+//region struct CProgram
+struct CProgram {
+    struct CFunction *function;
+};
+extern void c_program_free(struct CProgram *program);
+//endregion
 
 #endif //BCC_AST_H

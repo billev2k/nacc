@@ -22,7 +22,7 @@ static void c_function_print(struct CFunction *function) {
     printf("  Function(\n");
     printf("    name=\"%s\"\n", function->name);
     printf("    body=\n");
-    for (int ix=0; ix<function->body.list_count; ix++) {
+    for (int ix=0; ix<function->body.num_items; ix++) {
         struct CBlockItem* bi = function->body.items[ix];
         if (bi->type == AST_BI_STATEMENT) {
             c_statement_print(bi->statement, 0);

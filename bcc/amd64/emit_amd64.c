@@ -33,7 +33,7 @@ static int amd64_function_print(struct Amd64Function *amd64Function, FILE *out) 
         fprintf(out, inst_fmt "$%d, %%rsp\n", "subq", amd64Function->stack_allocations);
     }
     fprintf(out, "       # end prolog\n");
-    for (int ix=0; ix < amd64Function->instructions.list_count; ++ix) {
+    for (int ix=0; ix < amd64Function->instructions.num_items; ++ix) {
         struct Amd64Instruction *inst = amd64Function->instructions.items[ix];
         amd64_instruction_print(inst, out);
     }

@@ -34,7 +34,7 @@ struct set_of_pseudo_register_helpers setOfPseudoLocationHelpers = {
         .dup=pseudo_register_dup,
         .free=pseudo_register_free
 };
-SET_OF_ITEM_IMPL(pseudo_register, struct pseudo_register*, setOfPseudoLocationHelpers)
+SET_OF_ITEM_DEFN(pseudo_register, struct pseudo_register*, setOfPseudoLocationHelpers)
 
 static struct Amd64Function *compile_function(struct IrFunction *irFunction);
 static int compile_instruction(struct Amd64Function *asmFunction, struct IrInstruction *irInstruction);
@@ -75,7 +75,7 @@ struct Amd64Program *ir2amd64(struct IrProgram* irProgram) {
 
 static struct Amd64Function *compile_function(struct IrFunction *irFunction) {
     struct Amd64Function *function = amd64_function_new(irFunction->name);
-    for (int ix=0; ix<irFunction->body.list_count; ix++) {
+    for (int ix=0; ix<irFunction->body.num_items; ix++) {
         struct IrInstruction *irInstruction = irFunction->body.items[ix];
         compile_instruction(function, irInstruction);
     }
@@ -274,7 +274,7 @@ static int is_shift(struct Amd64Instruction* inst) {
 }
 
 static void fixup_stack_accesses(struct Amd64Function* function) {
-    for (int i = 0; i < function->instructions.list_count; ++i) {
+    for (int i = 0; i < function->instructions.num_items; ++i) {
         struct Amd64Instruction* inst = function->instructions.items[i];
         
         if (is_multiply(inst) && inst->binary.operand2.operand_type != OPERAND_REGISTER) {
@@ -283,10 +283,10 @@ static void fixup_stack_accesses(struct Amd64Function* function) {
             inst->binary.operand2 = amd64_operand_reg(REG_R11);
             // Load the scratch register before the mult instruction
             struct Amd64Instruction *fixup = amd64_instruction_new_mov(operand2, amd64_operand_reg(REG_R11));
-            Amd64Instruction_list_insert(&function->instructions, fixup, i);
+            list_of_Amd64Instruction_insert(&function->instructions, fixup, i);
             // Save the scratch register after the mult instruction
             fixup = amd64_instruction_new_mov(amd64_operand_reg(REG_R11), operand2);
-            Amd64Instruction_list_insert(&function->instructions, fixup, i+2);
+            list_of_Amd64Instruction_insert(&function->instructions, fixup, i+2);
             // Fix up loop index to skip the instruction we've already fixed. Two instructions inserted.
             i+=2;
         }
@@ -296,7 +296,7 @@ static void fixup_stack_accesses(struct Amd64Function* function) {
                 inst->idiv.operand = amd64_operand_reg(REG_R10);
                 // Load the scratch register before the instruction.
                 struct Amd64Instruction *fixup = amd64_instruction_new_mov(operand, amd64_operand_reg(REG_R10));
-                Amd64Instruction_list_insert(&function->instructions, fixup, i);
+                list_of_Amd64Instruction_insert(&function->instructions, fixup, i);
                 i+=1;
             }
         }
@@ -307,7 +307,7 @@ static void fixup_stack_accesses(struct Amd64Function* function) {
                 struct Amd64Operand operand1 = inst->binary.operand1;
                 inst->binary.operand1 = amd64_operand_reg(REG_CL);
                 struct Amd64Instruction *fixup = amd64_instruction_new_mov(operand1, amd64_operand_reg(REG_CX));
-                Amd64Instruction_list_insert(&function->instructions, fixup, i);
+                list_of_Amd64Instruction_insert(&function->instructions, fixup, i);
                 i+=1;
             }
         }
@@ -321,7 +321,7 @@ static void fixup_stack_accesses(struct Amd64Function* function) {
             inst->binary.operand1 = amd64_operand_reg(REG_R10);
             // Load the scratch register before the instruction.
             struct Amd64Instruction *fixup = amd64_instruction_new_mov(operand1, amd64_operand_reg(REG_R10));
-            Amd64Instruction_list_insert(&function->instructions, fixup, i);
+            list_of_Amd64Instruction_insert(&function->instructions, fixup, i);
             // Fix up loop index to skip the instruction we've already fixed. One instruction inserted.
             i += 1;
         } else if (inst->instruction == INST_CMP) {
@@ -331,7 +331,7 @@ static void fixup_stack_accesses(struct Amd64Function* function) {
                 inst->cmp.operand1 = amd64_operand_reg(REG_R10);
                 // Load the scratch register before the instruction.
                 struct Amd64Instruction *fixup = amd64_instruction_new_mov(operand1, amd64_operand_reg(REG_R10));
-                Amd64Instruction_list_insert(&function->instructions, fixup, i);
+                list_of_Amd64Instruction_insert(&function->instructions, fixup, i);
                 // Fix up loop index to skip the instruction we've already fixed. One instruction inserted.
                 i += 1;
             } else if (inst->cmp.operand2.operand_type == OPERAND_IMM_LIT) {
@@ -340,7 +340,7 @@ static void fixup_stack_accesses(struct Amd64Function* function) {
                 inst->cmp.operand2 = amd64_operand_reg(REG_R11);
                 // Load the scratch register before the instruction.
                 struct Amd64Instruction *fixup = amd64_instruction_new_mov(operand2, amd64_operand_reg(REG_R11));
-                Amd64Instruction_list_insert(&function->instructions, fixup, i);
+                list_of_Amd64Instruction_insert(&function->instructions, fixup, i);
                 // Fix up loop index to skip the instruction we've already fixed. One instruction inserted.
                 i += 1;
             }
@@ -352,7 +352,7 @@ static int allocate_pseudo_registers(struct Amd64Function* function) {
     struct set_of_pseudo_register pseudo_registers;
     set_of_pseudo_register_init(&pseudo_registers, 10);
     int bytes_allocated = 0;
-    for (int i=0; i<function->instructions.list_count; ++i) {
+    for (int i=0; i<function->instructions.num_items; ++i) {
         struct Amd64Instruction* inst = function->instructions.items[i];
         if (inst->instruction != INST_ALLOC_STACK) {
             if (inst->binary.operand1.operand_type == OPERAND_PSEUDO) {

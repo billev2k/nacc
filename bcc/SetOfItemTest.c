@@ -75,7 +75,7 @@ struct set_of_int_helpers set_of_int_helpers = {
 
 #pragma clang diagnostic push
 #pragma ide diagnostic ignored "misc-no-recursion"
-SET_OF_ITEM_IMPL(int, int, set_of_int_helpers)
+SET_OF_ITEM_DEFN(int, int, set_of_int_helpers)
 #pragma clang diagnostic pop
 
 struct set_of_int int_set;
