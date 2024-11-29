@@ -8,6 +8,7 @@
 #include "../utils/utils.h"
 
 enum IR_OP {
+    IR_OP_VAR,
     IR_OP_RET,
     IR_OP_UNARY,
     IR_OP_BINARY,
@@ -79,6 +80,9 @@ struct IrInstruction {
     enum IR_OP inst;
     union {
         struct {
+            struct IrValue value;
+        } var;
+        struct {
              struct IrValue value;
         } ret;
         struct {
@@ -108,6 +112,7 @@ struct IrInstruction {
         } label;
     };
 };
+extern struct IrInstruction* ir_instruction_new_var(struct IrValue var);
 extern struct IrInstruction* ir_instruction_new_ret(struct IrValue value);
 extern struct IrInstruction *ir_instruction_new_unary(enum IR_UNARY_OP op, struct IrValue src, struct IrValue dst);
 extern struct IrInstruction *ir_instruction_new_binary(enum IR_BINARY_OP op, struct IrValue src1, struct IrValue src2, struct IrValue dst);

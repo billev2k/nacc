@@ -6,7 +6,9 @@
 #define BCC_UTILS_H
 
 extern unsigned long hash_str(const char *str);
+extern int long_is_zero(long l);
 
+//region LIST_OF_ITEM declaration and definition
 #define LIST_OF_ITEM_DECL(NAME, TYPE)                                                                       \
 struct list_of_##NAME##_helpers {                                                                           \
     void (*free)(TYPE item);                                                                                \
@@ -58,19 +60,18 @@ void list_of_##NAME##_free(struct list_of_##NAME* list) {                       
         list->helpers.free(list->items[i]);                                                                 \
     }                                                                                                       \
     free(list->items);                                                                                      \
-}                                                                                                           \
+}
+//endregion
 
-#pragma clang diagnostic push
-#pragma ide diagnostic ignored "misc-no-recursion"
-
-#define SET_OF_ITEM_MOD(x) (((x)%set->max_num_items + set->max_num_items) % set->max_num_items)
-
+//region SET_OF_ITEM declaration and definition
 #define SET_OF_ITEM_DECL(NAME, TYPE)                                                                        \
 struct set_of_##NAME##_helpers {                                                                            \
     unsigned long (*hash)(TYPE item);                                                                       \
     int (*cmp)(TYPE left, TYPE right);                                                                      \
     TYPE (*dup)(TYPE);                                                                                      \
     void (*free)(TYPE);                                                                                     \
+    int (*is_null)(TYPE item);                                                                              \
+    TYPE null;                                                                                              \
 };                                                                                                          \
 struct set_of_##NAME {                                                                                      \
     struct set_of_##NAME##_helpers v_helpers;                                                               \
@@ -95,6 +96,9 @@ void set_of_##NAME##_init(struct set_of_##NAME *set, int init_size) {           
     set->items = (TYPE *)malloc(set->max_num_items * sizeof(TYPE));                                         \
     memset(set->items, 0, set->max_num_items * sizeof(TYPE));                                               \
 }                                                                                                           \
+static int set_of_##NAME##_mod(struct set_of_##NAME* set, int x) {                                          \
+    return (((x)%set->max_num_items + set->max_num_items) % set->max_num_items);                            \
+}                                                                                                           \
 TYPE set_of_##NAME##_no_dup(TYPE value) {                                                                   \
     return value;                                                                                           \
 }                                                                                                           \
@@ -107,7 +111,7 @@ void set_of_##NAME##_grow(struct set_of_##NAME *set) {                          
     /* For every active slot in the old set, insert it into the new set. */                                 \
     for (int ix=0; ix<set->max_num_items; ++ix) {                                                           \
         TYPE val = set->items[ix];                                                                          \
-        if (val) set_of_##NAME##_insert(&newSet, val);                                                      \
+        if (!set->v_helpers.is_null(val)) set_of_##NAME##_insert(&newSet, val);                                                      \
     }                                                                                                       \
     /* Clean up old set's memory. */                                                                        \
     free(set->items);                                                                                       \
@@ -124,12 +128,12 @@ TYPE set_of_##NAME##_insert(struct set_of_##NAME *set, TYPE newItem) {          
     int ix = (int)(h % set->max_num_items);                                                                 \
     int isCollision = 0;                                                                                    \
     /* Search until we find a match or there's nothing else to inspect.  */                                 \
-    while (set->items[ix]!=0 && set->v_helpers.cmp(newItem, set->items[ix])!=0) {                           \
+    while (!set->v_helpers.is_null(set->items[ix]) && set->v_helpers.cmp(newItem, set->items[ix])!=0) {                           \
         if (++ix >= set->max_num_items) ix=0;                                                               \
         isCollision = 1;                                                                                    \
     }                                                                                                       \
     /* ix either indexes an existing match or an empty slot. If not a match, add it. */                     \
-    if (set->items[ix] == 0) {                                                                              \
+    if (set->v_helpers.is_null(set->items[ix])) {                                                                              \
         set->items[ix] = set->v_helpers.dup(newItem);                                                       \
         set->num_items++;                                                                                   \
         set->collisions += isCollision;                                                                     \
@@ -141,7 +145,7 @@ void set_of_##NAME##_remove(struct set_of_##NAME *set, TYPE oldItem) {          
     unsigned long h = set->v_helpers.hash(oldItem);                                                         \
     int ix_free = (int) (h % set->max_num_items);                                                           \
     int cmp = 1;                                                                                            \
-    while (set->items[ix_free] && (cmp = set->v_helpers.cmp(oldItem, set->items[ix_free]))) {               \
+    while (set->v_helpers.is_null(set->items[ix_free]) && (cmp = set->v_helpers.cmp(oldItem, set->items[ix_free]))) {               \
         if (++ix_free >= set->max_num_items)                                                                \
             ix_free = 0;                                                                                    \
     }                                                                                                       \
@@ -151,18 +155,18 @@ void set_of_##NAME##_remove(struct set_of_##NAME *set, TYPE oldItem) {          
     /* Yes. Free the oldItem and fix up any affected collisions. */                                         \
     /* First, find ix_underflow, ix_bottom, ix_top, ix_overflow */                                          \
     int ix_underflow = ix_free;                                                                             \
-    while (set->items[SET_OF_ITEM_MOD(ix_underflow - 1)]) --ix_underflow;                                   \
+    while (!set->v_helpers.is_null(set->items[set_of_##NAME##_mod(set, ix_underflow - 1)])) --ix_underflow;                          \
     int ix_bottom = ix_underflow >= 0 ? ix_underflow : 0;                                                   \
-    ix_underflow = ix_underflow < 0 ? SET_OF_ITEM_MOD(ix_underflow) : set->max_num_items;                   \
+    ix_underflow = ix_underflow < 0 ? set_of_##NAME##_mod(set, ix_underflow) : set->max_num_items;          \
                                                                                                             \
     int ix_overflow = ix_free;                                                                              \
-    while (set->items[SET_OF_ITEM_MOD(ix_overflow)]) ++ix_overflow;                                         \
+    while (!set->v_helpers.is_null(set->items[set_of_##NAME##_mod(set, ix_overflow)])) ++ix_overflow;                                \
     int ix_top = ix_overflow <= set->max_num_items ? ix_overflow : set->max_num_items;                      \
-    ix_overflow = ix_overflow <= set->max_num_items ? 0 : SET_OF_ITEM_MOD(ix_overflow);                     \
+    ix_overflow = ix_overflow <= set->max_num_items ? 0 : set_of_##NAME##_mod(set, ix_overflow);            \
                                                                                                             \
     /* Free the oldItem */                                                                                  \
     set->v_helpers.free(set->items[ix_free]);                                                               \
-    set->items[ix_free] = 0;                                                                                \
+    set->items[ix_free] = set->v_helpers.null;                                                                                \
                                                                                                             \
     /* Handle the "top block" */                                                                            \
     for (int ix = ix_free + 1; ix < ix_top; ++ix) {                                                         \
@@ -170,7 +174,7 @@ void set_of_##NAME##_remove(struct set_of_##NAME *set, TYPE oldItem) {          
         int do_move = ix_item <= ix_free || ix_item > ix_underflow;                                         \
         if (do_move) {                                                                                      \
             set->items[ix_free] = set->items[ix];                                                           \
-            set->items[ix] = 0;                                                                             \
+            set->items[ix] = set->v_helpers.null;                                                                             \
             ix_free = ix;                                                                                   \
         }                                                                                                   \
     }                                                                                                       \
@@ -181,7 +185,7 @@ void set_of_##NAME##_remove(struct set_of_##NAME *set, TYPE oldItem) {          
                                             : (ix_item <= ix_free && ix_item >= ix_bottom);                 \
         if (do_move) {                                                                                      \
             set->items[ix_free] = set->items[ix];                                                           \
-            set->items[ix] = 0;                                                                             \
+            set->items[ix] = set->v_helpers.null;                                                                             \
             ix_free = ix;                                                                                   \
         }                                                                                                   \
     }                                                                                                       \
@@ -191,22 +195,21 @@ TYPE set_of_##NAME##_find(struct set_of_##NAME *set, TYPE item) {               
     int ix = (int)(h % set->max_num_items);                                                                 \
     int cmp=1; /* init to 'not equal'  */                                                                   \
     /* Search until we find a match or there's nothing else to inspect.  */                                 \
-    while (set->items[ix] && (cmp=set->v_helpers.cmp(item, set->items[ix]))) {                              \
+    while (!set->v_helpers.is_null(set->items[ix]) && (cmp=set->v_helpers.cmp(item, set->items[ix]))) {                              \
         if (++ix >= set->max_num_items) ix=0;                                                               \
     }                                                                                                       \
     /* return item if we found a match. */                                                                  \
-    return cmp==0 ? set->items[ix] : 0;                                                                     \
+    return cmp==0 ? set->items[ix] : set->v_helpers.null;                                                                     \
 }                                                                                                           \
 void set_of_##NAME##_free(struct set_of_##NAME *set) {                                                      \
     for (int i=0; i<set->max_num_items; ++i) {                                                              \
-        if (set->items[i]) {                                                                                \
+        if (!set->v_helpers.is_null(set->items[i])) {                                                                                \
             set->v_helpers.free(set->items[i]);                                                             \
         }                                                                                                   \
     }                                                                                                       \
     free(set->items);                                                                                       \
 }
-
-#pragma clang diagnostic pop
+//endregion
 
 // Declare a set_of_str. Implementation in utils.c.
 SET_OF_ITEM_DECL(str, const char *)

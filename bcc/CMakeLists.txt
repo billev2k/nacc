@@ -23,14 +23,16 @@ add_executable(bcc main.c
         amd64/ir2amd64.h
         ir/ir.c
         ir/ir.h
-        ir/ast2ir.c
-        ir/ast2ir.h
+        parser/ast2ir.c
+        parser/ast2ir.h
         ir/print_ir.c
         ir/print_ir.h
         SetOfItemTest.c
         SetOfItemTest.h
         amd64/emit_amd64.h
         amd64/emit_amd64.c
+        parser/semantics.c
+        parser/semantics.h
 )
 
 add_executable(bcc_test SetOfItemTest.c

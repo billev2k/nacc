@@ -3,15 +3,21 @@
 //
 
 #include <stdio.h>
-#include "../parser/ast.h"
+#include <stdlib.h>
+#include "ast.h"
 #include "ast2ir.h"
+#include "semantics.h"
 
+static void tmp_vars_init(void);
 static struct IrFunction *compile_function(struct CFunction *cFunction);
+static void compile_declaration(struct CDeclaration *declaration, struct IrFunction *function);
 static void compile_statement(struct CStatement *statement, struct IrFunction *function);
+struct IrValue compile_expression(struct CExpression *cExpression, struct IrFunction *irFunction);
 static struct IrValue make_temporary(struct IrFunction *function);
 static void make_conditional_labels(struct IrFunction *function, struct IrValue* t, struct IrValue* f, struct IrValue* e);
 
 struct IrProgram *ast2ir(struct CProgram *cProgram) {
+    tmp_vars_init();
     struct IrProgram *program = ir_program_new();
     program->function = compile_function(cProgram->function);
     return program;
@@ -24,13 +30,22 @@ struct IrFunction *compile_function(struct CFunction *cFunction) {
         if (bi->type == AST_BI_STATEMENT) {
             compile_statement(bi->statement, function);
         } else {
-            // TODO: declaration
+            compile_declaration(bi->declaration, function);
         }
     }
     return function;
 }
 
-struct IrValue compile_expression(struct CExpression *cExpression, struct IrFunction *irFunction);
+static void compile_declaration(struct CDeclaration* declaration, struct IrFunction* function) {
+    struct IrValue var = ir_value_new_id(declaration->name);
+    struct IrInstruction* inst = ir_instruction_new_var(var);
+    ir_function_append_instruction(function, inst);
+    if (declaration->initializer) {
+        struct IrValue initializer = compile_expression(declaration->initializer, function);
+        inst = ir_instruction_new_copy(initializer, var);
+        ir_function_append_instruction(function, inst);
+    }
+}
 
 void compile_statement(struct CStatement *statement, struct IrFunction *function) {
     struct IrValue src;
@@ -43,6 +58,8 @@ void compile_statement(struct CStatement *statement, struct IrFunction *function
             ir_function_append_instruction(function, inst);
             break;
         case STMT_EXP:
+            // Ignore return value
+            compile_expression(statement->expression, function);
             break;
         case STMT_NULL:
             break;
@@ -60,7 +77,7 @@ void compile_statement(struct CStatement *statement, struct IrFunction *function
 struct IrValue compile_expression(struct CExpression *cExpression, struct IrFunction *irFunction) { // NOLINT(*-no-recursion)
     struct IrValue src;
     struct IrValue src2;
-    struct IrValue dst;
+    struct IrValue dst = {};
     struct IrValue false_label;
     struct IrValue true_label;
     struct IrValue end_label;
@@ -160,9 +177,18 @@ struct IrValue compile_expression(struct CExpression *cExpression, struct IrFunc
                     // This branch is only here to make the compiler happy.
                     break;
             }
+            break;
         case AST_EXP_VAR:
+            src = ir_value_new_id(cExpression->var.name);
+            inst = ir_instruction_new_var(src);
+            ir_function_append_instruction(irFunction, inst);
+            dst = src;
             break;
         case AST_EXP_ASSIGNMENT:
+            src = compile_expression(cExpression->assign.src, irFunction);
+            dst = compile_expression(cExpression->assign.dst, irFunction);
+            inst = ir_instruction_new_copy(src, dst);
+            ir_function_append_instruction(irFunction, inst);
             break;
     }
     return dst;
@@ -176,35 +202,28 @@ struct IrValue compile_expression(struct CExpression *cExpression, struct IrFunc
 // TODO: Maybe we can delete a function's temporaries after the function if
 //      completely compiled.
 //
-void tmp_vars_init(void);
-const char *tmp_vars_insert(const char *str);
-struct IrValue make_temporary(struct IrFunction *function) {
-    char name_buf[120];
-    static int counter = 0;
-    if (counter == 0) tmp_vars_init();
-    sprintf(name_buf, "%.100s.tmp.%d", function->name, ++counter);
+static const char *tmp_vars_insert(const char *str);
+static struct IrValue make_temporary(struct IrFunction *function) {
+    const char* name_buf = make_unique("%.100s.tmp.%d", function->name);
     const char *tmp_name = tmp_vars_insert(name_buf);
     struct IrValue result = ir_value_new(IR_VAL_ID, tmp_name);
     return result;
 }
-
 static void make_conditional_labels(struct IrFunction *function, struct IrValue* t, struct IrValue* f, struct IrValue* e) {
     char name_buf[120];
-    static int counter = 0;
-    if (counter == 0) tmp_vars_init();
-    ++counter;
+    int uniquifier = next_uniquifier();
     if (t) {
-        sprintf(name_buf, "%.100s.true.%d", function->name, counter);
+        sprintf(name_buf, "%.100s.true.%d", function->name, uniquifier);
         const char *tmp_name = tmp_vars_insert(name_buf);
         *t = ir_value_new(IR_VAL_LABEL, tmp_name);
     }
     if (f) {
-        sprintf(name_buf, "%.100s.false.%d", function->name, counter);
+        sprintf(name_buf, "%.100s.false.%d", function->name, uniquifier);
         const char *tmp_name = tmp_vars_insert(name_buf);
         *f = ir_value_new(IR_VAL_LABEL, tmp_name);
     }
     if (e) {
-        sprintf(name_buf, "%.100s.end.%d", function->name, counter);
+        sprintf(name_buf, "%.100s.end.%d", function->name, uniquifier);
         const char *tmp_name = tmp_vars_insert(name_buf);
         *e = ir_value_new(IR_VAL_LABEL, tmp_name);
     }

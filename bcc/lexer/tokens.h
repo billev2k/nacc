@@ -11,6 +11,7 @@
 enum TOKEN_FLAGS  {
     TF_UNOP         = 0x00000001,
     TF_BINOP        = 0x00000002,
+    TF_ASSIGNMENT   = 0x00000004,   // If set, is an assignment token, "=", "+=", etc
     TF_UNOP_MASK    = 0x0000ff00,   // Mask for unop operation.
     TF_UNOP_SHIFT   = 8,            // How much to shift unop operation to move it to LSB position.
     TF_BINOP_MASK   = 0x00ff0000,   // Mask for the binop flags
@@ -25,6 +26,7 @@ extern enum TOKEN_FLAGS TOKEN_FLAGS[];
 #define TK_BINOP(binop) (TF_BINOP | AST_BINARY_##binop<<TF_BINOP_SHIFT)
 #define TK_IS_BINOP(tk) (TOKEN_FLAGS[tk] & TF_BINOP)
 #define TK_GET_BINOP(tk) ((enum AST_BINARY_OP)(TK_IS_BINOP(tk) ? ((TOKEN_FLAGS[tk] & TF_BINOP_MASK)>>TF_BINOP_SHIFT) : -1))
+#define TK_IS_ASSIGNMENT(tk) (TOKEN_FLAGS[tk] & TF_ASSIGNMENT)
 
 // token ID, print value, corresponding AST UNOP or BINOP (or both, eg, '-' is negate unop and subtract binop)
 #define TOKENS__ \
@@ -37,6 +39,7 @@ extern enum TOKEN_FLAGS TOKEN_FLAGS[];
     X(TK_R_PAREN,       ")",                0),                                      \
     X(TK_L_BRACE,       "{",                0),                                      \
     X(TK_R_BRACE,       "}",                0),                                      \
+    X(TK_COMMA,         ",",                0),                                      \
     X(TK_PLUS,          "+",                TK_BINOP(ADD)),                          \
     X(TK_HYPHEN,        "-",                TK_UNOP(NEGATE) | TK_BINOP(SUBTRACT)),   \
     X(TK_ASTERISK,      "*",                TK_BINOP(MULTIPLY)),                     \
@@ -59,7 +62,17 @@ extern enum TOKEN_FLAGS TOKEN_FLAGS[];
     X(TK_DECREMENT,     "--",               0),                                      \
     X(TK_L_NOT,         "!",                TK_UNOP(L_NOT)),                         \
     X(TK_TILDE,         "~",                TK_UNOP(COMPLEMENT)),                    \
-    X(TK_ASSIGN,        "=",                TK_BINOP(ASSIGN)),                       \
+    X(TK_ASSIGN,        "=",                TF_ASSIGNMENT|TK_BINOP(ASSIGN)),         \
+    X(TK_ASSIGN_PLUS,   "+=",               TF_ASSIGNMENT|TK_BINOP(ADD)),            \
+    X(TK_ASSIGN_MINUS,  "-=",               TF_ASSIGNMENT|TK_BINOP(SUBTRACT)),       \
+    X(TK_ASSIGN_MULT,   "*=",               TF_ASSIGNMENT|TK_BINOP(MULTIPLY)),       \
+    X(TK_ASSIGN_DIV,    "/=",               TF_ASSIGNMENT|TK_BINOP(DIVIDE)),         \
+    X(TK_ASSIGN_MOD,    "%=",               TF_ASSIGNMENT|TK_BINOP(REMAINDER)),      \
+    X(TK_ASSIGN_AND,    "&=",               TF_ASSIGNMENT|TK_BINOP(AND)),            \
+    X(TK_ASSIGN_OR,     "|=",               TF_ASSIGNMENT|TK_BINOP(OR)),             \
+    X(TK_ASSIGN_XOR,    "^=",               TF_ASSIGNMENT|TK_BINOP(XOR)),            \
+    X(TK_ASSIGN_LSHIFT, "<<=",              TF_ASSIGNMENT|TK_BINOP(LSHIFT)),         \
+    X(TK_ASSIGN_RSHIFT, ">>=",              TF_ASSIGNMENT|TK_BINOP(RSHIFT)),         \
     X(TK_ID,            "an identifier",    0),                                      \
     X(TK_LITERAL,       "a literal",        0),                                      \
     X(TK_EOF,           "eof",              0),

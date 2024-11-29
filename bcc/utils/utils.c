@@ -18,17 +18,21 @@ unsigned long hash_str(const char *str)
     return hash;
 }
 
+int long_is_zero(long l) {
+    return l == 0;
+}
+
 ///////////////////////////////////////////////////////////////////////////////
 //
 // Set implementation for "strings".
 //
-
-
+int set_of_str_is_null(const char* item) { return item == NULL;}
 struct set_of_str_helpers set_of_str_helpers = {
         hash_str,
         strcmp,
         (const char *(*)(const char *)) strdup,
-        (void (*)(const char *)) free
+        (void (*)(const char *)) free,
+        .is_null = set_of_str_is_null,
 };
 #pragma clang diagnostic push
 #pragma ide diagnostic ignored "misc-no-recursion"

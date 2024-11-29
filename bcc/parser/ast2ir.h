@@ -5,8 +5,8 @@
 #ifndef BCC_AST2IR_H
 #define BCC_AST2IR_H
 
-#include "../parser/ast.h"
-#include "ir.h"
+#include "ast.h"
+#include "../ir/ir.h"
 
 extern struct IrProgram *ast2ir(struct CProgram *cProgram);
 

@@ -79,7 +79,7 @@ static void expression_print(struct CExpression *expression, int depth) {
             printf("(");
 //            printf("      %s (\n", AST_BINARY_NAMES[expression->binary.op]);
             expression_print(expression->binary.left, depth+1);
-            printf(") %s (", AST_BINARY_NAMES[expression->binary.op]);
+            printf(" %s ", AST_BINARY_NAMES[expression->binary.op]);
             expression_print(expression->binary.right, depth+1);
 //            PR(depth);
             printf(")");
@@ -92,10 +92,9 @@ static void expression_print(struct CExpression *expression, int depth) {
         case AST_EXP_ASSIGNMENT:
 //            printf("      ASSIGN (\n");
             expression_print(expression->assign.dst, depth+1);
-            printf(" = (");
+            printf(" = ");
             expression_print(expression->assign.src, depth+1);
 //            PR(depth);
-            printf(")");
 //            printf("      )\n");
             break;
     }

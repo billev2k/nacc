@@ -8,12 +8,14 @@
 extern int configOptTest;
 extern int configOptLex;
 extern int configOptParse;
+extern int configOptValidate;
 extern int configOptTacky;
 extern int configOptCodegen;
 extern int configOptAsm;
 
 extern int traceAstMem;
 extern int traceTokens;
+extern int traceResolution;
 
 extern char const *inputFname;
 extern char const *ppFname;

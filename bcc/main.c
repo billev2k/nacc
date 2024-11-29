@@ -7,11 +7,12 @@
 #include "parser/parser.h"
 #include "parser/ast.h"
 #include "amd64/ir2amd64.h"
-#include "ir/ast2ir.h"
+#include "parser/ast2ir.h"
 #include "ir/print_ir.h"
 
 #include "SetOfItemTest.h"
 #include "parser/print_ast.h"
+#include "parser/semantics.h"
 
 void preProcess();
 
@@ -94,7 +95,15 @@ void compile() {
         }
     } else {
         struct CProgram *cProgram = parser_go();
+        semantic_analysis(cProgram);
         if (configOptParse) {
+            c_program_print(cProgram);
+            c_program_free(cProgram);
+            return;
+        }
+        if (configOptValidate) {
+            c_program_print(cProgram);
+            analyze_program(cProgram);
             c_program_print(cProgram);
             c_program_free(cProgram);
             return;

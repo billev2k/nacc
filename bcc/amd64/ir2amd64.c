@@ -32,7 +32,8 @@ struct set_of_pseudo_register_helpers setOfPseudoLocationHelpers = {
         .hash=pseudo_register_hash,
         .cmp=pseudo_register_cmp,
         .dup=pseudo_register_dup,
-        .free=pseudo_register_free
+        .free=pseudo_register_free,
+        .is_null=(int (*)(struct pseudo_register *)) long_is_zero,
 };
 SET_OF_ITEM_DEFN(pseudo_register, struct pseudo_register*, setOfPseudoLocationHelpers)
 

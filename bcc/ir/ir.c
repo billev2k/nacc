@@ -60,6 +60,13 @@ static struct IrInstruction* ir_instruction_new(enum IR_OP inst) {
     instruction->inst = inst;
     return instruction;
 }
+
+struct IrInstruction* ir_instruction_new_var(struct IrValue value) {
+    struct IrInstruction *instruction = ir_instruction_new(IR_OP_VAR);
+    instruction->var.value = value;
+    return instruction;
+}
+
 struct IrInstruction* ir_instruction_new_ret(struct IrValue value) {
     struct IrInstruction *instruction = ir_instruction_new(IR_OP_RET);
     instruction->ret.value = value;

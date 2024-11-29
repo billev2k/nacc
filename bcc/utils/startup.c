@@ -9,6 +9,7 @@
 #define TEST_OPT "--test"
 #define LEX_OPT "--lex"
 #define PARSE_OPT "--parse"
+#define VALIDATE_OPT "--validate"
 #define TACKY_OPT "--ir"
 #define TACKY_OPT2 "--tacky"
 #define CODEGEN_OPT "--codegen"
@@ -20,6 +21,8 @@ int configOptTest = 0;
 int configOptLex = 0;
 // if 1, parse only (build C AST), then stop
 int configOptParse = 0;
+// if 1, parse, perform semantic analysis, and stop
+int configOptValidate = 0;
 // if 1, parse, generate TACKY, then stop
 int configOptTacky = 0;
 // if 1, generate assembly (build asm AST), but don't write any files
@@ -28,7 +31,8 @@ int configOptCodegen = 0;
 int configOptAsm = 0;
 
 int traceAstMem = 0;
-int traceTokens = 1;
+int traceTokens = 0;
+int traceResolution = 0;
 
 // Name of the input file (.c file)
 char const *inputFname;
@@ -73,6 +77,9 @@ int parseConfig(int argc, char **argv) {
         } else if (strcasecmp(argv[i], PARSE_OPT) == 0) {
             ++configOptsFound;
             configOptParse = 1;
+        } else if (strcasecmp(argv[i], VALIDATE_OPT) == 0) {
+            ++configOptsFound;
+            configOptValidate = 1;
         } else if (strcasecmp(argv[i], TACKY_OPT) == 0 || strcasecmp(argv[i], TACKY_OPT2) == 0) {
             ++configOptsFound;
             configOptTacky = 1;

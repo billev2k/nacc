@@ -205,6 +205,10 @@ static enum TK tokenizer(void) {
                 ++pBuffer;
                 ++token_end;
                 return TK_INCREMENT;
+            } else if (*pBuffer == '=') {
+                ++pBuffer;
+                ++token_end;
+                return TK_ASSIGN_PLUS;
             }
             return TK_PLUS;
         case '-': {
@@ -213,17 +217,36 @@ static enum TK tokenizer(void) {
                 ++pBuffer;
                 ++token_end;
                 return TK_DECREMENT;
+            } else if (*pBuffer == '=') {
+                ++pBuffer;
+                ++token_end;
+                return TK_ASSIGN_MINUS;
             }
             return TK_HYPHEN;
         }
         case '*':
             ++pBuffer;
+            if (*pBuffer == '=') {
+                ++pBuffer;
+                ++token_end;
+                return TK_ASSIGN_MULT;
+            }
             return TK_ASTERISK;
         case '/':
             ++pBuffer;
+            if (*pBuffer == '=') {
+                ++pBuffer;
+                ++token_end;
+                return TK_ASSIGN_DIV;
+            }
             return TK_SLASH;
         case '%':
             ++pBuffer;
+            if (*pBuffer == '=') {
+                ++pBuffer;
+                ++token_end;
+                return TK_ASSIGN_MOD;
+            }
             return TK_PERCENT;
         case '&':
             ++pBuffer;
@@ -231,6 +254,10 @@ static enum TK tokenizer(void) {
                 ++pBuffer;
                 ++token_end;
                 return TK_L_AND;
+            } else if (*pBuffer == '=') {
+                ++pBuffer;
+                ++token_end;
+                return TK_ASSIGN_AND;
             }
             return TK_AMPERSAND;
         case '|':
@@ -239,11 +266,19 @@ static enum TK tokenizer(void) {
                 ++pBuffer;
                 ++token_end;
                 return TK_L_OR;
+            } else if (*pBuffer == '=') {
+                ++pBuffer;
+                ++token_end;
+                return TK_ASSIGN_OR;
             }
             return TK_OR;
         case '^':
             ++pBuffer;
-            return TK_CARET;
+            if (*pBuffer == '=') {
+                ++pBuffer;
+                ++token_end;
+                return TK_ASSIGN_XOR;
+            }return TK_CARET;
         case '!':
             ++pBuffer;
             if (*pBuffer == '=') {
@@ -265,6 +300,11 @@ static enum TK tokenizer(void) {
             if (*pBuffer == '<') {
                 ++pBuffer;
                 ++token_end;
+                if (*pBuffer == '=') {
+                    ++pBuffer;
+                    ++token_end;
+                    return TK_ASSIGN_LSHIFT;
+                }
                 return TK_LSHIFT;
             } else if (*pBuffer == '=') {
                 ++pBuffer;
@@ -277,13 +317,18 @@ static enum TK tokenizer(void) {
             if (*pBuffer == '>') {
                 ++pBuffer;
                 ++token_end;
-                return TK_RSHIFT;
+                if (*pBuffer == '=') {
+                    ++pBuffer;
+                    ++token_end;
+                    return TK_ASSIGN_RSHIFT;        // >>=
+                }
+                return TK_RSHIFT;                   // >>
             } else if (*pBuffer == '=') {
                 ++pBuffer;
                 ++token_end;
-                return TK_GE;
+                return TK_GE;                       // >=
             }
-            return TK_GT;
+            return TK_GT;                           // >
         case '~':
             ++pBuffer;
             return TK_TILDE;

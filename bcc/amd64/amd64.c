@@ -94,6 +94,7 @@ void amd64_program_free(struct Amd64Program *program) {
 struct Amd64Function* amd64_function_new(const char* name) {
     struct Amd64Function* result = (struct Amd64Function*)malloc(sizeof(struct Amd64Function));
     result->name = name;
+    list_of_Amd64Instruction_init(&result->instructions, 101);
     return result;
 }
 void amd64_function_append_instruction(struct Amd64Function *function, struct Amd64Instruction *instruction) {
