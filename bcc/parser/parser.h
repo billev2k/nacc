@@ -5,7 +5,7 @@
 #ifndef BCC_PARSER_H
 #define BCC_PARSER_H
 
-extern struct CProgram *parser_go(void);
+extern struct CProgram *c_program_parse(void);
 extern void analyze_program(struct CProgram* program);
 
 #endif //BCC_PARSER_H

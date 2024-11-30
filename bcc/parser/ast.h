@@ -46,6 +46,14 @@ enum AST_EXP_TYPE {
     AST_EXP_BINOP,
     AST_EXP_VAR,
     AST_EXP_ASSIGNMENT,
+    AST_EXP_INCREMENT,
+};
+
+enum AST_INCREMENT_OP {
+    AST_PRE_INCR,
+    AST_PRE_DECR,
+    AST_POST_INCR,
+    AST_POST_DECR,
 };
 
 #define AST_CONST_LIST__ \
@@ -65,7 +73,8 @@ extern const char * const ASM_CONST_TYPE_NAMES[];
 #define AST_UNARY_LIST__ \
     X(NEGATE,       "-"),       \
     X(COMPLEMENT,   "~"),       \
-    X(L_NOT,        "!"),       
+    X(L_NOT,        "!"),       \
+
 enum AST_UNARY_OP {
 #define X(a,b) AST_UNARY_##a
     AST_UNARY_LIST__
@@ -126,6 +135,10 @@ struct CExpression {
     enum AST_EXP_TYPE type;
     union {
         struct {
+            enum AST_UNARY_OP op;
+            struct CExpression *operand;
+        } unary;
+        struct {
             enum AST_BINARY_OP op;
             struct CExpression *left;
             struct CExpression *right;
@@ -135,10 +148,6 @@ struct CExpression {
             const char *value;
         } literal;
         struct {
-            enum AST_UNARY_OP op;
-            struct CExpression *operand;
-        } unary;
-        struct {
             const char* name;
             const char* source_name;
         } var;
@@ -146,13 +155,18 @@ struct CExpression {
             struct CExpression* dst;
             struct CExpression* src;
         } assign;
+        struct {
+            enum AST_INCREMENT_OP op;
+            struct CExpression* operand;
+        } increment;
     };
 };
-extern struct CExpression* c_expression_new_const(enum AST_CONST_TYPE const_type, const char *value);
 extern struct CExpression* c_expression_new_unop(enum AST_UNARY_OP op, struct CExpression* operand);
 extern struct CExpression* c_expression_new_binop(enum AST_BINARY_OP op, struct CExpression* left, struct CExpression* right);
-extern struct CExpression* c_expression_new_assign(struct CExpression* src, struct CExpression* dst);
+extern struct CExpression* c_expression_new_const(enum AST_CONST_TYPE const_type, const char *value);
 extern struct CExpression* c_expression_new_var(const char* name);
+extern struct CExpression* c_expression_new_assign(struct CExpression* src, struct CExpression* dst);
+extern struct CExpression* c_expression_new_increment(enum AST_INCREMENT_OP op, struct CExpression* operand);
 extern struct CExpression* c_expression_clone(struct CExpression* expression);
 extern void c_expression_free(struct CExpression *expression);
 //endregion

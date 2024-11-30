@@ -56,12 +56,6 @@ static struct CExpression* c_expression_new(enum AST_EXP_TYPE type) {
     expression->type = type;
     return expression;
 }
-struct CExpression* c_expression_new_const(enum AST_CONST_TYPE const_type, const char *value) {
-    struct CExpression* expression = c_expression_new(AST_EXP_CONST);
-    expression->literal.type = const_type;
-    expression->literal.value = value;
-    return expression;
-}
 struct CExpression* c_expression_new_unop(enum AST_UNARY_OP op, struct CExpression* operand) {
     struct CExpression* expression = c_expression_new(AST_EXP_UNOP);
     expression->unary.op = op;
@@ -75,16 +69,28 @@ struct CExpression* c_expression_new_binop(enum AST_BINARY_OP op, struct CExpres
     expression->binary.right = right;
     return expression;
 }
-struct CExpression* c_expression_new_assign(struct CExpression* src, struct CExpression* dst) {
-    struct CExpression* expression = c_expression_new(AST_EXP_ASSIGNMENT);
-    expression->assign.dst = dst;
-    expression->assign.src = src;
+struct CExpression* c_expression_new_const(enum AST_CONST_TYPE const_type, const char *value) {
+    struct CExpression* expression = c_expression_new(AST_EXP_CONST);
+    expression->literal.type = const_type;
+    expression->literal.value = value;
     return expression;
 }
 struct CExpression* c_expression_new_var(const char* name) {
     struct CExpression* expression = c_expression_new(AST_EXP_VAR);
     expression->var.name = name;
     expression->var.source_name = name;
+    return expression;
+}
+struct CExpression* c_expression_new_assign(struct CExpression* src, struct CExpression* dst) {
+    struct CExpression* expression = c_expression_new(AST_EXP_ASSIGNMENT);
+    expression->assign.dst = dst;
+    expression->assign.src = src;
+    return expression;
+}
+struct CExpression* c_expression_new_increment(enum AST_INCREMENT_OP op, struct CExpression* operand) {
+    struct CExpression* expression = c_expression_new(AST_EXP_INCREMENT);
+    expression->unary.op = op;
+    expression->unary.operand = operand;
     return expression;
 }
 struct CExpression* c_expression_clone(struct CExpression* expression) {

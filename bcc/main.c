@@ -94,7 +94,7 @@ void compile() {
             }
         }
     } else {
-        struct CProgram *cProgram = parser_go();
+        struct CProgram *cProgram = c_program_parse();
         semantic_analysis(cProgram);
         if (configOptParse) {
             c_program_print(cProgram);

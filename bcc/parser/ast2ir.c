@@ -78,6 +78,7 @@ struct IrValue compile_expression(struct CExpression *cExpression, struct IrFunc
     struct IrValue src;
     struct IrValue src2;
     struct IrValue dst = {};
+    struct IrValue tmp = {};
     struct IrValue false_label;
     struct IrValue true_label;
     struct IrValue end_label;
@@ -189,6 +190,34 @@ struct IrValue compile_expression(struct CExpression *cExpression, struct IrFunc
             dst = compile_expression(cExpression->assign.dst, irFunction);
             inst = ir_instruction_new_copy(src, dst);
             ir_function_append_instruction(irFunction, inst);
+            break;
+        case AST_EXP_INCREMENT:
+            switch (cExpression->increment.op) {
+                case AST_PRE_INCR:
+                case AST_PRE_DECR:
+                    binary_op = (cExpression->increment.op==AST_PRE_INCR)?IR_BINARY_ADD:IR_BINARY_SUBTRACT;
+                    src = compile_expression(cExpression->increment.operand, irFunction);
+                    tmp = make_temporary(irFunction);
+                    inst = ir_instruction_new_binary(binary_op, src, ir_value_new_const("1"), tmp);
+                    ir_function_append_instruction(irFunction, inst);
+                    inst = ir_instruction_new_copy(tmp, src);
+                    ir_function_append_instruction(irFunction, inst);
+                    dst = src;
+                    break;
+                case AST_POST_INCR:
+                case AST_POST_DECR:
+                    binary_op = (cExpression->increment.op==AST_POST_INCR)?IR_BINARY_ADD:IR_BINARY_SUBTRACT;
+                    dst = make_temporary(irFunction);
+                    src = compile_expression(cExpression->increment.operand, irFunction);
+                    inst = ir_instruction_new_copy(src, dst);
+                    ir_function_append_instruction(irFunction, inst);
+                    tmp = make_temporary(irFunction);
+                    inst = ir_instruction_new_binary(binary_op, src, ir_value_new_const("1"), tmp);
+                    ir_function_append_instruction(irFunction, inst);
+                    inst = ir_instruction_new_copy(tmp, src);
+                    ir_function_append_instruction(irFunction, inst);
+                    break;
+            }
             break;
     }
     return dst;

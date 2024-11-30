@@ -129,6 +129,21 @@ static void resolve_exp(struct CExpression* exp) {
             exp->assign.dst->var.name = mapped_name;
             resolve_exp(exp->assign.src);
             break;
+        case AST_EXP_INCREMENT:
+            if (exp->increment.operand->type != AST_EXP_VAR) {
+                printf("Error in increment/decrement; invalid lvalue\n");
+                exit(1);
+            }
+            mapped_name = resolve_var(exp->increment.operand->var.source_name);
+            if (!mapped_name) {
+                printf("Error: %s has not been declared\n", exp->increment.operand->var.source_name);
+                exit(1);
+            }
+            if (traceResolution) {
+                printf("resolving %s as %s\n", exp->increment.operand->var.name, mapped_name);
+            }
+            exp->increment.operand->var.name = mapped_name;
+            break;
     }
 }
 

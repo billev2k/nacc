@@ -24,8 +24,9 @@ static struct CExpression * parse_factor(void);
 static int expect(enum TK expected);
 static void fail(const char * msg);
 
-struct CProgram * parser_go(void) {
+struct CProgram * c_program_parse(void) {
     struct CProgram *program = parse_program();
+//    c_program_print(program);
     return program;
 }
 
@@ -185,13 +186,18 @@ static struct CExpression* parse_factor() {
     else if (next_token.token == TK_ID) {
         result = c_expression_new_var(next_token.text);
     }
-    else if (next_token.token == TK_INCREMENT) {
-        int x=0;
-        int y = (x)--;
+    else if (next_token.token == TK_INCREMENT || next_token.token == TK_DECREMENT) {
+        struct CExpression *operand = parse_factor();
+        result = c_expression_new_increment((next_token.token == TK_INCREMENT)?AST_PRE_INCR:AST_PRE_DECR, operand);
     }
     else {
         result = NULL;
         fail("Malformed factor");
+    }
+    next_token = lex_peek_token();
+    if (next_token.token == TK_INCREMENT || next_token.token == TK_DECREMENT) {
+        lex_take_token();
+        result = c_expression_new_increment((next_token.token == TK_INCREMENT)?AST_POST_INCR:AST_POST_DECR, result);
     }
     return result;
 }
