@@ -37,7 +37,7 @@ struct IrFunction *compile_function(struct CFunction *cFunction) {
 }
 
 static void compile_declaration(struct CDeclaration* declaration, struct IrFunction* function) {
-    struct IrValue var = ir_value_new_id(declaration->name);
+    struct IrValue var = ir_value_new_id(declaration->var.name);
     struct IrInstruction* inst = ir_instruction_new_var(var);
     ir_function_append_instruction(function, inst);
     if (declaration->initializer) {
@@ -49,10 +49,16 @@ static void compile_declaration(struct CDeclaration* declaration, struct IrFunct
 
 void compile_statement(struct CStatement *statement, struct IrFunction *function) {
     struct IrValue src;
+    struct IrValue condition;
     struct IrInstruction *inst;
+    struct IrValue label;
+    struct IrValue else_label;
+    struct IrValue end_label;
+    int has_else;
 
     switch (statement->type) {
         case STMT_RETURN:
+        case STMT_AUTO_RETURN:
             src = compile_expression(statement->expression, function);
             inst = ir_instruction_new_ret(src);
             ir_function_append_instruction(function, inst);
@@ -62,6 +68,37 @@ void compile_statement(struct CStatement *statement, struct IrFunction *function
             compile_expression(statement->expression, function);
             break;
         case STMT_NULL:
+            break;
+        case STMT_IF:
+            has_else = statement->if_statement.else_statement != NULL;
+            make_conditional_labels(function, NULL, has_else?&else_label:NULL, &end_label);
+            // Condition
+            condition = compile_expression(statement->if_statement.condition, function);
+            inst = ir_instruction_new_jumpz(condition, has_else?else_label:end_label);
+            ir_function_append_instruction(function, inst);
+            // Then statement
+            compile_statement(statement->if_statement.then_statement, function);
+            if (has_else) {
+                inst = ir_instruction_new_jump(end_label);
+                ir_function_append_instruction(function, inst);
+                // Else statement
+                inst = ir_instruction_new_label(else_label);
+                ir_function_append_instruction(function, inst);
+                compile_statement(statement->if_statement.else_statement, function);
+            }
+            // end
+            inst = ir_instruction_new_label(end_label);
+            ir_function_append_instruction(function, inst);
+            break;
+        case STMT_GOTO:
+            label = ir_value_new(IR_VAL_LABEL, statement->goto_statement.label->var.name);
+            inst = ir_instruction_new_jump(label);
+            ir_function_append_instruction(function, inst);
+            break;
+        case STMT_LABEL:
+            label = ir_value_new(IR_VAL_LABEL, statement->label_statement.label->var.name);
+            inst = ir_instruction_new_label(label);
+            ir_function_append_instruction(function, inst);
             break;
     }
 }
@@ -79,6 +116,7 @@ struct IrValue compile_expression(struct CExpression *cExpression, struct IrFunc
     struct IrValue src2;
     struct IrValue dst = {};
     struct IrValue tmp = {};
+    struct IrValue condition;
     struct IrValue false_label;
     struct IrValue true_label;
     struct IrValue end_label;
@@ -176,6 +214,8 @@ struct IrValue compile_expression(struct CExpression *cExpression, struct IrFunc
                     break;
                 case AST_BINARY_ASSIGN:
                     // This branch is only here to make the compiler happy.
+                case AST_BINARY_QUESTION:
+                    // Same.
                     break;
             }
             break;
@@ -219,6 +259,29 @@ struct IrValue compile_expression(struct CExpression *cExpression, struct IrFunc
                     break;
             }
             break;
+        case AST_EXP_CONDITIONAL:
+            make_conditional_labels(irFunction, NULL, &false_label, &end_label);
+            dst = make_temporary(irFunction);
+            // Condition ("left") expression
+            condition = compile_expression(cExpression->conditional.left_exp, irFunction);
+            inst = ir_instruction_new_jumpz(condition, false_label);
+            ir_function_append_instruction(irFunction, inst);
+            // True ("middle") expression
+            tmp = compile_expression(cExpression->conditional.middle_exp, irFunction);
+            inst = ir_instruction_new_copy(tmp, dst);
+            ir_function_append_instruction(irFunction, inst);
+            inst = ir_instruction_new_jump(end_label);
+            ir_function_append_instruction(irFunction, inst);
+            // False ("right") expression
+            inst = ir_instruction_new_label(false_label);
+            ir_function_append_instruction(irFunction, inst);
+            tmp = compile_expression(cExpression->conditional.right_exp, irFunction);
+            inst = ir_instruction_new_copy(tmp, dst);
+            ir_function_append_instruction(irFunction, inst);
+            // exit
+            inst = ir_instruction_new_label(end_label);
+            ir_function_append_instruction(irFunction, inst);
+            break;
     }
     return dst;
 }
@@ -233,7 +296,7 @@ struct IrValue compile_expression(struct CExpression *cExpression, struct IrFunc
 //
 static const char *tmp_vars_insert(const char *str);
 static struct IrValue make_temporary(struct IrFunction *function) {
-    const char* name_buf = make_unique("%.100s.tmp.%d", function->name);
+    const char* name_buf = make_unique("%.100s.tmp.%d", function->name, 'v');
     const char *tmp_name = tmp_vars_insert(name_buf);
     struct IrValue result = ir_value_new(IR_VAL_ID, tmp_name);
     return result;

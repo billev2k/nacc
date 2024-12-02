@@ -23,17 +23,17 @@ const char * const ASM_CONST_TYPE_NAMES[] = {
 };
 
 const char * const AST_BINARY_NAMES[] = {
-#define X(a,b,c) b
+#define X(a,b,c,d) b
     AST_BINARY_LIST__
 #undef X
 };
 const int AST_BINARY_PRECEDENCE[] = {
-#define X(a,b,c) c
+#define X(a,b,c,d) c
     AST_BINARY_LIST__
 #undef X
 };
 const int AST_TO_IR_BINARY[] = {
-#define X(a,b,c) IR_BINARY_##a 
+#define X(a,b,c,d) d
     AST_BINARY_LIST__
 #undef X
 };
@@ -89,8 +89,15 @@ struct CExpression* c_expression_new_assign(struct CExpression* src, struct CExp
 }
 struct CExpression* c_expression_new_increment(enum AST_INCREMENT_OP op, struct CExpression* operand) {
     struct CExpression* expression = c_expression_new(AST_EXP_INCREMENT);
-    expression->unary.op = op;
-    expression->unary.operand = operand;
+    expression->increment.op = op;
+    expression->increment.operand = operand;
+    return expression;
+}
+struct CExpression* c_expression_new_conditional(struct CExpression* left_exp, struct CExpression* middle_exp, struct CExpression* right_exp) {
+    struct CExpression* expression = c_expression_new(AST_EXP_CONDITIONAL);
+    expression->conditional.left_exp = left_exp;
+    expression->conditional.middle_exp = middle_exp;
+    expression->conditional.right_exp = right_exp;
     return expression;
 }
 struct CExpression* c_expression_clone(struct CExpression* expression) {
@@ -117,6 +124,15 @@ struct CExpression* c_expression_clone(struct CExpression* expression) {
             if (expression->assign.src) clone->assign.src = c_expression_clone(expression->assign.src);
             if (expression->assign.dst) clone->assign.dst = c_expression_clone(expression->assign.dst);
             break;
+        case AST_EXP_INCREMENT:
+            clone->increment.op = expression->increment.op;
+            clone->increment.operand = c_expression_clone(expression->increment.operand);
+            break;
+        case AST_EXP_CONDITIONAL:
+            clone->conditional.left_exp = c_expression_clone(expression->conditional.left_exp);
+            clone->conditional.middle_exp = c_expression_clone(expression->conditional.middle_exp);
+            clone->conditional.right_exp = c_expression_clone(expression->conditional.right_exp);
+            break;
     }
     return clone;
 }
@@ -140,6 +156,14 @@ void c_expression_free(struct CExpression *expression) {
             if (expression->assign.src) c_expression_free(expression->assign.src);
             if (expression->assign.dst) c_expression_free(expression->assign.dst);
             break;
+        case AST_EXP_INCREMENT:
+            c_expression_free(expression->increment.operand);
+            break;
+        case AST_EXP_CONDITIONAL:
+            c_expression_free(expression->conditional.left_exp);
+            c_expression_free(expression->conditional.middle_exp);
+            c_expression_free(expression->conditional.right_exp);
+            break;
     }
     free(expression);
 }
@@ -147,23 +171,41 @@ void c_expression_free(struct CExpression *expression) {
 
 //region CStatement
 static struct CStatement* c_statement_new(enum AST_STMT type) {
-    struct CStatement* result = (struct CStatement*)malloc(sizeof(struct CStatement));
-    result->type = type;
-    return result;
+    struct CStatement* statement = (struct CStatement*)malloc(sizeof(struct CStatement));
+    statement->type = type;
+    return statement;
 }
 struct CStatement* c_statement_new_return(struct CExpression* expression) {
-    struct CStatement* result = c_statement_new(STMT_RETURN);
-    result->expression = expression;
-    return result;
+    struct CStatement* statement = c_statement_new(STMT_RETURN);
+    statement->expression = expression;
+    return statement;
 }
 struct CStatement* c_statement_new_exp(struct CExpression* expression) {
-    struct CStatement* result = c_statement_new(STMT_EXP);
-    result->expression = expression;
-    return result;
+    struct CStatement* statement = c_statement_new(STMT_EXP);
+    statement->expression = expression;
+    return statement;
+}
+struct CStatement *c_statement_new_if(struct CExpression *condition, struct CStatement *then_statement,
+                                      struct CStatement *else_statement) {
+    struct CStatement* statement = c_statement_new(STMT_IF);
+    statement->if_statement.condition = condition;
+    statement->if_statement.then_statement = then_statement;
+    statement->if_statement.else_statement = else_statement;
+    return statement;
+}        
+struct CStatement* c_statement_new_goto(struct CExpression* label) {
+    struct CStatement* statement = c_statement_new(STMT_GOTO);
+    statement->goto_statement.label = label;
+    return statement;
+}
+struct CStatement* c_statement_new_label(struct CExpression* label) {
+    struct CStatement* statement = c_statement_new(STMT_LABEL);
+    statement->label_statement.label = label;
+    return statement;
 }
 struct CStatement* c_statement_new_null(void) {
-    struct CStatement* result = c_statement_new(STMT_NULL);
-    return result;
+    struct CStatement* statement = c_statement_new(STMT_NULL);
+    return statement;
 }
 void c_statement_free(struct CStatement *statement) {
     if (!statement) return;
@@ -175,8 +217,8 @@ void c_statement_free(struct CStatement *statement) {
 //region CDeclaration
 struct CDeclaration* c_declaration_new(const char* identifier) {
     struct CDeclaration* result = (struct CDeclaration*)malloc(sizeof(struct CDeclaration));
-    result->name = identifier;
-    result->source_name = identifier;
+    result->var.name = identifier;
+    result->var.source_name = identifier;
     return result;
 }
 struct CDeclaration* c_declaration_new_init(const char* identifier, struct CExpression* initializer) {

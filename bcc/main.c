@@ -95,7 +95,6 @@ void compile() {
         }
     } else {
         struct CProgram *cProgram = c_program_parse();
-        semantic_analysis(cProgram);
         if (configOptParse) {
             c_program_print(cProgram);
             c_program_free(cProgram);
@@ -108,6 +107,7 @@ void compile() {
             c_program_free(cProgram);
             return;
         }
+        analyze_program(cProgram);
         struct IrProgram *irProgram = ast2ir(cProgram);
         if (configOptTacky) {
             c_program_print(cProgram);
@@ -125,6 +125,10 @@ void compile() {
             c_program_free(cProgram);
             return;
         }
+        c_program_print(cProgram);
+        print_ir(irProgram, stdout);
+        amd64_program_emit(asmProgram, stdout);
+
         FILE *asmf = fopen(asmFname, "w");
         amd64_program_emit(asmProgram, asmf);
         fclose(asmf);

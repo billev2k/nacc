@@ -21,7 +21,7 @@ static struct CStatement * parse_statement(void);
 static struct CExpression * parse_expression(int minimum_precedence);
 static struct CExpression * parse_factor(void);
 
-static int expect(enum TK expected);
+static struct Token expect(enum TK expected);
 static void fail(const char * msg);
 
 struct CProgram * c_program_parse(void) {
@@ -61,6 +61,7 @@ struct CFunction *parse_function() {
     // in a future pass.
     struct CExpression *zero = c_expression_new_const(AST_CONST_INT, "0");
     struct CStatement *ret_stmt = c_statement_new_return(zero);
+    ret_stmt->type = STMT_AUTO_RETURN;
     struct CBlockItem *ret_item = c_block_item_new_stmt(ret_stmt);
     c_function_append_block_item(function, ret_item);
     return function;
@@ -99,18 +100,52 @@ struct CDeclaration* parse_declaration() {
 
 struct CStatement *parse_statement() {
     struct CStatement* result = NULL;
+    struct CExpression* dst = NULL;
     struct Token next_token = lex_peek_token();
     if (next_token.token == TK_RETURN) {
         lex_take_token();
         struct CExpression* expression = parse_expression(0);
         result = c_statement_new_return(expression);
-    } else if (next_token.token != TK_SEMI) {
+
+        expect(TK_SEMI);
+    }
+    else if (next_token.token == TK_IF) {
+        struct CStatement* else_statement = NULL;
+        lex_take_token();
+        expect(TK_L_PAREN);
+        struct CExpression* condition = parse_expression(0);
+        expect(TK_R_PAREN);
+        struct CStatement* then_statement = parse_statement();
+        next_token = lex_peek_token();
+        if (next_token.token == TK_ELSE) {
+            lex_take_token();
+            else_statement = parse_statement();
+        }
+        result = c_statement_new_if(condition, then_statement, else_statement);
+    }
+    else if (next_token.token == TK_GOTO) {
+        lex_take_token();
+        next_token = expect(TK_ID);
+        dst = c_expression_new_var(next_token.text);
+        expect(TK_SEMI);
+        result = c_statement_new_goto(dst);
+    }
+    else if (next_token.token == TK_ID && lex_peek_ahead(2).token == TK_COLON) {
+        lex_take_token();
+        dst = c_expression_new_var(next_token.text);
+        expect(TK_COLON);
+        result = c_statement_new_label(dst);
+    }
+    else if (next_token.token != TK_SEMI) {
         struct CExpression* expression = parse_expression(0);
         result = c_statement_new_exp(expression);
-    } else {
+        expect(TK_SEMI);
+    }
+    else {
         result = c_statement_new_null();
     }
-    expect(TK_SEMI);
+    next_token = lex_peek_token();
+    if (next_token.token == TK_SEMI) { lex_take_token(); }
     return result;
 }
 
@@ -132,13 +167,20 @@ static enum AST_BINARY_OP parse_binop() {
     return binop;
 }
 
+struct CExpression *parse_conditional_middle() {
+    lex_take_token(); // the '?'
+    struct CExpression* middle_exp = parse_expression(0);
+    expect(TK_COLON);
+    return middle_exp;
+}
+
 struct CExpression *parse_expression(int minimum_precedence) {
     struct CExpression* left_exp = parse_factor();
     struct Token next_token = lex_peek_token();
     int op_precedence;
     while (TK_IS_BINOP(next_token.token) && (op_precedence=get_binop_precedence(next_token)) >= minimum_precedence) {
-        enum AST_BINARY_OP binary_op = parse_binop();
         if (TK_IS_ASSIGNMENT(next_token.token)) {
+            enum AST_BINARY_OP binary_op = parse_binop();
             struct CExpression *right_exp = parse_expression(op_precedence);
             if (next_token.token == TK_ASSIGN) {
                 // simple assignment; assign right_exp to lvalue_exp.
@@ -148,7 +190,13 @@ struct CExpression *parse_expression(int minimum_precedence) {
                 struct CExpression* op_result_exp = c_expression_new_binop(binary_op, c_expression_clone(left_exp), right_exp);
                 left_exp = c_expression_new_assign(op_result_exp, left_exp);
             }
-        } else {
+        } else if (next_token.token == TK_QUESTION) {
+            struct CExpression* middle_exp = parse_conditional_middle();
+            struct CExpression* right_exp = parse_expression(op_precedence);
+            left_exp = c_expression_new_conditional(left_exp, middle_exp, right_exp);
+        }
+        else {
+            enum AST_BINARY_OP binary_op = parse_binop();
             struct CExpression *right_exp = parse_expression(op_precedence + 1);
             left_exp = c_expression_new_binop(binary_op, left_exp, right_exp);
         }
@@ -202,13 +250,13 @@ static struct CExpression* parse_factor() {
     return result;
 }
 
-static int expect(enum TK expected) {
+static struct Token expect(enum TK expected) {
     struct Token next = lex_take_token();
     if (next.token != expected) {
         fprintf(stderr, "Expected %s but got %s\n", lex_token_name(expected), next.text);
         exit(1);
     }
-    return 1;
+    return next;
 }
 
 #pragma clang diagnostic push

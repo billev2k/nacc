@@ -4,6 +4,7 @@
 
 #include <stdlib.h>
 #include <ctype.h>
+#include <assert.h>
 #include "lexer.h"
 #include "../parser/ast.h"
 #include "../utils/startup.h"
@@ -14,6 +15,8 @@
 char *lineBuffer = NULL;
 int lineBufferSize = 0;
 int lineNumber = 0;
+
+#define MAX_READAHEAD 3
 
 // Pointer to next character in line buffer.
 const char *pBuffer;
@@ -98,21 +101,35 @@ static enum TK tokenizer(void);
 /**
  * When it is necessary to look ahead without affecting the "current_token", the "peeked" token is stored here.
  */
-struct Token readahead;
-int have_readahead = 0;
+struct Token readahead_list[MAX_READAHEAD];
+int readahead_count = 0;
 
 /**
  * Peek at the next token without affecting the "current_token".
  * @return the "next" token.
  */
 struct Token lex_peek_token(void) {
-    if (!have_readahead) {
-        readahead = internal_take_token();
-        have_readahead = 1;
-    }
-    if (traceTokens) printf("Peek token (%d) %s\n", readahead.token, readahead.text);
-    return readahead;
+    return lex_peek_ahead(1);
 }
+
+static void lex_readahead_next() {
+    readahead_list[readahead_count++] = internal_take_token();
+}
+
+/**
+ * Peek at the nth token. n==1 means peek at the token that will be returned by lex_take_token()
+ * @param n the token at which to peek.
+ * @return The token.
+ */
+struct Token lex_peek_ahead(int n) {
+    assert(n <= MAX_READAHEAD);
+    int x = n - readahead_count;
+    while ((n - readahead_count) > 0) {
+        readahead_list[readahead_count++] = internal_take_token();
+    }
+    return readahead_list[n-1];
+}
+
 
 /**
  * Return the next token from the input stream, and advance the token pointer. If the next token
@@ -120,10 +137,13 @@ struct Token lex_peek_token(void) {
  * @return the next token.
  */
 struct Token lex_take_token(void) {
-    if (have_readahead) {
-        have_readahead = 0;
-        if (traceTokens) printf("Take ra token (%d) %s\n", readahead.token, readahead.text);
-        current_token = readahead;
+    if (readahead_count) {
+        current_token = readahead_list[0];
+        for (int i=0; i<readahead_count-1; ++i) {
+            readahead_list[i] = readahead_list[i+1];
+        }
+        --readahead_count;
+        if (traceTokens) printf("Take ra token (%d) %s\n", current_token.token, current_token.text);
         return current_token;
     }
     current_token = internal_take_token();
@@ -183,24 +203,18 @@ static enum TK tokenizer(void) {
     // Assume a one-character token, and adjust if two- or three-character token.
     ++token_end;
     // See what we really have.
-    switch (*pBuffer) {
+    switch (*pBuffer++) {
         case '(':
-            ++pBuffer;
             return TK_L_PAREN;
         case ')':
-            ++pBuffer;
             return TK_R_PAREN;
         case '{':
-            ++pBuffer;
             return TK_L_BRACE;
         case '}':
-            ++pBuffer;
             return TK_R_BRACE;
         case ';':
-            ++pBuffer;
             return TK_SEMI;
         case '+':
-            ++pBuffer;
             if (*pBuffer == '+') {
                 ++pBuffer;
                 ++token_end;
@@ -212,7 +226,6 @@ static enum TK tokenizer(void) {
             }
             return TK_PLUS;
         case '-': {
-            ++pBuffer;
             if (*pBuffer == '-') {
                 ++pBuffer;
                 ++token_end;
@@ -225,7 +238,6 @@ static enum TK tokenizer(void) {
             return TK_HYPHEN;
         }
         case '*':
-            ++pBuffer;
             if (*pBuffer == '=') {
                 ++pBuffer;
                 ++token_end;
@@ -233,7 +245,6 @@ static enum TK tokenizer(void) {
             }
             return TK_ASTERISK;
         case '/':
-            ++pBuffer;
             if (*pBuffer == '=') {
                 ++pBuffer;
                 ++token_end;
@@ -241,7 +252,6 @@ static enum TK tokenizer(void) {
             }
             return TK_SLASH;
         case '%':
-            ++pBuffer;
             if (*pBuffer == '=') {
                 ++pBuffer;
                 ++token_end;
@@ -249,7 +259,6 @@ static enum TK tokenizer(void) {
             }
             return TK_PERCENT;
         case '&':
-            ++pBuffer;
             if (*pBuffer == '&') {
                 ++pBuffer;
                 ++token_end;
@@ -261,7 +270,6 @@ static enum TK tokenizer(void) {
             }
             return TK_AMPERSAND;
         case '|':
-            ++pBuffer;
             if (*pBuffer == '|') {
                 ++pBuffer;
                 ++token_end;
@@ -273,14 +281,12 @@ static enum TK tokenizer(void) {
             }
             return TK_OR;
         case '^':
-            ++pBuffer;
             if (*pBuffer == '=') {
                 ++pBuffer;
                 ++token_end;
                 return TK_ASSIGN_XOR;
             }return TK_CARET;
         case '!':
-            ++pBuffer;
             if (*pBuffer == '=') {
                 ++pBuffer;
                 ++token_end;
@@ -288,7 +294,6 @@ static enum TK tokenizer(void) {
             }
             return TK_L_NOT;
         case '=':
-            ++pBuffer;
             if (*pBuffer == '=') {
                 ++pBuffer;
                 ++token_end;
@@ -296,7 +301,6 @@ static enum TK tokenizer(void) {
             }
             return TK_ASSIGN;
         case '<':
-            ++pBuffer;
             if (*pBuffer == '<') {
                 ++pBuffer;
                 ++token_end;
@@ -313,7 +317,6 @@ static enum TK tokenizer(void) {
             }
             return TK_LT;
         case '>':
-            ++pBuffer;
             if (*pBuffer == '>') {
                 ++pBuffer;
                 ++token_end;
@@ -330,10 +333,12 @@ static enum TK tokenizer(void) {
             }
             return TK_GT;                           // >
         case '~':
-            ++pBuffer;
             return TK_TILDE;
+        case '?':
+            return TK_QUESTION;
+        case ':':
+            return TK_COLON;
         default:
-            ++pBuffer;
             return TK_UNKNOWN;
     }
 }

@@ -31,15 +31,20 @@ extern enum TOKEN_FLAGS TOKEN_FLAGS[];
 // token ID, print value, corresponding AST UNOP or BINOP (or both, eg, '-' is negate unop and subtract binop)
 #define TOKENS__ \
     X(TK_UNKNOWN,       "!! unknown !!",    0),                                      \
+    X(TK_ELSE,          "else",             0),                                      \
+    X(TK_GOTO,          "goto",             0),                                      \
+    X(TK_IF,            "if",               0),                                      \
     X(TK_INT,           "int",              0),                                      \
-    X(TK_VOID,          "void",             0),                                      \
     X(TK_RETURN,        "return",           0),                                      \
+    X(TK_VOID,          "void",             0),                                      \
     X(TK_SEMI,          ";",                0),                                      \
     X(TK_L_PAREN,       "(",                0),                                      \
     X(TK_R_PAREN,       ")",                0),                                      \
     X(TK_L_BRACE,       "{",                0),                                      \
     X(TK_R_BRACE,       "}",                0),                                      \
     X(TK_COMMA,         ",",                0),                                      \
+    X(TK_COLON,         ":",                0),                                      \
+    X(TK_QUESTION,      "?",                TK_BINOP(QUESTION)),                     \
     X(TK_PLUS,          "+",                TK_BINOP(ADD)),                          \
     X(TK_HYPHEN,        "-",                TK_UNOP(NEGATE) | TK_BINOP(SUBTRACT)),   \
     X(TK_ASTERISK,      "*",                TK_BINOP(MULTIPLY)),                     \
@@ -82,8 +87,8 @@ extern enum TOKEN_FLAGS TOKEN_FLAGS[];
     TOKENS__
 #undef X
     NUM_TOKEN_TYPES,
-    TK_KEYWORDS_BEGIN=TK_INT,
-    TK_KEYWORDS_END=TK_RETURN+1,
+    TK_KEYWORDS_BEGIN=TK_ELSE,
+    TK_KEYWORDS_END=TK_VOID+1,
 };
 
 extern const char *token_names[NUM_TOKEN_TYPES];

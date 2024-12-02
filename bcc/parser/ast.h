@@ -35,9 +35,13 @@ enum AST_BLOCK_ITEM {
 };
 
 enum AST_STMT {
-    STMT_RETURN,
     STMT_EXP,
+    STMT_GOTO,
+    STMT_IF,
+    STMT_LABEL,
     STMT_NULL,
+    STMT_RETURN,
+    STMT_AUTO_RETURN,
 };
 
 enum AST_EXP_TYPE {
@@ -47,6 +51,7 @@ enum AST_EXP_TYPE {
     AST_EXP_VAR,
     AST_EXP_ASSIGNMENT,
     AST_EXP_INCREMENT,
+    AST_EXP_CONDITIONAL,
 };
 
 enum AST_INCREMENT_OP {
@@ -88,25 +93,26 @@ extern enum IR_UNARY_OP const AST_TO_IR_UNARY[];
 // operator; the converse is not true, IR can support binary ops that
 // C does not need.
 #define AST_BINARY_LIST__ \
-    X(MULTIPLY,         "*",    50),      \
-    X(DIVIDE,           "/",    50),      \
-    X(REMAINDER,        "%",    50),      \
-    X(ADD,              "+",    45),      \
-    X(SUBTRACT,         "-",    45),      \
-    X(OR,               "|",    20),      \
-    X(AND,              "&",    25),      \
-    X(XOR,              "^",    23),      \
-    X(LSHIFT,           "<<",   40),      \
-    X(RSHIFT,           ">>",   40),      \
-    X(LT,               "<",    35),      \
-    X(LE,               "<=",   35),      \
-    X(GT,               ">",    35),      \
-    X(GE,               ">=",   35),      \
-    X(EQ,               "==",   30),      \
-    X(NE,               "!=",   30),      \
-    X(L_AND,            "&&",   10),      \
-    X(L_OR,             "||",    5),      \
-    X(ASSIGN,           "=",     2),      \
+    X(MULTIPLY,         "*",    50,	    IR_BINARY_MULTIPLY),    \
+    X(DIVIDE,           "/",    50,	    IR_BINARY_DIVIDE),      \
+    X(REMAINDER,        "%",    50,	    IR_BINARY_REMAINDER),   \
+    X(ADD,              "+",    45,	    IR_BINARY_ADD),         \
+    X(SUBTRACT,         "-",    45,	    IR_BINARY_SUBTRACT),    \
+    X(OR,               "|",    20,	    IR_BINARY_OR),          \
+    X(AND,              "&",    25,	    IR_BINARY_AND),         \
+    X(XOR,              "^",    23,	    IR_BINARY_XOR),         \
+    X(LSHIFT,           "<<",   40,	    IR_BINARY_LSHIFT),      \
+    X(RSHIFT,           ">>",   40,	    IR_BINARY_RSHIFT),      \
+    X(LT,               "<",    35,	    IR_BINARY_LT),          \
+    X(LE,               "<=",   35,	    IR_BINARY_LE),          \
+    X(GT,               ">",    35,	    IR_BINARY_GT),          \
+    X(GE,               ">=",   35,	    IR_BINARY_GE),          \
+    X(EQ,               "==",   30,	    IR_BINARY_EQ),          \
+    X(NE,               "!=",   30,	    IR_BINARY_NE),          \
+    X(L_AND,            "&&",   10,	    IR_BINARY_L_AND),       \
+    X(L_OR,             "||",    5,	    IR_BINARY_L_OR),        \
+    X(QUESTION,         "?",     3,	    0),                     \
+    X(ASSIGN,           "=",     2,	    0),                     \
 
 #define COMPOUND_ASSIGN_LIST_ = \
     X(ASSIGN_PLUS,      "+=",    2),      \
@@ -122,13 +128,21 @@ extern enum IR_UNARY_OP const AST_TO_IR_UNARY[];
 
 
 enum AST_BINARY_OP {
-#define X(a,b,c) AST_BINARY_##a
+#define X(a,b,c,d) AST_BINARY_##a
     AST_BINARY_LIST__
 #undef X
 };
 extern const char * const AST_BINARY_NAMES[];
 extern const int AST_BINARY_PRECEDENCE[];
 extern const int AST_TO_IR_BINARY[];
+
+/**
+ * Holds the declared name and the uniqufied name for a variable, including labels.
+ */
+struct CVariable {
+    const char* name;
+    const char* source_name;
+};
 
 //region struct CExpression
 struct CExpression {
@@ -147,10 +161,7 @@ struct CExpression {
             enum AST_CONST_TYPE type;
             const char *value;
         } literal;
-        struct {
-            const char* name;
-            const char* source_name;
-        } var;
+        struct CVariable var;
         struct {
             struct CExpression* dst;
             struct CExpression* src;
@@ -159,6 +170,11 @@ struct CExpression {
             enum AST_INCREMENT_OP op;
             struct CExpression* operand;
         } increment;
+        struct {
+            struct CExpression* left_exp;       // condition
+            struct CExpression* middle_exp;     // if true value
+            struct CExpression* right_exp;      // if false value
+        } conditional;
     };
 };
 extern struct CExpression* c_expression_new_unop(enum AST_UNARY_OP op, struct CExpression* operand);
@@ -167,14 +183,14 @@ extern struct CExpression* c_expression_new_const(enum AST_CONST_TYPE const_type
 extern struct CExpression* c_expression_new_var(const char* name);
 extern struct CExpression* c_expression_new_assign(struct CExpression* src, struct CExpression* dst);
 extern struct CExpression* c_expression_new_increment(enum AST_INCREMENT_OP op, struct CExpression* operand);
+extern struct CExpression* c_expression_new_conditional(struct CExpression* left_exp, struct CExpression* middle_exp, struct CExpression* right_exp);
 extern struct CExpression* c_expression_clone(struct CExpression* expression);
 extern void c_expression_free(struct CExpression *expression);
 //endregion
 
 //region struct CDeclaration
 struct CDeclaration {
-    const char* name;
-    const char* source_name;
+    struct CVariable var;
     struct CExpression* initializer;
 };
 extern struct CDeclaration* c_declaration_new(const char* identifier);
@@ -199,10 +215,27 @@ extern void CBlockItem_free(struct CBlockItem* blockItem);
 //region struct CStatement
 struct CStatement {
     enum AST_STMT type;
-    struct CExpression *expression;
+    union {
+        struct CExpression* expression;
+        struct {
+            struct CExpression* condition;
+            struct CStatement* then_statement;
+            struct CStatement* else_statement;
+        } if_statement;
+        struct {
+            struct CExpression* label;
+        } goto_statement;
+        struct {
+            struct CExpression* label;
+        } label_statement;
+    };
 };
 extern struct CStatement* c_statement_new_return(struct CExpression* expression);
 extern struct CStatement* c_statement_new_exp(struct CExpression* expression);
+extern struct CStatement* c_statement_new_if(struct CExpression* condition, struct CStatement* then_statement,
+                                      struct CStatement* else_statement);
+extern struct CStatement* c_statement_new_goto(struct CExpression* label);
+extern struct CStatement* c_statement_new_label(struct CExpression* label);
 extern struct CStatement* c_statement_new_null(void);
 extern void c_statement_free(struct CStatement *statement);
 //endregion

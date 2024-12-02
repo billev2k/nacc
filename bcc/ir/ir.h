@@ -49,8 +49,8 @@ extern const char * const IR_UNARY_NAMES[];
     X(LE,           "<="),              \
     X(GT,           ">"),               \
     X(GE,           ">="),              \
-    X(ASSIGN,       "="),               \
-    
+
+
 
 enum IR_BINARY_OP {
 #define X(a,b) IR_BINARY_##a

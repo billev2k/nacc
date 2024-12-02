@@ -17,6 +17,7 @@ struct Token {
 
 extern int lex_openFile(char const *fname);
 
+extern struct Token lex_peek_ahead(int n);
 extern struct Token lex_peek_token(void);
 extern struct Token lex_take_token(void);
 

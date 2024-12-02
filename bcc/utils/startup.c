@@ -31,7 +31,7 @@ int configOptCodegen = 0;
 int configOptAsm = 0;
 
 int traceAstMem = 0;
-int traceTokens = 0;
+int traceTokens = 1;
 int traceResolution = 0;
 
 // Name of the input file (.c file)

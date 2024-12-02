@@ -34,7 +34,7 @@ static void c_function_print(struct CFunction *function) {
 }
 static void c_declaration_print(struct CDeclaration *declaration, int depth) {
     if (!declaration) return;
-    printf("    int %s", declaration->name);
+    printf("    int %s", declaration->var.name);
     if (declaration->initializer) {
         printf(" = ( ");
         expression_print(declaration->initializer, depth);
@@ -42,20 +42,45 @@ static void c_declaration_print(struct CDeclaration *declaration, int depth) {
     }
     printf(";\n");
 }
+static void indent4(int n) {
+    for (int i=0; i<n; ++i) printf("    ");
+}
 static void c_statement_print(struct CStatement *statement, int depth) {
     if (!statement) return;
+    indent4(depth);
     switch (statement->type) {
         case STMT_RETURN:
-            printf("    Return( ");
+        case STMT_AUTO_RETURN:
+            printf("  Return( ");
             expression_print(statement->expression, depth);
             printf(" )\n");
             break;
         case STMT_EXP:
-            printf("    Expr( ");
+            printf("  Expr( ");
             expression_print(statement->expression, depth);
             printf(" )\n");
             break;
         case STMT_NULL:
+            break;
+        case STMT_GOTO:
+            printf("  Goto ");
+            expression_print(statement->goto_statement.label, depth);
+            printf(";\n");
+            break;
+        case STMT_IF:
+            printf("  If (");
+            expression_print(statement->if_statement.condition, depth);
+            printf(")\n");
+            c_statement_print(statement->if_statement.then_statement, depth+1);
+            if (statement->if_statement.else_statement) {
+                indent4(depth);
+                printf("  else\n");
+                c_statement_print(statement->if_statement.else_statement, depth+1);
+            }
+            break;
+        case STMT_LABEL:
+            expression_print(statement->label_statement.label, depth);
+            printf(":\n");
             break;
     }
 }
@@ -97,6 +122,15 @@ static void expression_print(struct CExpression *expression, int depth) {
             if (expression->increment.op == AST_POST_INCR || expression->increment.op == AST_POST_DECR) {
                 printf("%s", (expression->increment.op == AST_POST_INCR) ? "++" : "--");
             }
+            break;
+        case AST_EXP_CONDITIONAL:
+            printf("(");
+            expression_print(expression->conditional.left_exp, depth+1);
+            printf(" ? ");
+            expression_print(expression->conditional.middle_exp, depth+1);
+            printf(" : ");
+            expression_print(expression->conditional.right_exp, depth+1);
+            printf(")");
             break;
     }
 }
