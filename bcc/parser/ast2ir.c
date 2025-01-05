@@ -3,10 +3,10 @@
 //
 
 #include <stdio.h>
-#include <stdlib.h>
+#include <assert.h>
 #include "ast.h"
 #include "ast2ir.h"
-#include "semantics.h"
+#include "symtab.h"
 
 static void tmp_vars_init(void);
 static struct IrFunction *compile_function(struct CFunction *cFunction);
@@ -23,16 +23,22 @@ struct IrProgram *ast2ir(struct CProgram *cProgram) {
     return program;
 }
 
-struct IrFunction *compile_function(struct CFunction *cFunction) {
-    struct IrFunction *function = ir_function_new(cFunction->name);
-    for (int ix=0; ix<cFunction->body.num_items; ix++) {
-        struct CBlockItem* bi = cFunction->body.items[ix];
+static void compile_block(struct list_of_CBlockItem* block, struct IrFunction* irFunction) {
+//    push_symtab_context();
+    for (int ix=0; ix<block->num_items; ix++) {
+        struct CBlockItem* bi = block->items[ix];
         if (bi->type == AST_BI_STATEMENT) {
-            compile_statement(bi->statement, function);
+            compile_statement(bi->statement, irFunction);
         } else {
-            compile_declaration(bi->declaration, function);
+            compile_declaration(bi->declaration, irFunction);
         }
     }
+//    pop_symtab_context();
+}
+
+struct IrFunction *compile_function(struct CFunction *cFunction) {
+    struct IrFunction *function = ir_function_new(cFunction->name);
+    compile_block(&cFunction->block->items, function);
     return function;
 }
 
@@ -55,6 +61,17 @@ void compile_statement(struct CStatement *statement, struct IrFunction *function
     struct IrValue else_label;
     struct IrValue end_label;
     int has_else;
+
+    // Collect optional label(s).
+    if (c_statement_has_labels(statement)) {
+        struct CVariable * labels = c_statement_get_labels(statement);
+        while (labels && labels->source_name) {
+            label = ir_value_new(IR_VAL_LABEL, labels->name);
+            inst = ir_instruction_new_label(label);
+            ir_function_append_instruction(function, inst);
+            ++labels;
+        }
+    }
 
     switch (statement->type) {
         case STMT_RETURN:
@@ -96,9 +113,10 @@ void compile_statement(struct CStatement *statement, struct IrFunction *function
             ir_function_append_instruction(function, inst);
             break;
         case STMT_LABEL:
-            label = ir_value_new(IR_VAL_LABEL, statement->label_statement.label->var.name);
-            inst = ir_instruction_new_label(label);
-            ir_function_append_instruction(function, inst);
+            assert("Should not encounter STMT_LABEL in TACKY generation." && 0);
+            break;
+        case STMT_COMPOUND:
+            compile_block(&statement->compound->items, function);
             break;
     }
 }
@@ -296,7 +314,7 @@ struct IrValue compile_expression(struct CExpression *cExpression, struct IrFunc
 //
 static const char *tmp_vars_insert(const char *str);
 static struct IrValue make_temporary(struct IrFunction *function) {
-    const char* name_buf = make_unique("%.100s.tmp.%d", function->name, 'v');
+    const char* name_buf = uniquify_name("%.100s.tmp.%d", function->name);
     const char *tmp_name = tmp_vars_insert(name_buf);
     struct IrValue result = ir_value_new(IR_VAL_ID, tmp_name);
     return result;
@@ -314,11 +332,14 @@ static void make_conditional_labels(struct IrFunction *function, struct IrValue*
         const char *tmp_name = tmp_vars_insert(name_buf);
         *f = ir_value_new(IR_VAL_LABEL, tmp_name);
     }
+#pragma clang diagnostic push
+#pragma ide diagnostic ignored "ConstantConditionsOC"
     if (e) {
         sprintf(name_buf, "%.100s.end.%d", function->name, uniquifier);
         const char *tmp_name = tmp_vars_insert(name_buf);
         *e = ir_value_new(IR_VAL_LABEL, tmp_name);
     }
+#pragma clang diagnostic pop
 }
 
 struct set_of_str tmp_vars;

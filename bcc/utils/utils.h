@@ -12,6 +12,7 @@ extern int long_is_zero(long l);
 #define LIST_OF_ITEM_DECL(NAME, TYPE)                                                                       \
 struct list_of_##NAME##_helpers {                                                                           \
     void (*free)(TYPE item);                                                                                \
+    TYPE null;                                                                                              \
 };                                                                                                          \
 struct list_of_##NAME {                                                                                     \
     struct list_of_##NAME##_helpers helpers;                                                                \
@@ -19,9 +20,13 @@ struct list_of_##NAME {                                                         
     int num_items;                                                                                          \
     int max_num_items;                                                                                      \
 };                                                                                                          \
+extern void list_of_##NAME##_init(struct list_of_##NAME *list, int init_size);                              \
 extern void list_of_##NAME##_append(struct list_of_##NAME* list, TYPE new_item);                            \
 extern void list_of_##NAME##_insert(struct list_of_##NAME* list, TYPE new_item, int atIx);                  \
+extern void list_of_##NAME##_clear(struct list_of_##NAME* list);                                            \
 extern void list_of_##NAME##_free(struct list_of_##NAME* list);                                             \
+extern int list_of_##NAME##_is_empty(struct list_of_##NAME* list);                                          \
+
 
 #define LIST_OF_ITEM_DEFN(NAME, TYPE, HELPERS)                                                              \
 void list_of_##NAME##_init(struct list_of_##NAME *list, int init_size) {                                    \
@@ -33,7 +38,8 @@ void list_of_##NAME##_init(struct list_of_##NAME *list, int init_size) {        
 }                                                                                                           \
 void list_of_##NAME##_grow(struct list_of_##NAME* list) {                                                   \
     list->max_num_items *= 2;                                                                               \
-    TYPE* new_list = malloc(list->max_num_items * sizeof(TYPE));                                            \
+    /* One extra so that lists of pointers have a NULL entry at the end */                                  \
+    TYPE* new_list = malloc((list->max_num_items+1) * sizeof(TYPE));                                        \
     for (int i=0; i<list->num_items; ++i) {                                                                 \
         new_list[i] = list->items[i];                                                                       \
     };                                                                                                      \
@@ -56,11 +62,20 @@ void list_of_##NAME##_insert(struct list_of_##NAME* list, TYPE new_item, int atI
     list->items[atIx] = new_item;                                                                           \
 }                                                                                                           \
 void list_of_##NAME##_free(struct list_of_##NAME* list) {                                                   \
+    list_of_##NAME##_clear(list);                                                                           \
+    free(list->items);                                                                                      \
+}                                                                                                           \
+extern void list_of_##NAME##_clear(struct list_of_##NAME* list) {                                           \
     for (int i=0; i<list->num_items; ++i) {                                                                 \
         list->helpers.free(list->items[i]);                                                                 \
+        list->items[i] = list->helpers.null;                                                                \
     }                                                                                                       \
-    free(list->items);                                                                                      \
-}
+    list->num_items = 0;                                                                                    \
+}                                                                                                           \
+int list_of_##NAME##_is_empty(struct list_of_##NAME* list) {                                                \
+    return (list->num_items == 0);                                                                          \
+}                                                                                                           \
+
 //endregion
 
 //region SET_OF_ITEM declaration and definition
@@ -168,7 +183,7 @@ void set_of_##NAME##_remove(struct set_of_##NAME *set, TYPE oldItem) {          
     set->v_helpers.free(set->items[ix_free]);                                                               \
     set->items[ix_free] = set->v_helpers.null;                                                                                \
                                                                                                             \
-    /* Handle the "top block" */                                                                            \
+    /* Handle the "top items" */                                                                            \
     for (int ix = ix_free + 1; ix < ix_top; ++ix) {                                                         \
         int ix_item = (int) (set->v_helpers.hash(set->items[ix]) % set->max_num_items);                     \
         int do_move = ix_item <= ix_free || ix_item > ix_underflow;                                         \
@@ -178,7 +193,7 @@ void set_of_##NAME##_remove(struct set_of_##NAME *set, TYPE oldItem) {          
             ix_free = ix;                                                                                   \
         }                                                                                                   \
     }                                                                                                       \
-    /* Handle any "overflow block" */                                                                       \
+    /* Handle any "overflow items" */                                                                       \
     for (int ix = 0; ix < ix_overflow; ++ix) {                                                              \
         int ix_item = (int) (set->v_helpers.hash(set->items[ix]) % set->max_num_items);                     \
         int do_move = ix_free < ix_overflow ? (ix_item <= ix_free || ix_item > ix_overflow)                 \
@@ -213,5 +228,7 @@ void set_of_##NAME##_free(struct set_of_##NAME *set) {                          
 
 // Declare a set_of_str. Implementation in utils.c.
 SET_OF_ITEM_DECL(str, const char *)
+// list_of_str
+LIST_OF_ITEM_DECL(str, const char *)
 
 #endif //BCC_UTILS_H

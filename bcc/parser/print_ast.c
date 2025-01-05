@@ -22,8 +22,8 @@ static void c_function_print(struct CFunction *function) {
     printf("  Function(\n");
     printf("    name=\"%s\"\n", function->name);
     printf("    body=\n");
-    for (int ix=0; ix<function->body.num_items; ix++) {
-        struct CBlockItem* bi = function->body.items[ix];
+    for (int ix=0; ix<function->block->items.num_items; ix++) {
+        struct CBlockItem* bi = function->block->items.items[ix];
         if (bi->type == AST_BI_STATEMENT) {
             c_statement_print(bi->statement, 0);
         } else {
@@ -48,6 +48,14 @@ static void indent4(int n) {
 static void c_statement_print(struct CStatement *statement, int depth) {
     if (!statement) return;
     indent4(depth);
+    if (c_statement_has_labels(statement)) {
+        struct CVariable * labels = c_statement_get_labels(statement);
+        while (labels->source_name) {
+            printf("%s:\n", labels->source_name);
+            indent4(depth);
+            ++labels;
+        }
+    }
     switch (statement->type) {
         case STMT_RETURN:
         case STMT_AUTO_RETURN:
@@ -81,6 +89,18 @@ static void c_statement_print(struct CStatement *statement, int depth) {
         case STMT_LABEL:
             expression_print(statement->label_statement.label, depth);
             printf(":\n");
+            break;
+        case STMT_COMPOUND:
+            printf("  {\n");
+            for (int ix=0; ix<statement->compound->items.num_items; ix++) {
+                struct CBlockItem* bi = statement->compound->items.items[ix];
+                if (bi->type == AST_BI_STATEMENT) {
+                    c_statement_print(bi->statement, depth+1);
+                } else {
+                    c_declaration_print(bi->declaration, depth+1);
+                }
+            }
+            printf("  }\n");
             break;
     }
 }

@@ -7,120 +7,64 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <assert.h>
 #include "ast.h"
 #include "semantics.h"
+#include "symtab.h"
 #include "../utils/startup.h"
 
-//region struct var_map
-#define VAR_MAP_INITIAL_SIZE 101
-struct var_map_item {
-    const char* source_name;
-    const char* mapped_name;
-};
-unsigned long var_map_hash(struct var_map_item item) {
-    return hash_str(item.source_name);
-}
-int var_map_cmp(struct var_map_item l, struct var_map_item r) {
-    return strcmp(l.source_name, r.source_name);
-}
-void var_map_free(struct var_map_item item) {
-    // Don't do anything because the struct doesn't own the strings.
-}
-struct var_map_item var_map_dup(struct var_map_item item) {return item;}
-int var_map_is_null(struct var_map_item item) {
-    return item.source_name == NULL;
-}
-SET_OF_ITEM_DECL(var_map, struct var_map_item)
-struct set_of_var_map_helpers var_map_helpers = {
-    .hash = var_map_hash,
-    .cmp = var_map_cmp,
-    .dup = var_map_dup,
-    .free = var_map_free,
-    .null = {},
-    .is_null = var_map_is_null
-};
-SET_OF_ITEM_DEFN(var_map, struct var_map_item, var_map_helpers)
-//endregion
-// This holds a map of declared name to uniquified name, like "a"=>"a.0".
-// Will require work when we support multiple scopes.
-struct set_of_var_map var_map;
-// Same, but for labels.
-struct set_of_var_map label_map;
-// This holds long-lifetime strings, for the mapped variable names, like "a.0".
-struct set_of_str mapped_vars;
-
-int next_uniquifier(void) {
-    static int counter = 0;
-    return counter++;
-}
-
-const char* make_unique(const char* fmt, const char* context, char tag) {
-    static char name_buf[120];
-    sprintf(name_buf, fmt, context, next_uniquifier());
-    return name_buf;
-}
-
 static void analyze_function(const struct CFunction* function);
+static void resolve_block(const struct CBlock* block);
 static void resolve_statement(const struct CStatement* statement);
 static void resolve_goto(const struct CStatement* statement);
 static void resolve_declaration(struct CDeclaration* decl);
 
 void semantic_analysis(const struct CProgram* program) {
-    set_of_var_map_init(&var_map, VAR_MAP_INITIAL_SIZE);
-    set_of_var_map_init(&label_map, VAR_MAP_INITIAL_SIZE);
-    set_of_str_init(&mapped_vars, 101);
+    symtab_init();
     analyze_function(program->function);
 }
 
 static void analyze_function(const struct CFunction* function) {
-    struct CStatement* label_without_statement = NULL;
-    for (int ix=0; ix<function->body.num_items; ix++) {
-        struct CBlockItem* bi = function->body.items[ix];
+    resolve_block(function->block);
+}
+
+static void resolve_block(const struct CBlock* block) {
+    push_symtab_context(block->is_function_block);
+    for (int ix=0; ix<block->items.num_items; ix++) {
+        struct CBlockItem* bi = block->items.items[ix];
         if (bi->type == AST_BI_STATEMENT) {
             resolve_statement(bi->statement);
-            if(bi->statement->type == STMT_LABEL)
-                label_without_statement = bi->statement;
-            else if (bi->statement->type != STMT_AUTO_RETURN)
-                label_without_statement = NULL;
-        } else {
-            if (label_without_statement) {
-                printf("Error: label \"%s\" has no subsequent statement\n", label_without_statement->label_statement.label->var.source_name);
+            if (bi->statement->type == STMT_LABEL &&
+                // If this is the last statement in a block, or the next statement
+                // is "STMT_AUTO_RETURN", then this is an error before C2x.
+                 (ix == block->items.num_items-1 ||
+                    block->items.items[ix+1]->type != AST_BI_STATEMENT ||
+                            block->items.items[ix+1]->statement->type == STMT_AUTO_RETURN)) {
+                printf("Error: label \"%s\" is last statement in its block\n",
+                       bi->statement->label_statement.label->var.source_name);
                 exit(1);
             }
+        } else {
             resolve_declaration(bi->declaration);
         }
     }
-    if (label_without_statement) {
-        printf("Error: label \"%s\" has no subsequent statement\n", label_without_statement->label_statement.label->var.source_name);
-        exit(1);
-    }
-    // Handle GOTO after the first pass through statements. Lets us find all the labels first.
-    for (int ix=0; ix<function->body.num_items; ix++) {
-        struct CBlockItem* bi = function->body.items[ix];
-        if (bi->type == AST_BI_STATEMENT) {
-            resolve_goto(bi->statement);
+    if (block->is_function_block) {
+        for (int ix=0; ix<block->items.num_items; ix++) {
+            struct CBlockItem* bi = block->items.items[ix];
+            if (bi->type == AST_BI_STATEMENT) {
+                resolve_goto(bi->statement);
+            }
         }
     }
+    pop_symtab_context();
 }
 
 static const char* resolve_label(const char* source_name) {
-    // The key for find()
-    const struct var_map_item item = {
-        .source_name = source_name,
-};
-    // Result, if found, will be NULL if not found.
-    const struct var_map_item found = set_of_var_map_find(&label_map, item);
-    return found.mapped_name;
+    return resolve_symbol(SYMTAB_LABEL, source_name);
 }
 
 static const char* resolve_var(const char* source_name) {
-    // The key for find()
-    const struct var_map_item item = {
-            .source_name = source_name,
-    };
-    // Result, if found, will be NULL if not found.
-    const struct var_map_item found = set_of_var_map_find(&var_map, item);
-    return found.mapped_name;
+    return resolve_symbol(SYMTAB_VAR, source_name);
 }
 
 static void resolve_exp(struct CExpression* exp) {
@@ -185,36 +129,15 @@ static void resolve_exp(struct CExpression* exp) {
     }
 }
 
-static void uniquify_thing(struct CVariable* var, struct set_of_var_map* map, char* tag) {
-    // The key for find()
-    struct var_map_item item = {
-        .source_name = var->source_name,
-    };
-    // Result, if found.
-    struct var_map_item found = set_of_var_map_find(map, item);
-    if (!var_map_is_null(found)) {
-        // Was found; duplicate declaration.
-        fprintf(stderr, "Duplicate %s: \"%s\"\n", tag, var->source_name);
-        exit(1);
-    }
-    const char* name_buf = make_unique("%.100s.%d", var->name, *tag);
-    // Add to global string pool. Returns the long-lifetime copy.
-    name_buf = set_of_str_insert(&mapped_vars, name_buf);
-    // Update the declaration.
-    if (traceResolution) {
-        printf("assigning %s for %s %s\n", name_buf, tag, var->name);
-    }
-    var->name = name_buf;
-    // save the mapping.
-    item.mapped_name = name_buf;
-    set_of_var_map_insert(map, item);
-  
+static void uniquify_thing(struct CVariable* var, enum SYMTAB_TYPE type) {
+    const char* uniquified = add_symbol(type, var->source_name);
+    var->name = uniquified;
 }
 static void uniquify_variable(struct CVariable* var) {
-    uniquify_thing(var, &var_map, "variable");
+    uniquify_thing(var, SYMTAB_VAR);
 }
 static void uniquify_label(struct CVariable* var) {
-    uniquify_thing(var, &label_map, "label");
+    uniquify_thing(var, SYMTAB_LABEL);
 }
 
 static void resolve_declaration(struct CDeclaration* decl) {
@@ -226,6 +149,11 @@ static void resolve_declaration(struct CDeclaration* decl) {
 }
 
 static void resolve_statement(const struct CStatement* statement) {
+    if (c_statement_has_labels(statement)) {
+        struct CVariable * labels = c_statement_get_labels(statement);
+        while (labels && labels->source_name)
+            uniquify_label(labels++);
+    }
     switch (statement->type) {
         case STMT_RETURN:
         case STMT_AUTO_RETURN:
@@ -248,7 +176,18 @@ static void resolve_statement(const struct CStatement* statement) {
             // Not handled here; separate pass, after all labels in function have been found.
             break;
         case STMT_LABEL:
-            uniquify_label(&statement->label_statement.label->var);
+            assert("Should not encounter STMT_LABEL in semantic analysis." && 0);
+            break;
+        case STMT_COMPOUND:
+//            for (int ix=0; ix<statement->compound->items.num_items; ix++) {
+//                struct CBlockItem* bi = statement->compound->items.items[ix];
+//                if (bi->type == AST_BI_STATEMENT) {
+//                    resolve_statement(bi->statement);
+//                } else {
+//                    resolve_declaration(bi->declaration);
+//                }
+//            }
+            resolve_block(statement->compound);
             break;
     }
 }
@@ -276,9 +215,17 @@ static void resolve_goto(const struct CStatement* statement) {
             }
             statement->label_statement.label->var.name = mapped_name;
             if (traceResolution) {
-                printf("Resolving label \"%s\" as \"%s\"\n", statement->goto_statement.label->var.name, mapped_name);
+                printf("Resolving label \"%s\" as \"%s\"\n", statement->goto_statement.label->var.source_name, mapped_name);
             }
         break;
+        case STMT_COMPOUND:
+            for (int ix=0; ix<statement->compound->items.num_items; ix++) {
+                struct CBlockItem* bi = statement->compound->items.items[ix];
+                if (bi->type == AST_BI_STATEMENT) {
+                    resolve_goto(bi->statement);
+                }
+            }
+            break;
     }
 }
 

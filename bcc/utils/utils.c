@@ -38,26 +38,34 @@ struct set_of_str_helpers set_of_str_helpers = {
 #pragma ide diagnostic ignored "misc-no-recursion"
 SET_OF_ITEM_DEFN(str, const char *, set_of_str_helpers)
 #pragma clang diagnostics pop
+//
+// List implementation for "strings".
+//
+struct list_of_str_helpers list_of_str_helpers = {
+        .free = (void (*)(const char *)) free,
+        .null = NULL,
+};
+LIST_OF_ITEM_DEFN(str, const char*, list_of_str_helpers)
 
 /**
  * Notes on set_of_T_remove:
  *
  * These definitions will be used in this discussion:                                                   
  * "Natural slot" is the slot in which an item would appear if there were no collisions.                
- * "Top block", the largest contiguous set of filled slots immediately following a                      
+ * "Top items", the largest contiguous set of filled slots immediately following a
  *    given item's natural slot, not including any that may have wrapped around to slot 0.              
  *    Set ix_top to the first index _after_ the set of filled slots. This may be past the               
  *    end of the array.                                                                                 
- * "Bottom block", the largest contiguous set of filled slots immediately preceding a                  
+ * "Bottom items", the largest contiguous set of filled slots immediately preceding a
  *    given item's natural slot, not including any that may have wrapped around to slot 0.              
- *    Set ix_bottom to the first element in the bottom block. This may be equal to the                  
+ *    Set ix_bottom to the first element in the bottom items. This may be equal to the
  *    index being cleared, the current location of the item being deleted.                              
- * - Either the following or the preceding block may wrap around the array of slots; not both.         
- *    If the preceding block wraps around to the top of the array, that is an "underflow               
- *    block". If the following block wraps around to the bottom of the array, that is an                
- *    "overflow block".                                                                                 
+ * - Either the following or the preceding items may wrap around the array of slots; not both.
+ *    If the preceding items wraps around to the top of the array, that is an "underflow
+ *    items". If the following items wraps around to the bottom of the array, that is an
+ *    "overflow items".
  * - Because we grow the array when the load factor reaches ~0.75, empty slots are guaranteed.          
- *    There may sometimes be an underflow block, or sometimes may be an overflow block, but             
+ *    There may sometimes be an underflow items, or sometimes may be an overflow items, but
  *    it is not possible that there will be both.                                                       
  *                                                                                                      
  * The general process is as follows:                                                                   
@@ -65,12 +73,12 @@ SET_OF_ITEM_DEFN(str, const char *, set_of_str_helpers)
  *    of the item in the array.                                                                         
  * 2) Set ix_top, ix_bottom, ix_overflow, and ix_underflow appropriately.                               
  * 3) Delete the item, clear slot ix_free.                                                              
- * 4) Iterate the top block: for (int ix=ix_free+1; ix<ix_top; ++ix)                                    
+ * 4) Iterate the top items: for (int ix=ix_free+1; ix<ix_top; ++ix)
  * 5)   For each ix, get the "natural slot" for the item in that slot. Call that ix_item.               
  * 6)   If (ix_item <= ix_free || ix_item > ix_underflow), move the item at ix_item to ix_free,         
  *      clear the slot at ix_item, and set ix_free = ix_item.                                           
  * 7)   Continue                                                                                        
- * 8) Iterate the overflow block: for (int ix=0; ix<ix_overflow; ++ix)                                  
+ * 8) Iterate the overflow items: for (int ix=0; ix<ix_overflow; ++ix)
  * 9)   For each ix, get the "natural slot" for the item in that slot. Call that ix_item.               
  * 10)  If (ix_free < ix_overflow ? (ix_item <= ix_free || ix_item > ix_overflow)                       
  *                                : (ix_item <= ix_free && ix_item >= ix_bottom) ),                     
@@ -94,7 +102,7 @@ SET_OF_ITEM_DEFN(str, const char *, set_of_str_helpers)
  * Now consider deleting item 0, natural slot 0, in slot 0.                                             
  * - ix_top = 5, ix_bottom = 0, ix_underflow = 95, ix_overflow = 0                                      
  * 1) Clear slot 0. Set ix_free=0.                                                                      
- * 2) Examine slot 1, ix_item = 99, not <= ix_free, but in underflow block, move.                       
+ * 2) Examine slot 1, ix_item = 99, not <= ix_free, but in underflow items, move.
  *     Set ix_free=1.                                                                                   
  * 3) Examine slot 2, ix_item = 1, <= ix_free, move. Set ix_free=2.                                     
  * 4) Examine slot 3, ix_item = 3, not <= ix_free, don't move.                                          
@@ -107,7 +115,7 @@ SET_OF_ITEM_DEFN(str, const char *, set_of_str_helpers)
  * 2) Examine slot 97, ix_item = 97, not <= ix_free, don't move.                                        
  * 3) Examine slot 98, ix_item = 95, <= ix_free, move. Set ix_free=98.                                  
  * 4) Examine slot 99, ix_item = 99, not <= ix_free, don't move.                                        
- * -- process overflow block --                                                                         
+ * -- process overflow items --
  * 5) Examine slot 0, ix_item = 0, FALSE, don't move.                                                   
  * 6) Examine slot 1, ix_item = 97, TRUE, move, set ix_free=1.                                          
  * 7) Examine slot 2, ix_item = 1, TRUE, move, set ix_free=2;                                           

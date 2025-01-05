@@ -11,10 +11,18 @@
 #include "ast.h"
 #include "../utils/startup.h"
 
-struct list_of_CBlockItem_helpers cBlockItemHelpers = {
-    .free = c_block_item_free
+void c_variable_free(struct CVariable var) {}
+struct list_of_CVariable_helpers c_variable_helpers = {
+        .free = c_variable_free,
+        .null = {0},
 };
-LIST_OF_ITEM_DEFN(CBlockItem, struct CBlockItem*, cBlockItemHelpers)
+LIST_OF_ITEM_DEFN(CVariable, struct CVariable, c_variable_helpers)
+
+struct list_of_CBlockItem_helpers c_blockitem_helpers = {
+    .free = c_block_item_free,
+    .null = NULL,
+};
+LIST_OF_ITEM_DEFN(CBlockItem, struct CBlockItem*, c_blockitem_helpers)
 
 const char * const ASM_CONST_TYPE_NAMES[] = {
 #define X(a,b) b 
@@ -52,7 +60,7 @@ enum IR_UNARY_OP const AST_TO_IR_UNARY[] = {
 
 //region CExpression
 static struct CExpression* c_expression_new(enum AST_EXP_TYPE type) {
-    struct CExpression* expression = (struct CExpression*)malloc(sizeof(struct CExpression));
+    struct CExpression* expression = malloc(sizeof(struct CExpression));
     expression->type = type;
     return expression;
 }
@@ -169,9 +177,25 @@ void c_expression_free(struct CExpression *expression) {
 }
 //endregion CExpression
 
+//region CBlock
+struct CBlock* c_block_new(int is_function) {
+    struct CBlock* result = malloc(sizeof(struct CBlock));
+    list_of_CBlockItem_init(&result->items, 101);
+    result->is_function_block = is_function;
+    return result;
+}
+void c_block_append_item(struct CBlock* block, struct CBlockItem* item) {
+    list_of_CBlockItem_append(&block->items, item);
+}
+void c_block_free(struct CBlock *block) {
+    list_of_CBlockItem_free(&block->items);
+    free(block);
+}
+//endregion
+
 //region CStatement
 static struct CStatement* c_statement_new(enum AST_STMT type) {
-    struct CStatement* statement = (struct CStatement*)malloc(sizeof(struct CStatement));
+    struct CStatement* statement = malloc(sizeof(struct CStatement));
     statement->type = type;
     return statement;
 }
@@ -203,20 +227,87 @@ struct CStatement* c_statement_new_label(struct CExpression* label) {
     statement->label_statement.label = label;
     return statement;
 }
+struct CStatement* c_statement_new_compound(struct CBlock* block) {
+    struct CStatement* statement = c_statement_new(STMT_COMPOUND);
+    statement->compound = block;
+    return statement;
+}
 struct CStatement* c_statement_new_null(void) {
     struct CStatement* statement = c_statement_new(STMT_NULL);
     return statement;
 }
+int c_statement_has_labels(const struct CStatement * statement) {
+    return statement->labels != NULL;
+}
+void c_statement_add_labels(struct CStatement *statement, const char **pLabels) {
+    if (statement->labels == NULL) {
+        statement->labels = malloc(sizeof(struct list_of_CVariable));
+        list_of_CVariable_init(statement->labels, 3);
+    }
+    while (*pLabels) {
+        struct CVariable var = {.name = *pLabels, .source_name = *pLabels};
+        list_of_CVariable_append(statement->labels, var);
+        ++pLabels;
+    }
+}
+int c_statement_num_labels(struct CStatement* statement) {
+    return statement->labels ? statement->labels->num_items : 0;
+}
+struct CVariable  * c_statement_get_labels(const struct CStatement * statement) {
+    static struct CVariable empty = {0};
+    if (statement->labels == NULL) return &empty;
+    return statement->labels->items;
+}
+
 void c_statement_free(struct CStatement *statement) {
     if (!statement) return;
-    if (statement->expression) c_expression_free(statement->expression);
+    switch (statement->type) {
+        case STMT_COMPOUND:
+            list_of_CBlockItem_free(&statement->compound->items);
+            break;
+        case STMT_EXP:
+            if (statement->expression) {
+                c_expression_free(statement->expression);
+            }
+            break;
+        case STMT_GOTO:
+            if (statement->goto_statement.label) {
+                c_expression_free(statement->goto_statement.label);
+            }
+            break;
+        case STMT_IF:
+            c_expression_free(statement->if_statement.condition);
+            c_statement_free(statement->if_statement.then_statement);
+            if (statement->if_statement.else_statement) {
+                c_statement_free(statement->if_statement.else_statement);
+            }
+            break;
+        case STMT_LABEL:
+            if (statement->label_statement.label) {
+                c_expression_free(statement->label_statement.label);
+            }
+            break;
+        case STMT_NULL:
+            // No-op
+            break;
+        case STMT_RETURN:
+        case STMT_AUTO_RETURN:
+            if (statement->expression) {
+                c_expression_free(statement->expression);
+            }
+            break;
+    }
+    if (statement->labels) {
+        list_of_CVariable_free(statement->labels);
+        free(statement->labels);
+    }
     free(statement);
 }
 //endregion CStatement
 
 //region CDeclaration
 struct CDeclaration* c_declaration_new(const char* identifier) {
-    struct CDeclaration* result = (struct CDeclaration*)malloc(sizeof(struct CDeclaration));
+    struct CDeclaration* result = malloc(sizeof(struct CDeclaration));
     result->var.name = identifier;
     result->var.source_name = identifier;
     return result;
@@ -236,13 +327,13 @@ void c_declaration_free(struct CDeclaration* declaration) {
 
 //region CBlockItem
 struct CBlockItem* c_block_item_new_decl(struct CDeclaration* declaration) {
-    struct CBlockItem* result = (struct CBlockItem*)malloc(sizeof(struct CBlockItem));
+    struct CBlockItem* result = malloc(sizeof(struct CBlockItem));
     result->type = AST_BI_DECLARATION;
     result->declaration = declaration;
     return result;
 }
 struct CBlockItem* c_block_item_new_stmt(struct CStatement* statement) {
-    struct CBlockItem* result = (struct CBlockItem*)malloc(sizeof(struct CBlockItem));
+    struct CBlockItem* result = malloc(sizeof(struct CBlockItem));
     result->type = AST_BI_STATEMENT;
     result->statement = statement;
     return result;
@@ -260,21 +351,21 @@ void CBlockItem_free(struct CBlockItem* blockItem) {
 //endregion CBlockItem
 
 //region CFunction
-struct CFunction* c_function_new(const char* name) {
-    struct CFunction* result = (struct CFunction*)malloc(sizeof(struct CFunction));
+struct CFunction* c_function_new(const char* name, struct CBlock* block) {
+    struct CFunction* result = malloc(sizeof(struct CFunction));
     result->name = name;
-    list_of_CBlockItem_init(&result->body, 10);
+    result->block = block;
     return result;
 }
 
 void c_function_append_block_item(struct CFunction* function, struct CBlockItem* item) {
-    list_of_CBlockItem_append(&function->body, item);
+    list_of_CBlockItem_append(&function->block->items, item);
 }
 
 void c_function_free(struct CFunction *function) {
     if (!function) return;
     // Don't free 'name'; owned by global name table.
-    list_of_CBlockItem_free(&function->body);
+    c_block_free(function->block);
     free(function);
 }
 //endregion CFunction

@@ -35,6 +35,7 @@ enum AST_BLOCK_ITEM {
 };
 
 enum AST_STMT {
+    STMT_COMPOUND,
     STMT_EXP,
     STMT_GOTO,
     STMT_IF,
@@ -143,6 +144,7 @@ struct CVariable {
     const char* name;
     const char* source_name;
 };
+LIST_OF_ITEM_DECL(CVariable, struct CVariable);
 
 //region struct CExpression
 struct CExpression {
@@ -209,7 +211,20 @@ struct CBlockItem {
 extern struct CBlockItem* c_block_item_new_decl(struct CDeclaration* declaration);
 extern struct CBlockItem* c_block_item_new_stmt(struct CStatement* statement);
 extern void c_block_item_free(struct CBlockItem* blockItem);
-extern void CBlockItem_free(struct CBlockItem* blockItem);
+extern void CBlockItem_free(struct CBlockItem* blockItem);  // actually used in c_blockitem_helpers
+//endregion
+
+// Implementation of List<CBlockItem> (?list_of_CBlockItem")
+LIST_OF_ITEM_DECL(CBlockItem, struct CBlockItem*)
+
+//region CBlock
+struct CBlock {
+    struct list_of_CBlockItem items;
+    int is_function_block;
+};
+extern struct CBlock* c_block_new(int is_function);
+extern void c_block_append_item(struct CBlock* block, struct CBlockItem* item);
+extern void c_block_free(struct CBlock *block);
 //endregion
 
 //region struct CStatement
@@ -228,7 +243,9 @@ struct CStatement {
         struct {
             struct CExpression* label;
         } label_statement;
+        struct CBlock* compound;
     };
+    struct list_of_CVariable* labels;
 };
 extern struct CStatement* c_statement_new_return(struct CExpression* expression);
 extern struct CStatement* c_statement_new_exp(struct CExpression* expression);
@@ -236,18 +253,20 @@ extern struct CStatement* c_statement_new_if(struct CExpression* condition, stru
                                       struct CStatement* else_statement);
 extern struct CStatement* c_statement_new_goto(struct CExpression* label);
 extern struct CStatement* c_statement_new_label(struct CExpression* label);
+extern struct CStatement* c_statement_new_compound(struct CBlock* block);
 extern struct CStatement* c_statement_new_null(void);
+extern int c_statement_has_labels(const struct CStatement * statement);
+extern void c_statement_add_labels(struct CStatement *pStatement, const char **pString);
+extern struct CVariable * c_statement_get_labels(const struct CStatement * statement);
 extern void c_statement_free(struct CStatement *statement);
 //endregion
 
 //region struct CFunction
-LIST_OF_ITEM_DECL(CBlockItem, struct CBlockItem*)
-
 struct CFunction {
     const char *name;
-    struct list_of_CBlockItem body;
+    struct CBlock* block;
 };
-extern struct CFunction* c_function_new(const char* name);
+extern struct CFunction* c_function_new(const char* name, struct CBlock* block);
 extern void c_function_append_block_item(struct CFunction* function, struct CBlockItem* item);
 extern void c_function_free(struct CFunction *function);
 //endregion

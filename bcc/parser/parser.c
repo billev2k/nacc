@@ -11,10 +11,24 @@
 #include "../lexer/tokens.h"
 #include "../lexer/lexer.h"
 #include "semantics.h"
+#include "symtab.h"
 #include "print_ast.h"
+
+// List of un-owned strings ("persistent strings" aka "pstr")
+LIST_OF_ITEM_DECL(pstr, const char *)
+#pragma clang diagnostic push
+#pragma ide diagnostic ignored "UnusedParameter"
+void no_op(const char * x) {}
+#pragma clang diagnostic pop
+struct list_of_pstr_helpers list_of_pstr_helpers = {
+        .free = no_op,
+        .null = NULL,
+};
+LIST_OF_ITEM_DEFN(pstr, const char *, list_of_pstr_helpers)
 
 static struct CProgram * parse_program(void);
 static struct CFunction * parse_function(void);
+static struct CBlock* parse_block(int is_function);
 static struct CBlockItem* parse_block_item(void);
 static struct CDeclaration* parse_declaration(void);
 static struct CStatement * parse_statement(void);
@@ -49,22 +63,28 @@ struct CFunction *parse_function() {
     expect(TK_VOID);
     expect(TK_R_PAREN);
     expect(TK_L_BRACE);
-    struct CFunction *function = c_function_new(name);
-    struct Token token = lex_peek_token();
-    while (token.token != TK_R_BRACE) {
-        struct CBlockItem *item = parse_block_item();
-        c_function_append_block_item(function, item);
-        token = lex_peek_token();
-    }
-    expect(TK_R_BRACE);
+    struct CBlock* block = parse_block(1 /* is_function */);
+    struct CFunction *function = c_function_new(name, block);
     // Add a "return 0"; if there's already a return, this unreachable instruction will be removed
     // in a future pass.
     struct CExpression *zero = c_expression_new_const(AST_CONST_INT, "0");
     struct CStatement *ret_stmt = c_statement_new_return(zero);
     ret_stmt->type = STMT_AUTO_RETURN;
     struct CBlockItem *ret_item = c_block_item_new_stmt(ret_stmt);
-    c_function_append_block_item(function, ret_item);
+    c_block_append_item(block, ret_item);
     return function;
+}
+
+struct CBlock* parse_block(int is_function) {
+    struct CBlock* result = c_block_new(is_function);
+    struct Token token = lex_peek_token();
+    while (token.token != TK_R_BRACE) {
+        struct CBlockItem *item = parse_block_item();
+        c_block_append_item(result, item);
+        token = lex_peek_token();
+    }
+    lex_take_token();
+    return result;
 }
 
 struct CBlockItem* parse_block_item() {
@@ -73,7 +93,8 @@ struct CBlockItem* parse_block_item() {
         struct CDeclaration* decl = parse_declaration();
         return c_block_item_new_decl(decl);
     } else {
-        struct CStatement* stmt = parse_statement();
+        // Get the statement. Will include any preceeding labels;
+        struct CStatement *stmt = parse_statement();
         return c_block_item_new_stmt(stmt);
     }
 }
@@ -99,9 +120,23 @@ struct CDeclaration* parse_declaration() {
 }
 
 struct CStatement *parse_statement() {
+    struct list_of_pstr labels;
+    int have_labels = 0;
     struct CStatement* result = NULL;
     struct CExpression* dst = NULL;
     struct Token next_token = lex_peek_token();
+
+    while (next_token.token == TK_ID && lex_peek_ahead(2).token == TK_COLON) {
+        lex_take_token();
+        expect(TK_COLON);
+        if (!have_labels) {
+            list_of_pstr_init(&labels, 3);
+            have_labels = 1;
+        }
+        list_of_pstr_append(&labels, next_token.text);
+        next_token = lex_peek_token();
+    }
+
     if (next_token.token == TK_RETURN) {
         lex_take_token();
         struct CExpression* expression = parse_expression(0);
@@ -123,18 +158,17 @@ struct CStatement *parse_statement() {
         }
         result = c_statement_new_if(condition, then_statement, else_statement);
     }
+    else if (next_token.token == TK_L_BRACE) {
+        lex_take_token();
+        struct CBlock* block = parse_block(0 /* is_function */);
+        result = c_statement_new_compound(block);
+    }
     else if (next_token.token == TK_GOTO) {
         lex_take_token();
         next_token = expect(TK_ID);
         dst = c_expression_new_var(next_token.text);
         expect(TK_SEMI);
         result = c_statement_new_goto(dst);
-    }
-    else if (next_token.token == TK_ID && lex_peek_ahead(2).token == TK_COLON) {
-        lex_take_token();
-        dst = c_expression_new_var(next_token.text);
-        expect(TK_COLON);
-        result = c_statement_new_label(dst);
     }
     else if (next_token.token != TK_SEMI) {
         struct CExpression* expression = parse_expression(0);
@@ -144,14 +178,21 @@ struct CStatement *parse_statement() {
     else {
         result = c_statement_new_null();
     }
+    if (have_labels) {
+        c_statement_add_labels(result, labels.items);
+        list_of_pstr_free(&labels);
+    }
+
     next_token = lex_peek_token();
     if (next_token.token == TK_SEMI) { lex_take_token(); }
     return result;
 }
 
+
 static int get_binop_precedence(struct Token token) {
     enum TK tk = token.token;
     if (!TK_IS_BINOP(tk)) return -1;
+    // simple assignment (a = 5) or compound assignment (a += 5)?
     enum AST_BINARY_OP binop = TK_IS_ASSIGNMENT(tk) ? AST_BINARY_ASSIGN : TK_GET_BINOP(tk);
     int precedence = AST_BINARY_PRECEDENCE[binop];
     return precedence;
