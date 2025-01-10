@@ -164,6 +164,7 @@ struct CVariable {
 struct CLabel {
     enum LABEL_TYPE type;
     struct CVariable label;
+    const char* case_value;
 };
 
 LIST_OF_ITEM_DECL(CLabel, struct CLabel);

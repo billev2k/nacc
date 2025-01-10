@@ -137,7 +137,7 @@ struct CForInit* parse_for_init() {
     struct CForInit* result = NULL;
     struct Token next_token = lex_peek_token();
     if (next_token.token == TK_INT) {
-        struct CDeclaration* decl = parse_declaration(); // expects to end with ';'
+        struct CDeclaration* decl = parse_declaration(); // expects to end with (and consumes) ';'
         result = c_for_init_new_declaration(decl);
     }
     else if (next_token.token != TK_SEMI) {
@@ -147,8 +147,8 @@ struct CForInit* parse_for_init() {
             lex_take_token();
     } else {
         lex_take_token();
+        // and return NULL; no init-clause
     }
-    // else return null; no initializer
     return result;
 }
 
@@ -170,15 +170,26 @@ struct CStatement *parse_statement() {
     struct Token next_token = lex_peek_token();
 
     // Gather any labels.
-    while (next_token.token == TK_ID && lex_peek_ahead(2).token == TK_COLON) {
-        // TODO: case X: and default:
-        lex_take_token();
+    while ((next_token.token == TK_ID && lex_peek_ahead(2).token == TK_COLON ) ||
+            next_token.token == TK_CASE || next_token.token == TK_DEFAULT) {
+        struct CLabel label;
+        if (next_token.token == TK_CASE) {
+            // TODO: support constant expressions
+            lex_take_token();   // case
+            lex_take_token();   // value
+            label = (struct CLabel){.type = LABEL_CASE, .case_value = next_token.text};
+        } else if (next_token.token == TK_DEFAULT) {
+            lex_take_token();   // default
+            label = (struct CLabel){.type = LABEL_DEFAULT};
+        } else {
+            lex_take_token();   // label name (TK_ID)
+            label = (struct CLabel){.type = LABEL_DECL, .label = {.name = next_token.text, .source_name = next_token.text}};
+        }
         expect(TK_COLON);
         if (!have_labels) {
             list_of_CLabel_init(&labels, 3);
             have_labels = 1;
         }
-        struct CLabel label = {.type = LABEL_DECL, .label = {.name = next_token.text, .source_name = next_token.text}};
         list_of_CLabel_append(&labels, label);
         next_token = lex_peek_token();
     }
@@ -381,9 +392,10 @@ static struct CExpression* parse_factor() {
         fail("Malformed factor");
     }
     next_token = lex_peek_token();
-    if (next_token.token == TK_INCREMENT || next_token.token == TK_DECREMENT) {
+    while (next_token.token == TK_INCREMENT || next_token.token == TK_DECREMENT) {
         lex_take_token();
         result = c_expression_new_increment((next_token.token == TK_INCREMENT)?AST_POST_INCR:AST_POST_DECR, result);
+        next_token = lex_peek_token();
     }
     return result;
 }
