@@ -37,6 +37,14 @@ extern enum TOKEN_FLAGS TOKEN_FLAGS[];
     X(TK_INT,           "int",              0),                                      \
     X(TK_RETURN,        "return",           0),                                      \
     X(TK_VOID,          "void",             0),                                      \
+    X(TK_WHILE,         "while",            0),                                      \
+    X(TK_DO,            "do",               0),                                      \
+    X(TK_FOR,           "for",              0),                                      \
+    X(TK_BREAK,         "break",            0),                                      \
+    X(TK_CONTINUE,      "continue",         0),                                      \
+    X(TK_SWITCH,        "switch",           0),                                      \
+    X(TK_CASE,          "case",             0),                                      \
+    X(TK_DEFAULT,       "default",          0),                                      \
     X(TK_SEMI,          ";",                0),                                      \
     X(TK_L_PAREN,       "(",                0),                                      \
     X(TK_R_PAREN,       ")",                0),                                      \
@@ -88,7 +96,7 @@ extern enum TOKEN_FLAGS TOKEN_FLAGS[];
 #undef X
     NUM_TOKEN_TYPES,
     TK_KEYWORDS_BEGIN=TK_ELSE,
-    TK_KEYWORDS_END=TK_VOID+1,
+    TK_KEYWORDS_END=TK_DEFAULT+1,
 };
 
 extern const char *token_names[NUM_TOKEN_TYPES];

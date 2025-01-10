@@ -9,21 +9,21 @@
 #include "symtab.h"
 
 static void tmp_vars_init(void);
-static struct IrFunction *compile_function(struct CFunction *cFunction);
-static void compile_declaration(struct CDeclaration *declaration, struct IrFunction *function);
-static void compile_statement(struct CStatement *statement, struct IrFunction *function);
+static struct IrFunction *compile_function(const struct CFunction *cFunction);
+static void compile_declaration(const struct CDeclaration *declaration, struct IrFunction *function);
+static void compile_statement(const struct CStatement *statement, struct IrFunction *function);
 struct IrValue compile_expression(struct CExpression *cExpression, struct IrFunction *irFunction);
-static struct IrValue make_temporary(struct IrFunction *function);
-static void make_conditional_labels(struct IrFunction *function, struct IrValue* t, struct IrValue* f, struct IrValue* e);
+static struct IrValue make_temporary(const struct IrFunction *function);
+static void make_conditional_labels(const struct IrFunction *function, struct IrValue* t, struct IrValue* f, struct IrValue* e);
 
-struct IrProgram *ast2ir(struct CProgram *cProgram) {
+struct IrProgram *ast2ir(const struct CProgram *cProgram) {
     tmp_vars_init();
     struct IrProgram *program = ir_program_new();
     program->function = compile_function(cProgram->function);
     return program;
 }
 
-static void compile_block(struct list_of_CBlockItem* block, struct IrFunction* irFunction) {
+static void compile_block(const struct list_of_CBlockItem* block, struct IrFunction* irFunction) {
 //    push_symtab_context();
     for (int ix=0; ix<block->num_items; ix++) {
         struct CBlockItem* bi = block->items[ix];
@@ -36,13 +36,13 @@ static void compile_block(struct list_of_CBlockItem* block, struct IrFunction* i
 //    pop_symtab_context();
 }
 
-struct IrFunction *compile_function(struct CFunction *cFunction) {
+struct IrFunction *compile_function(const struct CFunction *cFunction) {
     struct IrFunction *function = ir_function_new(cFunction->name);
     compile_block(&cFunction->block->items, function);
     return function;
 }
 
-static void compile_declaration(struct CDeclaration* declaration, struct IrFunction* function) {
+static void compile_declaration(const struct CDeclaration* declaration, struct IrFunction* function) {
     struct IrValue var = ir_value_new_id(declaration->var.name);
     struct IrInstruction* inst = ir_instruction_new_var(var);
     ir_function_append_instruction(function, inst);
@@ -53,7 +53,7 @@ static void compile_declaration(struct CDeclaration* declaration, struct IrFunct
     }
 }
 
-void compile_statement(struct CStatement *statement, struct IrFunction *function) {
+void compile_statement(const struct CStatement *statement, struct IrFunction *function) {
     struct IrValue src;
     struct IrValue condition;
     struct IrInstruction *inst;
@@ -64,9 +64,9 @@ void compile_statement(struct CStatement *statement, struct IrFunction *function
 
     // Collect optional label(s).
     if (c_statement_has_labels(statement)) {
-        struct CVariable * labels = c_statement_get_labels(statement);
-        while (labels && labels->source_name) {
-            label = ir_value_new(IR_VAL_LABEL, labels->name);
+        struct CLabel * labels = c_statement_get_labels(statement);
+        while (labels && labels->label.source_name) {
+            label = ir_value_new(IR_VAL_LABEL, labels->label.name);
             inst = ir_instruction_new_label(label);
             ir_function_append_instruction(function, inst);
             ++labels;
@@ -81,7 +81,7 @@ void compile_statement(struct CStatement *statement, struct IrFunction *function
             ir_function_append_instruction(function, inst);
             break;
         case STMT_EXP:
-            // Ignore return value
+            // Ignore return value; the IR code to evaluate the expression are emitted.
             compile_expression(statement->expression, function);
             break;
         case STMT_NULL:
@@ -112,9 +112,6 @@ void compile_statement(struct CStatement *statement, struct IrFunction *function
             inst = ir_instruction_new_jump(label);
             ir_function_append_instruction(function, inst);
             break;
-        case STMT_LABEL:
-            assert("Should not encounter STMT_LABEL in TACKY generation." && 0);
-            break;
         case STMT_COMPOUND:
             compile_block(&statement->compound->items, function);
             break;
@@ -133,7 +130,7 @@ struct IrValue compile_expression(struct CExpression *cExpression, struct IrFunc
     struct IrValue src;
     struct IrValue src2;
     struct IrValue dst = {};
-    struct IrValue tmp = {};
+    struct IrValue tmp;
     struct IrValue condition;
     struct IrValue false_label;
     struct IrValue true_label;
@@ -313,13 +310,13 @@ struct IrValue compile_expression(struct CExpression *cExpression, struct IrFunc
 //      completely compiled.
 //
 static const char *tmp_vars_insert(const char *str);
-static struct IrValue make_temporary(struct IrFunction *function) {
+static struct IrValue make_temporary(const struct IrFunction *function) {
     const char* name_buf = uniquify_name("%.100s.tmp.%d", function->name);
     const char *tmp_name = tmp_vars_insert(name_buf);
     struct IrValue result = ir_value_new(IR_VAL_ID, tmp_name);
     return result;
 }
-static void make_conditional_labels(struct IrFunction *function, struct IrValue* t, struct IrValue* f, struct IrValue* e) {
+static void make_conditional_labels(const struct IrFunction *function, struct IrValue* t, struct IrValue* f, struct IrValue* e) {
     char name_buf[120];
     int uniquifier = next_uniquifier();
     if (t) {

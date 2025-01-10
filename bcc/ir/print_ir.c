@@ -6,23 +6,23 @@
 
 #define inst_fmt "    %-8s"
 
-static void print_ir_function(struct IrFunction *function, FILE *file);
-static void print_ir_instruction(struct IrInstruction *instruction, FILE *file);
+static void print_ir_function(const struct IrFunction *function, FILE *file);
+static void print_ir_instruction(const struct IrInstruction *instruction, FILE *file);
 static void print_ir_value(struct IrValue value, FILE *file);
 
-void print_ir(struct IrProgram *program, FILE *file) {
+void print_ir(const struct IrProgram *program, FILE *file) {
     fprintf(file, "IR program\n");
     print_ir_function(program->function, file);
 }
 
-void print_ir_function(struct IrFunction *function, FILE *file) {
+void print_ir_function(const struct IrFunction *function, FILE *file) {
     fprintf(file, "Function %s\n", function->name);
     for (int i=0; i<function->body.num_items; ++i) {
         print_ir_instruction(function->body.items[i], file);
     }
 }
 
-void print_ir_instruction(struct IrInstruction *instruction, FILE *file) {
+void print_ir_instruction(const struct IrInstruction *instruction, FILE *file) {
     switch (instruction->inst) {
         case IR_OP_RET:
             fputs("    RET     ", file);

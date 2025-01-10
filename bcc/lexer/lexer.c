@@ -6,6 +6,9 @@
 #include <ctype.h>
 #include <assert.h>
 #include "lexer.h"
+
+#include <stdio.h>
+
 #include "../parser/ast.h"
 #include "../utils/startup.h"
 
@@ -110,10 +113,6 @@ int readahead_count = 0;
  */
 struct Token lex_peek_token(void) {
     return lex_peek_ahead(1);
-}
-
-static void lex_readahead_next() {
-    readahead_list[readahead_count++] = internal_take_token();
 }
 
 /**

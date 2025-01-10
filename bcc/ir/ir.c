@@ -29,7 +29,7 @@ struct IrProgram * ir_program_new() {
 
 /**
  * Releases the memory associated with an IrProgram.
- * @param value the IrProgram to be freed.
+ * @param program the IrProgram to be freed.
  */
 void IrProgram_free(struct IrProgram *program) {
     if (program->function) IrFunction_free(program->function);
@@ -45,7 +45,7 @@ struct IrFunction * ir_function_new(const char *name) {
 
 /**
  * Releases the memory associated with an IrFunction.
- * @param value the IrFunction to be freed.
+ * @param function the IrFunction to be freed.
  */
 void IrFunction_free(struct IrFunction *function) {
     list_of_IrInstruction_free(&function->body);
@@ -120,7 +120,7 @@ struct IrInstruction* ir_instruction_new_label(struct IrValue label) {
 
 /**
  * Releases the memory associated with an IrInstruction.
- * @param value the IrInstruction to be freed.
+ * @param instruction the IrInstruction to be freed.
  */
 void IrInstruction_free(struct IrInstruction *instruction) {
     free(instruction);

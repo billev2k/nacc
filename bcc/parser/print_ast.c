@@ -9,19 +9,17 @@
 #include "ast.h"
 #include "print_ast.h"
 
-static void c_function_print(struct CFunction *function);
+static void c_function_print(const struct CFunction *function);
 static void c_declaration_print(struct CDeclaration *declaration, int depth);
 static void c_statement_print(struct CStatement *statement, int depth);
-static void expression_print(struct CExpression *expression, int depth);
-void c_program_print(struct CProgram *program) {
+static void expression_print(const struct CExpression *expression, int depth);
+void c_program_print(const struct CProgram *program) {
     printf("Program(\n");
     if (program->function) c_function_print(program->function);
     printf(")\n");
 }
-static void c_function_print(struct CFunction *function) {
-    printf("  Function(\n");
-    printf("    name=\"%s\"\n", function->name);
-    printf("    body=\n");
+static void c_function_print(const struct CFunction *function) {
+    printf("int %s() {\n", function->name);
     for (int ix=0; ix<function->block->items.num_items; ix++) {
         struct CBlockItem* bi = function->block->items.items[ix];
         if (bi->type == AST_BI_STATEMENT) {
@@ -30,81 +28,134 @@ static void c_function_print(struct CFunction *function) {
             c_declaration_print(bi->declaration, 0);
         }
     }
-    printf("  )\n");
+    printf("}\n");
 }
+
+static void indent4(int n) {
+    for (int i=0; i<=n; ++i) printf("    ");
+}
+
 static void c_declaration_print(struct CDeclaration *declaration, int depth) {
     if (!declaration) return;
-    printf("    int %s", declaration->var.name);
+    indent4(depth);
+    printf("int %s", declaration->var.source_name);
     if (declaration->initializer) {
-        printf(" = ( ");
+        printf(" = ");
         expression_print(declaration->initializer, depth);
-        printf(" )");
     }
     printf(";\n");
 }
-static void indent4(int n) {
-    for (int i=0; i<n; ++i) printf("    ");
+
+void for_init_print(struct CForInit * init) {
+    if (!init) return;
+    switch (init->type) {
+        case FOR_INIT_DECL:
+            c_declaration_print(init->declaration, -1);
+            break;
+        case FOR_INIT_EXPR:
+            expression_print(init->expression, -1);
+            break;
+    }
 }
+
 static void c_statement_print(struct CStatement *statement, int depth) {
     if (!statement) return;
-    indent4(depth);
     if (c_statement_has_labels(statement)) {
-        struct CVariable * labels = c_statement_get_labels(statement);
-        while (labels->source_name) {
-            printf("%s:\n", labels->source_name);
+        struct CLabel * labels = c_statement_get_labels(statement);
+        while (labels->label.source_name) {
             indent4(depth);
+            printf("%s:\n", labels->label.source_name);
             ++labels;
         }
     }
     switch (statement->type) {
         case STMT_RETURN:
         case STMT_AUTO_RETURN:
-            printf("  Return( ");
+            indent4(depth);
+            printf("return%s", statement->expression ? " " : "");
             expression_print(statement->expression, depth);
-            printf(" )\n");
+            printf(" ;\n");
             break;
         case STMT_EXP:
-            printf("  Expr( ");
+            indent4(depth);
             expression_print(statement->expression, depth);
-            printf(" )\n");
+            printf(" ;\n");
             break;
         case STMT_NULL:
             break;
         case STMT_GOTO:
-            printf("  Goto ");
+            indent4(depth);
+            printf("goto ");
             expression_print(statement->goto_statement.label, depth);
             printf(";\n");
             break;
         case STMT_IF:
-            printf("  If (");
+            indent4(depth);
+            printf("if (");
             expression_print(statement->if_statement.condition, depth);
             printf(")\n");
             c_statement_print(statement->if_statement.then_statement, depth+1);
             if (statement->if_statement.else_statement) {
                 indent4(depth);
-                printf("  else\n");
+                printf("else\n");
                 c_statement_print(statement->if_statement.else_statement, depth+1);
             }
             break;
-        case STMT_LABEL:
-            expression_print(statement->label_statement.label, depth);
-            printf(":\n");
-            break;
         case STMT_COMPOUND:
-            printf("  {\n");
+            indent4(depth-1);
+            printf("{\n");
             for (int ix=0; ix<statement->compound->items.num_items; ix++) {
                 struct CBlockItem* bi = statement->compound->items.items[ix];
                 if (bi->type == AST_BI_STATEMENT) {
-                    c_statement_print(bi->statement, depth+1);
+                    c_statement_print(bi->statement, depth);
                 } else {
-                    c_declaration_print(bi->declaration, depth+1);
+                    c_declaration_print(bi->declaration, depth);
                 }
             }
-            printf("  }\n");
+            indent4(depth-1);
+            printf("}\n");
+            break;
+        case STMT_BREAK:
+            indent4(depth);
+            printf("break;\n");
+            break;
+        case STMT_CONTINUE:
+            indent4(depth);
+            printf("continue;\n");
+            break;
+        case STMT_DOWHILE:
+            indent4(depth);
+            printf("do\n");
+            c_statement_print(statement->while_or_do_statement.body, depth+1);
+            indent4(depth);
+            printf("while (");
+            expression_print(statement->while_or_do_statement.condition, depth+1);
+            printf(" )");
+            break;
+        case STMT_FOR:
+            indent4(depth);
+            printf("for (");
+            for_init_print(statement->for_statement.init);
+            printf(" ; ");
+            expression_print(statement->for_statement.condition, depth+1);
+            printf(" ; ");
+            expression_print(statement->for_statement.post, depth+1);
+            printf(" )\n");
+            c_statement_print(statement->for_statement.body, depth+1);
+            break;
+        case STMT_SWITCH:
+            break;
+        case STMT_WHILE:
+            indent4(depth);
+            printf("while (");
+            expression_print(statement->while_or_do_statement.condition, depth+1);
+            printf(")\n");
+            c_statement_print(statement->while_or_do_statement.body, depth+1);
             break;
     }
 }
-static void expression_print(struct CExpression *expression, int depth) {
+static void expression_print(const struct CExpression *expression, int depth) {
+    if (!expression) return;
     int has_binop;
     switch (expression->type) {
         case AST_EXP_CONST:
@@ -125,7 +176,7 @@ static void expression_print(struct CExpression *expression, int depth) {
             printf(")");
             break;
         case AST_EXP_VAR:
-            printf("%s", expression->var.name);
+            printf("%s", expression->var.source_name);
             break;
         case AST_EXP_ASSIGNMENT:
             if (depth > 0) { printf("("); }

@@ -11,12 +11,12 @@
 #include "ast.h"
 #include "../utils/startup.h"
 
-void c_variable_free(struct CVariable var) {}
-struct list_of_CVariable_helpers c_variable_helpers = {
-        .free = c_variable_free,
+void c_label_free(struct CLabel var) {}
+struct list_of_CLabel_helpers c_label_helpers = {
+        .free = c_label_free,
         .null = {0},
 };
-LIST_OF_ITEM_DEFN(CVariable, struct CVariable, c_variable_helpers)
+LIST_OF_ITEM_DEFN(CLabel, struct CLabel, c_label_helpers)
 
 struct list_of_CBlockItem_helpers c_blockitem_helpers = {
     .free = c_block_item_free,
@@ -108,7 +108,7 @@ struct CExpression* c_expression_new_conditional(struct CExpression* left_exp, s
     expression->conditional.right_exp = right_exp;
     return expression;
 }
-struct CExpression* c_expression_clone(struct CExpression* expression) {
+struct CExpression* c_expression_clone(const struct CExpression* expression) {
     struct CExpression* clone = c_expression_new(expression->type);
     switch (expression->type) {
         case AST_EXP_BINOP:
@@ -199,14 +199,36 @@ static struct CStatement* c_statement_new(enum AST_STMT type) {
     statement->type = type;
     return statement;
 }
-struct CStatement* c_statement_new_return(struct CExpression* expression) {
-    struct CStatement* statement = c_statement_new(STMT_RETURN);
-    statement->expression = expression;
+struct CStatement* c_statement_new_break(void) {
+    struct CStatement* statement = c_statement_new(STMT_BREAK);
+    return statement;
+}
+struct CStatement* c_statement_new_compound(struct CBlock* block) {
+    struct CStatement* statement = c_statement_new(STMT_COMPOUND);
+    statement->compound = block;
+    return statement;
+}
+struct CStatement* c_statement_new_continue(void) {
+    struct CStatement* statement = c_statement_new(STMT_CONTINUE);
+    return statement;
+}
+struct CStatement* c_statement_new_do(struct CStatement* body, struct CExpression* condition) {
+    struct CStatement* statement = c_statement_new(STMT_DOWHILE);
+    statement->while_or_do_statement.body = body;
+    statement->while_or_do_statement.condition = condition;
     return statement;
 }
 struct CStatement* c_statement_new_exp(struct CExpression* expression) {
     struct CStatement* statement = c_statement_new(STMT_EXP);
     statement->expression = expression;
+    return statement;
+}
+struct CStatement* c_statement_new_for(struct CForInit* init, struct CExpression* condition, struct CExpression* post, struct CStatement* body) {
+    struct CStatement* statement = c_statement_new(STMT_FOR);
+    statement->for_statement.init = init;
+    statement->for_statement.condition = condition;
+    statement->for_statement.post = post;
+    statement->for_statement.body = body;
     return statement;
 }
 struct CStatement *c_statement_new_if(struct CExpression *condition, struct CStatement *then_statement,
@@ -222,39 +244,45 @@ struct CStatement* c_statement_new_goto(struct CExpression* label) {
     statement->goto_statement.label = label;
     return statement;
 }
-struct CStatement* c_statement_new_label(struct CExpression* label) {
-    struct CStatement* statement = c_statement_new(STMT_LABEL);
-    statement->label_statement.label = label;
-    return statement;
-}
-struct CStatement* c_statement_new_compound(struct CBlock* block) {
-    struct CStatement* statement = c_statement_new(STMT_COMPOUND);
-    statement->compound = block;
-    return statement;
-}
 struct CStatement* c_statement_new_null(void) {
     struct CStatement* statement = c_statement_new(STMT_NULL);
     return statement;
 }
+struct CStatement* c_statement_new_return(struct CExpression* expression) {
+    struct CStatement* statement = c_statement_new(STMT_RETURN);
+    statement->expression = expression;
+    return statement;
+}
+struct CStatement* c_statement_new_switch(struct CExpression* expression, struct CStatement* body) {
+    struct CStatement* statement = c_statement_new(STMT_SWITCH);
+    statement->switch_statement.expression = expression;
+    statement->switch_statement.body = body;
+    return statement;
+}
+struct CStatement* c_statement_new_while(struct CExpression* condition, struct CStatement *body) {
+    struct CStatement* statement = c_statement_new(STMT_WHILE);
+    statement->while_or_do_statement.condition = condition;
+    statement->while_or_do_statement.body = body;
+    return statement;
+}
+
 int c_statement_has_labels(const struct CStatement * statement) {
     return statement->labels != NULL;
 }
-void c_statement_add_labels(struct CStatement *statement, const char **pLabels) {
+void c_statement_add_labels(struct CStatement *statement, struct CLabel* pLabels) {
     if (statement->labels == NULL) {
-        statement->labels = malloc(sizeof(struct list_of_CVariable));
-        list_of_CVariable_init(statement->labels, 3);
+        statement->labels = malloc(sizeof(struct list_of_CLabel));
+        list_of_CLabel_init(statement->labels, 3);
     }
-    while (*pLabels) {
-        struct CVariable var = {.name = *pLabels, .source_name = *pLabels};
-        list_of_CVariable_append(statement->labels, var);
-        ++pLabels;
+    while (pLabels->label.source_name != NULL) {
+        list_of_CLabel_append(statement->labels, *pLabels++);
     }
 }
-int c_statement_num_labels(struct CStatement* statement) {
+int c_statement_num_labels(const struct CStatement* statement) {
     return statement->labels ? statement->labels->num_items : 0;
 }
-struct CVariable  * c_statement_get_labels(const struct CStatement * statement) {
-    static struct CVariable empty = {0};
+struct CLabel  * c_statement_get_labels(const struct CStatement * statement) {
+    static struct CLabel empty = {0};
     if (statement->labels == NULL) return &empty;
     return statement->labels->items;
 }
@@ -262,18 +290,30 @@ struct CVariable  * c_statement_get_labels(const struct CStatement * statement) 
 void c_statement_free(struct CStatement *statement) {
     if (!statement) return;
     switch (statement->type) {
+        case STMT_BREAK:
+            // Nothing to free.
+            break;
         case STMT_COMPOUND:
             list_of_CBlockItem_free(&statement->compound->items);
             break;
+        case STMT_CONTINUE:
+            // Nothing to free.
+            break;
+        case STMT_DOWHILE:
+            c_expression_free(statement->while_or_do_statement.condition);
+            c_statement_free(statement->while_or_do_statement.body);
+            break;
         case STMT_EXP:
-            if (statement->expression) {
-                c_expression_free(statement->expression);
-            }
+            c_expression_free(statement->expression);
+            break;
+        case STMT_FOR:
+            c_for_init_free(statement->for_statement.init);
+            c_expression_free(statement->for_statement.condition);
+            c_expression_free(statement->for_statement.post);
+            c_statement_free(statement->for_statement.body);
             break;
         case STMT_GOTO:
-            if (statement->goto_statement.label) {
-                c_expression_free(statement->goto_statement.label);
-            }
+            c_expression_free(statement->goto_statement.label);
             break;
         case STMT_IF:
             c_expression_free(statement->if_statement.condition);
@@ -282,23 +322,24 @@ void c_statement_free(struct CStatement *statement) {
                 c_statement_free(statement->if_statement.else_statement);
             }
             break;
-        case STMT_LABEL:
-            if (statement->label_statement.label) {
-                c_expression_free(statement->label_statement.label);
-            }
-            break;
         case STMT_NULL:
             // No-op
             break;
+        case STMT_SWITCH:
+            c_expression_free(statement->switch_statement.expression);
+            c_statement_free(statement->switch_statement.body);
+            break;
+        case STMT_WHILE:
+            c_expression_free(statement->while_or_do_statement.condition);
+            c_statement_free(statement->while_or_do_statement.body);
+            break;
         case STMT_RETURN:
         case STMT_AUTO_RETURN:
-            if (statement->expression) {
-                c_expression_free(statement->expression);
-            }
+            c_expression_free(statement->expression);
             break;
     }
     if (statement->labels) {
-        list_of_CVariable_free(statement->labels);
+        list_of_CLabel_free(statement->labels);
         free(statement->labels);
     }
     free(statement);
@@ -325,6 +366,32 @@ void c_declaration_free(struct CDeclaration* declaration) {
 }
 //endregion CDeclaration
 
+//region CForInit
+struct CForInit* c_for_init_new(enum FOR_INIT_TYPE type) {
+    struct CForInit* result = malloc(sizeof(struct CForInit));
+    result->type = type;
+    return result;
+}
+struct CForInit* c_for_init_new_declaration(struct CDeclaration* declaration)  {
+    struct CForInit* result = c_for_init_new(FOR_INIT_DECL);
+    result->declaration = declaration;
+    return result;
+}
+struct CForInit* c_for_init_new_expression(struct CExpression* expression)  {
+    struct CForInit* result = c_for_init_new(FOR_INIT_EXPR);
+    result->expression = expression;
+    return result;
+}
+void c_for_init_free(struct CForInit* for_init)  {
+    if (!for_init) return;
+    if (for_init->type == FOR_INIT_DECL) {
+        c_declaration_free(for_init->declaration);
+    } else if (for_init->type == FOR_INIT_EXPR) {
+        c_expression_free(for_init->expression);
+    }
+}
+//endregion
+
 //region CBlockItem
 struct CBlockItem* c_block_item_new_decl(struct CDeclaration* declaration) {
     struct CBlockItem* result = malloc(sizeof(struct CBlockItem));
@@ -339,11 +406,13 @@ struct CBlockItem* c_block_item_new_stmt(struct CStatement* statement) {
     return result;
 }
 void c_block_item_free(struct CBlockItem* blockItem) {
+    if (blockItem == NULL) return;
     if (blockItem->type == AST_BI_STATEMENT) {
         c_statement_free(blockItem->statement);
     } else {
         c_declaration_free(blockItem->declaration);
     }
+    free(blockItem);
 }
 void CBlockItem_free(struct CBlockItem* blockItem) {
     c_block_item_free(blockItem);
@@ -358,7 +427,7 @@ struct CFunction* c_function_new(const char* name, struct CBlock* block) {
     return result;
 }
 
-void c_function_append_block_item(struct CFunction* function, struct CBlockItem* item) {
+void c_function_append_block_item(const struct CFunction* function, struct CBlockItem* item) {
     list_of_CBlockItem_append(&function->block->items, item);
 }
 

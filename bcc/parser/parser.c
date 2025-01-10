@@ -8,11 +8,12 @@
 #include <stdlib.h>
 #include "ast.h"
 #include "parser.h"
+
+#include <stdio.h>
+
 #include "../lexer/tokens.h"
 #include "../lexer/lexer.h"
 #include "semantics.h"
-#include "symtab.h"
-#include "print_ast.h"
 
 // List of un-owned strings ("persistent strings" aka "pstr")
 LIST_OF_ITEM_DECL(pstr, const char *)
@@ -44,7 +45,7 @@ struct CProgram * c_program_parse(void) {
     return program;
 }
 
-void analyze_program(struct CProgram* program) {
+void analyze_program(const struct CProgram* program) {
     semantic_analysis(program);
 }
 
@@ -119,30 +120,73 @@ struct CDeclaration* parse_declaration() {
     return result;
 }
 
+/**
+ * Parses a 'for' loop initialization expression or declaration.
+ *
+ * This function determines whether the initialization part of a 'for' loop is
+ * a declaration or an expression. If the token at the current position is of
+ * type `TK_INT`, it is identified as a declaration, which is parsed
+ * accordingly. If not, it is treated as an expression and parsed as such.
+ * The parsed result is then wrapped into an appropriate `CForInit` structure
+ * and returned.
+ *
+ * @return A pointer to a `CForInit` structure representing the parsed
+ *         initialization component of the 'for' loop.
+ */
+struct CForInit* parse_for_init() {
+    struct CForInit* result = NULL;
+    struct Token next_token = lex_peek_token();
+    if (next_token.token == TK_INT) {
+        struct CDeclaration* decl = parse_declaration(); // expects to end with ';'
+        result = c_for_init_new_declaration(decl);
+    }
+    else if (next_token.token != TK_SEMI) {
+        struct CExpression* expression = parse_expression(0);
+        result = c_for_init_new_expression(expression);
+        if (lex_peek_token().token == TK_SEMI)
+            lex_take_token();
+    } else {
+        lex_take_token();
+    }
+    // else return null; no initializer
+    return result;
+}
+
+struct CExpression * parse_optional_expression(enum TK tk) {
+    struct CExpression* result = NULL;
+    struct Token next_token = lex_peek_token();
+    if (next_token.token == tk) {
+        return result;
+    }
+    result = parse_expression(0);
+    return result;
+}
+
 struct CStatement *parse_statement() {
-    struct list_of_pstr labels;
+    struct list_of_CLabel labels;
     int have_labels = 0;
     struct CStatement* result = NULL;
     struct CExpression* dst = NULL;
     struct Token next_token = lex_peek_token();
 
+    // Gather any labels.
     while (next_token.token == TK_ID && lex_peek_ahead(2).token == TK_COLON) {
+        // TODO: case X: and default:
         lex_take_token();
         expect(TK_COLON);
         if (!have_labels) {
-            list_of_pstr_init(&labels, 3);
+            list_of_CLabel_init(&labels, 3);
             have_labels = 1;
         }
-        list_of_pstr_append(&labels, next_token.text);
+        struct CLabel label = {.type = LABEL_DECL, .label = {.name = next_token.text, .source_name = next_token.text}};
+        list_of_CLabel_append(&labels, label);
         next_token = lex_peek_token();
     }
 
-    if (next_token.token == TK_RETURN) {
+    if (next_token.token == TK_L_BRACE) {
         lex_take_token();
-        struct CExpression* expression = parse_expression(0);
-        result = c_statement_new_return(expression);
-
-        expect(TK_SEMI);
+        struct CBlock* block = parse_block(0 /* is_function */);
+        result = c_statement_new_compound(block);
     }
     else if (next_token.token == TK_IF) {
         struct CStatement* else_statement = NULL;
@@ -158,10 +202,59 @@ struct CStatement *parse_statement() {
         }
         result = c_statement_new_if(condition, then_statement, else_statement);
     }
-    else if (next_token.token == TK_L_BRACE) {
+    else if (next_token.token == TK_WHILE) {
         lex_take_token();
-        struct CBlock* block = parse_block(0 /* is_function */);
-        result = c_statement_new_compound(block);
+        expect(TK_L_PAREN);
+        struct CExpression* condition = parse_expression(0);
+        expect(TK_R_PAREN);
+        struct CStatement* body = parse_statement();
+        result = c_statement_new_while(condition, body);
+    }
+    else if (next_token.token == TK_DO) {
+        lex_take_token();
+        struct CStatement* body = parse_statement();
+        expect(TK_WHILE);
+        expect(TK_L_PAREN);
+        struct CExpression* condition = parse_expression(0);
+        expect(TK_R_PAREN);
+        expect(TK_SEMI);
+        result = c_statement_new_do(body, condition);
+    }
+    else if (next_token.token == TK_FOR) {
+        lex_take_token();
+        expect(TK_L_PAREN);
+        struct CForInit* for_init = parse_for_init();
+        struct CExpression* condition = parse_optional_expression(TK_SEMI);
+        expect(TK_SEMI);
+        struct CExpression* post = parse_optional_expression(TK_R_PAREN);
+        expect(TK_R_PAREN);
+        struct CStatement* body = parse_statement();
+        result = c_statement_new_for(for_init, condition, post, body);
+    }
+    else if (next_token.token == TK_SWITCH) {
+        lex_take_token();
+        expect(TK_L_PAREN);
+        struct CExpression* condition = parse_expression(0);
+        expect(TK_R_PAREN);
+        struct CStatement* body = parse_statement();
+        result = c_statement_new_switch(condition, body);
+    }
+    else if (next_token.token == TK_BREAK) {
+        lex_take_token();
+        expect(TK_SEMI);
+        result = c_statement_new_break();
+    }
+    else if (next_token.token == TK_CONTINUE) {
+        lex_take_token();
+        expect(TK_SEMI);
+        result = c_statement_new_continue();
+    }
+    else if (next_token.token == TK_RETURN) {
+        lex_take_token();
+        struct CExpression* expression = parse_expression(0);
+        result = c_statement_new_return(expression);
+
+        expect(TK_SEMI);
     }
     else if (next_token.token == TK_GOTO) {
         lex_take_token();
@@ -177,14 +270,18 @@ struct CStatement *parse_statement() {
     }
     else {
         result = c_statement_new_null();
-    }
-    if (have_labels) {
-        c_statement_add_labels(result, labels.items);
-        list_of_pstr_free(&labels);
+        lex_take_token();
     }
 
-    next_token = lex_peek_token();
-    if (next_token.token == TK_SEMI) { lex_take_token(); }
+    // Apply labels from above.
+    if (have_labels) {
+        c_statement_add_labels(result, labels.items);
+        list_of_CLabel_free(&labels);
+    }
+
+    // Don't do this; any production that expects a ';' should itself code for it.
+    // next_token = lex_peek_token();
+    // if (next_token.token == TK_SEMI) { lex_take_token(); }
     return result;
 }
 

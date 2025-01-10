@@ -34,16 +34,6 @@ static void resolve_block(const struct CBlock* block) {
         struct CBlockItem* bi = block->items.items[ix];
         if (bi->type == AST_BI_STATEMENT) {
             resolve_statement(bi->statement);
-            if (bi->statement->type == STMT_LABEL &&
-                // If this is the last statement in a block, or the next statement
-                // is "STMT_AUTO_RETURN", then this is an error before C2x.
-                 (ix == block->items.num_items-1 ||
-                    block->items.items[ix+1]->type != AST_BI_STATEMENT ||
-                            block->items.items[ix+1]->statement->type == STMT_AUTO_RETURN)) {
-                printf("Error: label \"%s\" is last statement in its block\n",
-                       bi->statement->label_statement.label->var.source_name);
-                exit(1);
-            }
         } else {
             resolve_declaration(bi->declaration);
         }
@@ -68,6 +58,7 @@ static const char* resolve_var(const char* source_name) {
 }
 
 static void resolve_exp(struct CExpression* exp) {
+    if (!exp) return;
     const char* mapped_name;
     switch (exp->type) {
         case AST_EXP_CONST:
@@ -141,6 +132,7 @@ static void uniquify_label(struct CVariable* var) {
 }
 
 static void resolve_declaration(struct CDeclaration* decl) {
+    if (!decl) return;
     uniquify_variable(&decl->var);
     // Update the initializer, if there is one.
     if (decl->initializer) {
@@ -148,17 +140,28 @@ static void resolve_declaration(struct CDeclaration* decl) {
     }
 }
 
+static void resolve_for_init(struct CForInit* for_init) {
+    if (!for_init) return;
+    if (for_init->type == FOR_INIT_DECL) {
+        resolve_declaration(for_init->declaration);
+    } else {
+        resolve_exp(for_init->expression);
+    }
+}
+
 static void resolve_statement(const struct CStatement* statement) {
+    if (!statement) return;
     if (c_statement_has_labels(statement)) {
-        struct CVariable * labels = c_statement_get_labels(statement);
-        while (labels && labels->source_name)
-            uniquify_label(labels++);
+        struct CLabel * labels = c_statement_get_labels(statement);
+        while (labels && labels->label.source_name) {
+            uniquify_label(&labels->label);
+            ++labels;
+        }
     }
     switch (statement->type) {
         case STMT_RETURN:
         case STMT_AUTO_RETURN:
-            if (statement->expression)
-                resolve_exp(statement->expression);
+            resolve_exp(statement->expression);
             break;
         case STMT_EXP:
             resolve_exp(statement->expression);
@@ -168,26 +171,29 @@ static void resolve_statement(const struct CStatement* statement) {
         case STMT_IF:
             resolve_exp(statement->if_statement.condition);
             resolve_statement(statement->if_statement.then_statement);
-            if (statement->if_statement.else_statement) {
-                resolve_statement(statement->if_statement.else_statement);
-            }
+            resolve_statement(statement->if_statement.else_statement);
             break;
         case STMT_GOTO:
             // Not handled here; separate pass, after all labels in function have been found.
             break;
-        case STMT_LABEL:
-            assert("Should not encounter STMT_LABEL in semantic analysis." && 0);
-            break;
         case STMT_COMPOUND:
-//            for (int ix=0; ix<statement->compound->items.num_items; ix++) {
-//                struct CBlockItem* bi = statement->compound->items.items[ix];
-//                if (bi->type == AST_BI_STATEMENT) {
-//                    resolve_statement(bi->statement);
-//                } else {
-//                    resolve_declaration(bi->declaration);
-//                }
-//            }
             resolve_block(statement->compound);
+            break;
+        case STMT_BREAK:
+        case STMT_CONTINUE:
+            break;
+        case STMT_FOR:
+            resolve_for_init(statement->for_statement.init);
+            resolve_exp(statement->for_statement.condition);
+            resolve_exp(statement->for_statement.post);
+            resolve_statement(statement->for_statement.body);
+            break;
+        case STMT_SWITCH:
+            break;
+        case STMT_WHILE:
+        case STMT_DOWHILE:
+            resolve_exp(statement->while_or_do_statement.condition);
+            resolve_statement(statement->while_or_do_statement.body);
             break;
     }
 }
@@ -199,7 +205,6 @@ static void resolve_goto(const struct CStatement* statement) {
         case STMT_AUTO_RETURN:
         case STMT_EXP:
         case STMT_NULL:
-        case STMT_LABEL:
             break;
         case STMT_IF:
             resolve_goto(statement->if_statement.then_statement);
@@ -213,7 +218,7 @@ static void resolve_goto(const struct CStatement* statement) {
                 printf("Error: label \"%s\" has not been declared\n", statement->goto_statement.label->var.source_name);
                 exit(1);
             }
-            statement->label_statement.label->var.name = mapped_name;
+            statement->goto_statement.label->var.name = mapped_name;
             if (traceResolution) {
                 printf("Resolving label \"%s\" as \"%s\"\n", statement->goto_statement.label->var.source_name, mapped_name);
             }

@@ -5,6 +5,8 @@
 #ifndef BCC_UTILS_H
 #define BCC_UTILS_H
 
+#include <memory.h>
+
 extern unsigned long hash_str(const char *str);
 extern int long_is_zero(long l);
 

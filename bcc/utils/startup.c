@@ -41,7 +41,7 @@ char const *ppFname;
 char const *asmFname;
 char const *executableFname;
 
-int parseInputFilename(char *string) {
+int parseInputFilename(const char *string) {
     inputFname = strdup(string);
     char const *pExt = strrchr(string, '.');
     if (!pExt) return 0; // no extension

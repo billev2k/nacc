@@ -34,14 +34,30 @@ enum AST_BLOCK_ITEM {
     AST_BI_DECLARATION,
 };
 
+enum FOR_INIT_TYPE {
+    FOR_INIT_DECL,
+    FOR_INIT_EXPR,
+};
+
+enum LABEL_TYPE {
+    LABEL_DECL,
+    LABEL_CASE,
+    LABEL_DEFAULT,
+};
+
 enum AST_STMT {
+    STMT_BREAK,
     STMT_COMPOUND,
+    STMT_CONTINUE,
+    STMT_DOWHILE,
     STMT_EXP,
+    STMT_FOR,
     STMT_GOTO,
     STMT_IF,
-    STMT_LABEL,
     STMT_NULL,
     STMT_RETURN,
+    STMT_SWITCH,
+    STMT_WHILE,
     STMT_AUTO_RETURN,
 };
 
@@ -144,7 +160,14 @@ struct CVariable {
     const char* name;
     const char* source_name;
 };
-LIST_OF_ITEM_DECL(CVariable, struct CVariable);
+
+struct CLabel {
+    enum LABEL_TYPE type;
+    struct CVariable label;
+};
+
+LIST_OF_ITEM_DECL(CLabel, struct CLabel);
+
 
 //region struct CExpression
 struct CExpression {
@@ -186,7 +209,7 @@ extern struct CExpression* c_expression_new_var(const char* name);
 extern struct CExpression* c_expression_new_assign(struct CExpression* src, struct CExpression* dst);
 extern struct CExpression* c_expression_new_increment(enum AST_INCREMENT_OP op, struct CExpression* operand);
 extern struct CExpression* c_expression_new_conditional(struct CExpression* left_exp, struct CExpression* middle_exp, struct CExpression* right_exp);
-extern struct CExpression* c_expression_clone(struct CExpression* expression);
+extern struct CExpression* c_expression_clone(const struct CExpression* expression);
 extern void c_expression_free(struct CExpression *expression);
 //endregion
 
@@ -198,6 +221,19 @@ struct CDeclaration {
 extern struct CDeclaration* c_declaration_new(const char* identifier);
 extern struct CDeclaration* c_declaration_new_init(const char* identifier, struct CExpression* initializer);
 extern void c_declaration_free(struct CDeclaration* declaration);
+//endregion
+
+//region struct CForInit
+struct CForInit {
+    enum FOR_INIT_TYPE type;
+    union {
+        struct CDeclaration* declaration;
+        struct CExpression* expression;
+    };
+};
+extern struct CForInit* c_for_init_new_declaration(struct CDeclaration* declaration);
+extern struct CForInit* c_for_init_new_expression(struct CExpression* expression);
+extern void c_for_init_free(struct CForInit* for_init);
 //endregion
 
 //region struct CBlockItem
@@ -241,23 +277,39 @@ struct CStatement {
             struct CExpression* label;
         } goto_statement;
         struct {
-            struct CExpression* label;
-        } label_statement;
+            struct CExpression* condition;
+            struct CStatement* body;
+        } while_or_do_statement;
+        struct {
+            struct CForInit* init;
+            struct CExpression* condition;
+            struct CExpression* post;
+            struct CStatement* body;
+        } for_statement;
+        struct {
+            struct CExpression* expression;
+            struct CStatement* body;
+        } switch_statement;
         struct CBlock* compound;
     };
-    struct list_of_CVariable* labels;
+    struct list_of_CLabel* labels;
 };
-extern struct CStatement* c_statement_new_return(struct CExpression* expression);
+extern struct CStatement* c_statement_new_break(void);
+extern struct CStatement* c_statement_new_compound(struct CBlock* block);
+extern struct CStatement* c_statement_new_continue(void);
+extern struct CStatement* c_statement_new_do(struct CStatement* body, struct CExpression* condition);
+extern struct CStatement* c_statement_new_for(struct CForInit* init, struct CExpression* condition, struct CExpression* post, struct CStatement* body);
 extern struct CStatement* c_statement_new_exp(struct CExpression* expression);
+extern struct CStatement* c_statement_new_goto(struct CExpression* label);
 extern struct CStatement* c_statement_new_if(struct CExpression* condition, struct CStatement* then_statement,
                                       struct CStatement* else_statement);
-extern struct CStatement* c_statement_new_goto(struct CExpression* label);
-extern struct CStatement* c_statement_new_label(struct CExpression* label);
-extern struct CStatement* c_statement_new_compound(struct CBlock* block);
 extern struct CStatement* c_statement_new_null(void);
+extern struct CStatement* c_statement_new_return(struct CExpression* expression);
+extern struct CStatement* c_statement_new_switch(struct CExpression* expression, struct CStatement* body);
+extern struct CStatement* c_statement_new_while(struct CExpression* condition, struct CStatement* body);
 extern int c_statement_has_labels(const struct CStatement * statement);
-extern void c_statement_add_labels(struct CStatement *pStatement, const char **pString);
-extern struct CVariable * c_statement_get_labels(const struct CStatement * statement);
+extern void c_statement_add_labels(struct CStatement *pStatement, struct CLabel *labels);
+extern struct CLabel * c_statement_get_labels(const struct CStatement * statement);
 extern void c_statement_free(struct CStatement *statement);
 //endregion
 
@@ -267,7 +319,7 @@ struct CFunction {
     struct CBlock* block;
 };
 extern struct CFunction* c_function_new(const char* name, struct CBlock* block);
-extern void c_function_append_block_item(struct CFunction* function, struct CBlockItem* item);
+extern void c_function_append_block_item(const struct CFunction* function, struct CBlockItem* item);
 extern void c_function_free(struct CFunction *function);
 //endregion
 

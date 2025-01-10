@@ -8,6 +8,6 @@
 #include "ast.h"
 #include "../ir/ir.h"
 
-extern struct IrProgram *ast2ir(struct CProgram *cProgram);
+extern struct IrProgram *ast2ir(const struct CProgram *cProgram);
 
 #endif //BCC_AST2IR_H
