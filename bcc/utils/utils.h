@@ -10,6 +10,8 @@
 extern unsigned long hash_str(const char *str);
 extern int long_is_zero(long l);
 
+extern int next_uniquifier(void);
+
 //region LIST_OF_ITEM declaration and definition
 #define LIST_OF_ITEM_DECL(NAME, TYPE)                                                                       \
 struct list_of_##NAME##_helpers {                                                                           \

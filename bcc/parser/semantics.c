@@ -13,25 +13,41 @@
 #include "symtab.h"
 #include "../utils/startup.h"
 
-static void analyze_function(const struct CFunction* function);
-static void resolve_block(const struct CBlock* block);
-static void resolve_statement(const struct CStatement* statement);
-static void resolve_goto(const struct CStatement* statement);
-static void resolve_declaration(struct CDeclaration* decl);
+struct LoopLabelContext {
+    struct CStatement *enclosing_switch;
+    int enclosing_break_id;
+    int enclosing_continue_id;
+};
 
-void semantic_analysis(const struct CProgram* program) {
+
+static void analyze_function(const struct CFunction *function);
+
+static void resolve_block(const struct CBlock *block);
+
+static void resolve_statement(const struct CStatement *statement);
+
+static void resolve_goto(const struct CStatement *statement);
+
+static void resolve_declaration(struct CDeclaration *decl);
+
+static void label_block_loops(const struct CBlock *block, struct LoopLabelContext context);
+
+static void label_statement_loops(struct CStatement *statement, struct LoopLabelContext context);
+
+void semantic_analysis(const struct CProgram *program) {
     symtab_init();
     analyze_function(program->function);
 }
 
-static void analyze_function(const struct CFunction* function) {
+static void analyze_function(const struct CFunction *function) {
     resolve_block(function->block);
+    label_block_loops(function->block, (struct LoopLabelContext){0});
 }
 
-static void resolve_block(const struct CBlock* block) {
+static void resolve_block(const struct CBlock *block) {
     push_symtab_context(block->is_function_block);
-    for (int ix=0; ix<block->items.num_items; ix++) {
-        struct CBlockItem* bi = block->items.items[ix];
+    for (int ix = 0; ix < block->items.num_items; ix++) {
+        struct CBlockItem *bi = block->items.items[ix];
         if (bi->type == AST_BI_STATEMENT) {
             resolve_statement(bi->statement);
         } else {
@@ -39,8 +55,8 @@ static void resolve_block(const struct CBlock* block) {
         }
     }
     if (block->is_function_block) {
-        for (int ix=0; ix<block->items.num_items; ix++) {
-            struct CBlockItem* bi = block->items.items[ix];
+        for (int ix = 0; ix < block->items.num_items; ix++) {
+            struct CBlockItem *bi = block->items.items[ix];
             if (bi->type == AST_BI_STATEMENT) {
                 resolve_goto(bi->statement);
             }
@@ -49,17 +65,17 @@ static void resolve_block(const struct CBlock* block) {
     pop_symtab_context();
 }
 
-static const char* resolve_label(const char* source_name) {
+static const char *resolve_label(const char *source_name) {
     return resolve_symbol(SYMTAB_LABEL, source_name);
 }
 
-static const char* resolve_var(const char* source_name) {
+static const char *resolve_var(const char *source_name) {
     return resolve_symbol(SYMTAB_VAR, source_name);
 }
 
-static void resolve_exp(struct CExpression* exp) {
+static void resolve_exp(struct CExpression *exp) {
     if (!exp) return;
-    const char* mapped_name;
+    const char *mapped_name;
     switch (exp->type) {
         case AST_EXP_CONST:
             break;
@@ -120,18 +136,20 @@ static void resolve_exp(struct CExpression* exp) {
     }
 }
 
-static void uniquify_thing(struct CVariable* var, enum SYMTAB_TYPE type) {
-    const char* uniquified = add_symbol(type, var->source_name);
+static void uniquify_thing(struct CVariable *var, enum SYMTAB_TYPE type) {
+    const char *uniquified = add_symbol(type, var->source_name);
     var->name = uniquified;
 }
-static void uniquify_variable(struct CVariable* var) {
+
+static void uniquify_variable(struct CVariable *var) {
     uniquify_thing(var, SYMTAB_VAR);
 }
-static void uniquify_label(struct CVariable* var) {
+
+static void uniquify_label(struct CVariable *var) {
     uniquify_thing(var, SYMTAB_LABEL);
 }
 
-static void resolve_declaration(struct CDeclaration* decl) {
+static void resolve_declaration(struct CDeclaration *decl) {
     if (!decl) return;
     uniquify_variable(&decl->var);
     // Update the initializer, if there is one.
@@ -140,7 +158,7 @@ static void resolve_declaration(struct CDeclaration* decl) {
     }
 }
 
-static void resolve_for_init(struct CForInit* for_init) {
+static void resolve_for_init(struct CForInit *for_init) {
     if (!for_init) return;
     if (for_init->type == FOR_INIT_DECL) {
         resolve_declaration(for_init->declaration);
@@ -149,10 +167,10 @@ static void resolve_for_init(struct CForInit* for_init) {
     }
 }
 
-static void resolve_statement(const struct CStatement* statement) {
+static void resolve_statement(const struct CStatement *statement) {
     if (!statement) return;
     if (c_statement_has_labels(statement)) {
-        struct CLabel * labels = c_statement_get_labels(statement);
+        struct CLabel *labels = c_statement_get_labels(statement);
         while (labels && labels->label.source_name) {
             uniquify_label(&labels->label);
             ++labels;
@@ -183,12 +201,16 @@ static void resolve_statement(const struct CStatement* statement) {
         case STMT_CONTINUE:
             break;
         case STMT_FOR:
+            push_symtab_context(0);
             resolve_for_init(statement->for_statement.init);
             resolve_exp(statement->for_statement.condition);
             resolve_exp(statement->for_statement.post);
             resolve_statement(statement->for_statement.body);
+            pop_symtab_context();
             break;
         case STMT_SWITCH:
+            resolve_exp(statement->switch_statement.expression);
+            resolve_statement(statement->switch_statement.body);
             break;
         case STMT_WHILE:
         case STMT_DOWHILE:
@@ -198,12 +220,14 @@ static void resolve_statement(const struct CStatement* statement) {
     }
 }
 
-static void resolve_goto(const struct CStatement* statement) {
+static void resolve_goto(const struct CStatement *statement) {
     const char *mapped_name;
     switch (statement->type) {
         case STMT_RETURN:
         case STMT_AUTO_RETURN:
         case STMT_EXP:
+        case STMT_BREAK:
+        case STMT_CONTINUE:
         case STMT_NULL:
             break;
         case STMT_IF:
@@ -220,17 +244,120 @@ static void resolve_goto(const struct CStatement* statement) {
             }
             statement->goto_statement.label->var.name = mapped_name;
             if (traceResolution) {
-                printf("Resolving label \"%s\" as \"%s\"\n", statement->goto_statement.label->var.source_name, mapped_name);
+                printf("Resolving label \"%s\" as \"%s\"\n", statement->goto_statement.label->var.source_name,
+                       mapped_name);
             }
-        break;
+            break;
         case STMT_COMPOUND:
-            for (int ix=0; ix<statement->compound->items.num_items; ix++) {
-                struct CBlockItem* bi = statement->compound->items.items[ix];
+            for (int ix = 0; ix < statement->compound->items.num_items; ix++) {
+                struct CBlockItem *bi = statement->compound->items.items[ix];
                 if (bi->type == AST_BI_STATEMENT) {
                     resolve_goto(bi->statement);
                 }
             }
             break;
+        case STMT_WHILE:
+        case STMT_DOWHILE:
+            resolve_goto(statement->while_or_do_statement.body);
+            break;
+        case STMT_FOR:
+            resolve_goto(statement->for_statement.body);
+            break;
+        case STMT_SWITCH:
+            resolve_goto(statement->switch_statement.body);
+            break;
+    }
+}
+
+static void label_block_loops(const struct CBlock *block, struct LoopLabelContext context) {
+    for (int ix = 0; ix < block->items.num_items; ix++) {
+        struct CBlockItem *bi = block->items.items[ix];
+        if (bi->type == AST_BI_STATEMENT) {
+            label_statement_loops(bi->statement, context);
+        }
+    }
+}
+
+static void label_statement_loops(struct CStatement *statement, struct LoopLabelContext context) {
+    if (!statement) return;
+    int flow_id;
+    struct LoopLabelContext new_context = context;
+    struct CStatement *body;
+
+    switch (statement->type) {
+        case STMT_BREAK:
+            if (!context.enclosing_break_id) {
+                printf("Error: break statement outside of loop\n");
+                exit(1);
+            }
+            c_statement_set_flow_id(statement, context.enclosing_break_id);
+            break;
+        case STMT_CONTINUE:
+            if (!context.enclosing_continue_id) {
+                printf("Error: continue statement outside of loop\n");
+                exit(1);
+            }
+            c_statement_set_flow_id(statement, context.enclosing_continue_id);
+            break;
+
+        case STMT_WHILE:
+        case STMT_DOWHILE:
+            body = statement->while_or_do_statement.body;
+        label_loop_body:
+            flow_id = next_uniquifier();
+            c_statement_set_flow_id(statement, flow_id);
+            new_context.enclosing_break_id = flow_id;
+            new_context.enclosing_continue_id = flow_id;
+            label_statement_loops(body, new_context);
+            break;
+        case STMT_FOR:
+            body = statement->for_statement.body;
+            goto label_loop_body;
+
+        case STMT_SWITCH:
+            flow_id = next_uniquifier();
+            c_statement_set_flow_id(statement, flow_id);
+            new_context.enclosing_break_id = flow_id;
+            new_context.enclosing_switch = statement;
+            label_statement_loops(statement->switch_statement.body, new_context);
+            break;
+
+        case STMT_IF:
+            label_statement_loops(statement->if_statement.then_statement, context);
+            label_statement_loops(statement->if_statement.else_statement, context);
+            break;
+        case STMT_COMPOUND:
+            label_block_loops(statement->compound, context);
+            break;
+
+        case STMT_GOTO:
+        case STMT_EXP:
+        case STMT_NULL:
+        case STMT_RETURN:
+        case STMT_AUTO_RETURN:
+            break;
+    }
+
+    if (c_statement_has_labels(statement)) {
+        int num_labels = c_statement_num_labels(statement);
+        struct CLabel *labels = c_statement_get_labels(statement);
+        for (int i=0; i<num_labels; ++i) {
+            if (labels[i].type == LABEL_DEFAULT) {
+                if (!context.enclosing_switch) {
+                    printf("Error: 'default:' label outside of switch\n");
+                    exit(1);
+                }
+                c_statement_set_switch_default(context.enclosing_switch, statement);
+                c_statement_set_flow_id(statement, context.enclosing_switch->flow_id);
+            } else if (labels[i].type == LABEL_CASE) {
+                if (!context.enclosing_switch) {
+                    printf("Error: 'case X:' label outside of switch\n");
+                    exit(1);
+                }
+                c_statement_set_switch_case(context.enclosing_switch, statement, atoi(labels[i].case_value));
+                c_statement_set_flow_id(statement, context.enclosing_switch->flow_id);
+            }
+        }
     }
 }
 

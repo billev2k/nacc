@@ -9,6 +9,9 @@
 #include <printf.h>
 
 #include "ast.h"
+
+#include <assert.h>
+
 #include "../utils/startup.h"
 
 void c_label_free(struct CLabel var) {}
@@ -269,13 +272,13 @@ struct CStatement* c_statement_new_while(struct CExpression* condition, struct C
 int c_statement_has_labels(const struct CStatement * statement) {
     return statement->labels != NULL;
 }
-void c_statement_add_labels(struct CStatement *statement, struct CLabel* pLabels) {
+void c_statement_add_labels(struct CStatement *statement, struct list_of_CLabel newLabels) {
     if (statement->labels == NULL) {
         statement->labels = malloc(sizeof(struct list_of_CLabel));
-        list_of_CLabel_init(statement->labels, 3);
+        list_of_CLabel_init(statement->labels, newLabels.num_items);
     }
-    while (pLabels->label.source_name != NULL) {
-        list_of_CLabel_append(statement->labels, *pLabels++);
+    for (int i = 0; i < newLabels.num_items; i++) {
+        list_of_CLabel_append(statement->labels, newLabels.items[i]);
     }
 }
 int c_statement_num_labels(const struct CStatement* statement) {
@@ -285,6 +288,16 @@ struct CLabel  * c_statement_get_labels(const struct CStatement * statement) {
     static struct CLabel empty = {0};
     if (statement->labels == NULL) return &empty;
     return statement->labels->items;
+}
+void c_statement_set_flow_id(struct CStatement * statement, int flow_id) {
+    assert(statement->flow_id == 0);
+    statement->flow_id = flow_id;
+}
+void c_statement_set_switch_default(struct CStatement* statement, struct CStatement* default_statement) {
+
+}
+void c_statement_set_switch_case(struct CStatement* statement, struct CStatement* case_statement, int case_value) {
+    
 }
 
 void c_statement_free(struct CStatement *statement) {

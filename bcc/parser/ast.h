@@ -294,6 +294,7 @@ struct CStatement {
         struct CBlock* compound;
     };
     struct list_of_CLabel* labels;
+    int flow_id;    // ID of while/do/for/switch statement, for break/continue/case/default handling.
 };
 extern struct CStatement* c_statement_new_break(void);
 extern struct CStatement* c_statement_new_compound(struct CBlock* block);
@@ -309,8 +310,12 @@ extern struct CStatement* c_statement_new_return(struct CExpression* expression)
 extern struct CStatement* c_statement_new_switch(struct CExpression* expression, struct CStatement* body);
 extern struct CStatement* c_statement_new_while(struct CExpression* condition, struct CStatement* body);
 extern int c_statement_has_labels(const struct CStatement * statement);
-extern void c_statement_add_labels(struct CStatement *pStatement, struct CLabel *labels);
+extern void c_statement_add_labels(struct CStatement *pStatement, struct list_of_CLabel labels);
 extern struct CLabel * c_statement_get_labels(const struct CStatement * statement);
+extern int c_statement_num_labels(const struct CStatement * statement);
+extern void c_statement_set_flow_id(struct CStatement * statement, int flow_id);
+extern void c_statement_set_switch_default(struct CStatement* statement, struct CStatement* default_statement);
+extern void c_statement_set_switch_case(struct CStatement* statement, struct CStatement* case_statement, int case_value);
 extern void c_statement_free(struct CStatement *statement);
 //endregion
 

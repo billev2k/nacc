@@ -67,7 +67,7 @@ struct CFunction *parse_function() {
     struct CBlock* block = parse_block(1 /* is_function */);
     struct CFunction *function = c_function_new(name, block);
     // Add a "return 0"; if there's already a return, this unreachable instruction will be removed
-    // in a future pass.
+    // in a future pass ("future" as in someday it will be (hopefully) implemented).
     struct CExpression *zero = c_expression_new_const(AST_CONST_INT, "0");
     struct CStatement *ret_stmt = c_statement_new_return(zero);
     ret_stmt->type = STMT_AUTO_RETURN;
@@ -176,7 +176,7 @@ struct CStatement *parse_statement() {
         if (next_token.token == TK_CASE) {
             // TODO: support constant expressions
             lex_take_token();   // case
-            lex_take_token();   // value
+            next_token = lex_take_token();   // get value
             label = (struct CLabel){.type = LABEL_CASE, .case_value = next_token.text};
         } else if (next_token.token == TK_DEFAULT) {
             lex_take_token();   // default
@@ -286,7 +286,7 @@ struct CStatement *parse_statement() {
 
     // Apply labels from above.
     if (have_labels) {
-        c_statement_add_labels(result, labels.items);
+        c_statement_add_labels(result, labels);
         list_of_CLabel_free(&labels);
     }
 

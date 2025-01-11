@@ -166,11 +166,6 @@ void pop_symtab_context(void) {
     }
 }
 
-int next_uniquifier(void) {
-    static int counter = 0;
-    return counter++;
-}
-
 const char* uniquify_name(const char* fmt, const char* name) {
     static char name_buf[120];
     sprintf(name_buf, fmt, name, next_uniquifier());

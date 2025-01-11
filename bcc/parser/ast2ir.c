@@ -9,12 +9,20 @@
 #include "symtab.h"
 
 static void tmp_vars_init(void);
+
 static struct IrFunction *compile_function(const struct CFunction *cFunction);
+
 static void compile_declaration(const struct CDeclaration *declaration, struct IrFunction *function);
+
 static void compile_statement(const struct CStatement *statement, struct IrFunction *function);
+
 struct IrValue compile_expression(struct CExpression *cExpression, struct IrFunction *irFunction);
+
 static struct IrValue make_temporary(const struct IrFunction *function);
-static void make_conditional_labels(const struct IrFunction *function, struct IrValue* t, struct IrValue* f, struct IrValue* e);
+
+static void make_conditional_labels(const struct IrFunction *function, struct IrValue *t, struct IrValue *f,
+                                    struct IrValue *e);
+static void make_loop_labels (const struct IrFunction *function, int flow_id, struct IrValue *s, struct IrValue *b, struct IrValue *c);
 
 struct IrProgram *ast2ir(const struct CProgram *cProgram) {
     tmp_vars_init();
@@ -23,17 +31,17 @@ struct IrProgram *ast2ir(const struct CProgram *cProgram) {
     return program;
 }
 
-static void compile_block(const struct list_of_CBlockItem* block, struct IrFunction* irFunction) {
-//    push_symtab_context();
-    for (int ix=0; ix<block->num_items; ix++) {
-        struct CBlockItem* bi = block->items[ix];
+static void compile_block(const struct list_of_CBlockItem *block, struct IrFunction *irFunction) {
+    //    push_symtab_context();
+    for (int ix = 0; ix < block->num_items; ix++) {
+        struct CBlockItem *bi = block->items[ix];
         if (bi->type == AST_BI_STATEMENT) {
             compile_statement(bi->statement, irFunction);
         } else {
             compile_declaration(bi->declaration, irFunction);
         }
     }
-//    pop_symtab_context();
+    //    pop_symtab_context();
 }
 
 struct IrFunction *compile_function(const struct CFunction *cFunction) {
@@ -42,15 +50,101 @@ struct IrFunction *compile_function(const struct CFunction *cFunction) {
     return function;
 }
 
-static void compile_declaration(const struct CDeclaration* declaration, struct IrFunction* function) {
+static void compile_declaration(const struct CDeclaration *declaration, struct IrFunction *function) {
     struct IrValue var = ir_value_new_id(declaration->var.name);
-    struct IrInstruction* inst = ir_instruction_new_var(var);
+    struct IrInstruction *inst = ir_instruction_new_var(var);
     ir_function_append_instruction(function, inst);
     if (declaration->initializer) {
         struct IrValue initializer = compile_expression(declaration->initializer, function);
         inst = ir_instruction_new_copy(initializer, var);
         ir_function_append_instruction(function, inst);
     }
+}
+
+static void compile_do_while(const struct CStatement *do_statement, struct IrFunction *function) {
+    struct IrValue start_label;
+    struct IrValue break_label;
+    struct IrValue continue_label;
+    make_loop_labels(function, do_statement->flow_id, &start_label, &break_label, &continue_label);
+
+    // emit start label
+    struct IrInstruction *inst = ir_instruction_new_label(start_label);
+    ir_function_append_instruction(function, inst);
+    // emit body
+    compile_statement(do_statement->while_or_do_statement.body, function);
+    // emit continue label
+    inst = ir_instruction_new_label(continue_label);
+    ir_function_append_instruction(function, inst);
+    // emit condition and jnz
+    struct IrValue condition = compile_expression(do_statement->while_or_do_statement.condition, function);
+    inst = ir_instruction_new_jumpnz(condition, start_label);
+    ir_function_append_instruction(function, inst);
+    // emit break label
+    inst = ir_instruction_new_label(break_label);
+    ir_function_append_instruction(function, inst);
+}
+
+static void compile_while(const struct CStatement *while_statement, struct IrFunction *function) {
+    struct IrValue break_label;
+    struct IrValue continue_label;
+    make_loop_labels(function, while_statement->flow_id, NULL, &break_label, &continue_label);
+
+    // emit continue label(also the start label)
+    struct IrInstruction *inst = ir_instruction_new_label(continue_label);
+    ir_function_append_instruction(function, inst);
+    // emit condition and jz
+    struct IrValue condition = compile_expression(while_statement->while_or_do_statement.condition, function);
+    inst = ir_instruction_new_jumpz(condition, break_label);
+    ir_function_append_instruction(function, inst);
+    // emit body
+    compile_statement(while_statement->while_or_do_statement.body, function);
+    // jump back to start, ie, continue
+    inst = ir_instruction_new_jump(continue_label);
+    ir_function_append_instruction(function, inst);
+    // emit break label
+    inst = ir_instruction_new_label(break_label);
+    ir_function_append_instruction(function, inst);
+}
+
+static void compile_for(const struct CStatement *for_statement, struct IrFunction *function) {
+    struct IrValue start_label;
+    struct IrValue break_label;
+    struct IrValue continue_label;
+    make_loop_labels(function, for_statement->flow_id, &start_label, &break_label, &continue_label);
+
+    // emit init
+    if (for_statement->for_statement.init) {
+        if (for_statement->for_statement.init->type == FOR_INIT_EXPR) {
+            compile_expression(for_statement->for_statement.init->expression, function);
+        } else if (for_statement->for_statement.init->type == FOR_INIT_DECL) {
+            compile_declaration(for_statement->for_statement.init->declaration, function);
+        } else {
+            assert("Unknown type in 'for init'" && 0);
+        }
+    }
+    // emit start label
+    struct IrInstruction *inst = ir_instruction_new_label(start_label);
+    ir_function_append_instruction(function, inst);
+    // emit condition and "jz break", if present
+    if (for_statement->for_statement.condition) {
+        struct IrValue condition = compile_expression(for_statement->for_statement.condition, function);
+        inst = ir_instruction_new_jumpz(condition, break_label);
+        ir_function_append_instruction(function, inst);
+    }
+    // body
+    compile_statement(for_statement->for_statement.body, function);
+    // emit continue label
+    inst = ir_instruction_new_label(continue_label);
+    ir_function_append_instruction(function, inst);
+    // post, if present
+    if (for_statement->for_statement.post) {
+        compile_expression(for_statement->for_statement.post, function);
+    }
+    inst = ir_instruction_new_jump(start_label);
+    ir_function_append_instruction(function, inst);
+    // emit break label
+    inst = ir_instruction_new_label(break_label);
+    ir_function_append_instruction(function, inst);
 }
 
 void compile_statement(const struct CStatement *statement, struct IrFunction *function) {
@@ -64,7 +158,7 @@ void compile_statement(const struct CStatement *statement, struct IrFunction *fu
 
     // Collect optional label(s).
     if (c_statement_has_labels(statement)) {
-        struct CLabel * labels = c_statement_get_labels(statement);
+        struct CLabel *labels = c_statement_get_labels(statement);
         while (labels && labels->label.source_name) {
             label = ir_value_new(IR_VAL_LABEL, labels->label.name);
             inst = ir_instruction_new_label(label);
@@ -88,12 +182,12 @@ void compile_statement(const struct CStatement *statement, struct IrFunction *fu
             break;
         case STMT_IF:
             has_else = statement->if_statement.else_statement != NULL;
-            make_conditional_labels(function, NULL, has_else?&else_label:NULL, &end_label);
-            // Condition
+            make_conditional_labels(function, NULL, has_else ? &else_label : NULL, &end_label);
+        // Condition
             condition = compile_expression(statement->if_statement.condition, function);
-            inst = ir_instruction_new_jumpz(condition, has_else?else_label:end_label);
+            inst = ir_instruction_new_jumpz(condition, has_else ? else_label : end_label);
             ir_function_append_instruction(function, inst);
-            // Then statement
+        // Then statement
             compile_statement(statement->if_statement.then_statement, function);
             if (has_else) {
                 inst = ir_instruction_new_jump(end_label);
@@ -103,7 +197,7 @@ void compile_statement(const struct CStatement *statement, struct IrFunction *fu
                 ir_function_append_instruction(function, inst);
                 compile_statement(statement->if_statement.else_statement, function);
             }
-            // end
+        // end
             inst = ir_instruction_new_label(end_label);
             ir_function_append_instruction(function, inst);
             break;
@@ -114,6 +208,27 @@ void compile_statement(const struct CStatement *statement, struct IrFunction *fu
             break;
         case STMT_COMPOUND:
             compile_block(&statement->compound->items, function);
+            break;
+        case STMT_BREAK:
+            make_loop_labels(function, statement->flow_id, NULL, &label, NULL);
+            inst = ir_instruction_new_jump(label);
+            ir_function_append_instruction(function, inst);
+            break;
+        case STMT_CONTINUE:
+            make_loop_labels(function, statement->flow_id, NULL, NULL, &label);
+            inst = ir_instruction_new_jump(label);
+            ir_function_append_instruction(function, inst);
+            break;
+        case STMT_DOWHILE:
+            compile_do_while(statement, function);
+            break;
+        case STMT_FOR:
+            compile_for(statement, function);
+            break;
+        case STMT_SWITCH:
+            break;
+        case STMT_WHILE:
+            compile_while(statement, function);
             break;
     }
 }
@@ -126,7 +241,8 @@ void compile_statement(const struct CStatement *statement, struct IrFunction *fu
  *      to evaluate the expression.
  * @return An IrValue with the location of where the computed value is stored.
  */
-struct IrValue compile_expression(struct CExpression *cExpression, struct IrFunction *irFunction) { // NOLINT(*-no-recursion)
+struct IrValue compile_expression(struct CExpression *cExpression, struct IrFunction *irFunction) {
+    // NOLINT(*-no-recursion)
     struct IrValue src;
     struct IrValue src2;
     struct IrValue dst = {};
@@ -180,55 +296,55 @@ struct IrValue compile_expression(struct CExpression *cExpression, struct IrFunc
                 case AST_BINARY_L_AND:
                     dst = make_temporary(irFunction);
                     make_conditional_labels(irFunction, NULL, &false_label, &end_label);
-                    // Evaluate left-hand side of && and, if false, jump to false_label.
+                // Evaluate left-hand side of && and, if false, jump to false_label.
                     src = compile_expression(cExpression->binary.left, irFunction);
                     inst = ir_instruction_new_jumpz(src, false_label);
                     ir_function_append_instruction(irFunction, inst);
-                    // Otherwise, evaluate right-hand side of && and, if false, jump to false_label.
+                // Otherwise, evaluate right-hand side of && and, if false, jump to false_label.
                     src2 = compile_expression(cExpression->binary.right, irFunction);
                     inst = ir_instruction_new_jumpz(src2, false_label);
                     ir_function_append_instruction(irFunction, inst);
-                    // Not false, so result is 1, then jump to end label.
+                // Not false, so result is 1, then jump to end label.
                     inst = ir_instruction_new_copy(ir_value_new_const("1"), dst);
                     ir_function_append_instruction(irFunction, inst);
                     inst = ir_instruction_new_jump(end_label);
                     ir_function_append_instruction(irFunction, inst);
-                    // False, result is 0
+                // False, result is 0
                     inst = ir_instruction_new_label(false_label);
                     ir_function_append_instruction(irFunction, inst);
                     inst = ir_instruction_new_copy(ir_value_new_const("0"), dst);
                     ir_function_append_instruction(irFunction, inst);
-                    // End label
+                // End label
                     inst = ir_instruction_new_label(end_label);
                     ir_function_append_instruction(irFunction, inst);
                     break;
                 case AST_BINARY_L_OR:
                     dst = make_temporary(irFunction);
                     make_conditional_labels(irFunction, &true_label, NULL, &end_label);
-                    // Evaluate left-hand side of || and, if true, jump to true_label.
+                // Evaluate left-hand side of || and, if true, jump to true_label.
                     src = compile_expression(cExpression->binary.left, irFunction);
                     inst = ir_instruction_new_jumpnz(src, true_label);
                     ir_function_append_instruction(irFunction, inst);
-                    // Otherwise, evaluate right-hand side of || and, if true, jump to true_label.
+                // Otherwise, evaluate right-hand side of || and, if true, jump to true_label.
                     src2 = compile_expression(cExpression->binary.right, irFunction);
                     inst = ir_instruction_new_jumpnz(src2, true_label);
                     ir_function_append_instruction(irFunction, inst);
-                    // Not true, so result is 0, then jump to end label.
+                // Not true, so result is 0, then jump to end label.
                     inst = ir_instruction_new_copy(ir_value_new_const("0"), dst);
                     ir_function_append_instruction(irFunction, inst);
                     inst = ir_instruction_new_jump(end_label);
                     ir_function_append_instruction(irFunction, inst);
-                    // True, result is 1
+                // True, result is 1
                     inst = ir_instruction_new_label(true_label);
                     ir_function_append_instruction(irFunction, inst);
                     inst = ir_instruction_new_copy(ir_value_new_const("1"), dst);
                     ir_function_append_instruction(irFunction, inst);
-                    // End label
+                // End label
                     inst = ir_instruction_new_label(end_label);
                     ir_function_append_instruction(irFunction, inst);
                     break;
                 case AST_BINARY_ASSIGN:
-                    // This branch is only here to make the compiler happy.
+                // This branch is only here to make the compiler happy.
                 case AST_BINARY_QUESTION:
                     // Same.
                     break;
@@ -250,7 +366,7 @@ struct IrValue compile_expression(struct CExpression *cExpression, struct IrFunc
             switch (cExpression->increment.op) {
                 case AST_PRE_INCR:
                 case AST_PRE_DECR:
-                    binary_op = (cExpression->increment.op==AST_PRE_INCR)?IR_BINARY_ADD:IR_BINARY_SUBTRACT;
+                    binary_op = (cExpression->increment.op == AST_PRE_INCR) ? IR_BINARY_ADD : IR_BINARY_SUBTRACT;
                     src = compile_expression(cExpression->increment.operand, irFunction);
                     tmp = make_temporary(irFunction);
                     inst = ir_instruction_new_binary(binary_op, src, ir_value_new_const("1"), tmp);
@@ -261,7 +377,7 @@ struct IrValue compile_expression(struct CExpression *cExpression, struct IrFunc
                     break;
                 case AST_POST_INCR:
                 case AST_POST_DECR:
-                    binary_op = (cExpression->increment.op==AST_POST_INCR)?IR_BINARY_ADD:IR_BINARY_SUBTRACT;
+                    binary_op = (cExpression->increment.op == AST_POST_INCR) ? IR_BINARY_ADD : IR_BINARY_SUBTRACT;
                     dst = make_temporary(irFunction);
                     src = compile_expression(cExpression->increment.operand, irFunction);
                     inst = ir_instruction_new_copy(src, dst);
@@ -277,23 +393,23 @@ struct IrValue compile_expression(struct CExpression *cExpression, struct IrFunc
         case AST_EXP_CONDITIONAL:
             make_conditional_labels(irFunction, NULL, &false_label, &end_label);
             dst = make_temporary(irFunction);
-            // Condition ("left") expression
+        // Condition ("left") expression
             condition = compile_expression(cExpression->conditional.left_exp, irFunction);
             inst = ir_instruction_new_jumpz(condition, false_label);
             ir_function_append_instruction(irFunction, inst);
-            // True ("middle") expression
+        // True ("middle") expression
             tmp = compile_expression(cExpression->conditional.middle_exp, irFunction);
             inst = ir_instruction_new_copy(tmp, dst);
             ir_function_append_instruction(irFunction, inst);
             inst = ir_instruction_new_jump(end_label);
             ir_function_append_instruction(irFunction, inst);
-            // False ("right") expression
+        // False ("right") expression
             inst = ir_instruction_new_label(false_label);
             ir_function_append_instruction(irFunction, inst);
             tmp = compile_expression(cExpression->conditional.right_exp, irFunction);
             inst = ir_instruction_new_copy(tmp, dst);
             ir_function_append_instruction(irFunction, inst);
-            // exit
+        // exit
             inst = ir_instruction_new_label(end_label);
             ir_function_append_instruction(irFunction, inst);
             break;
@@ -310,34 +426,34 @@ struct IrValue compile_expression(struct CExpression *cExpression, struct IrFunc
 //      completely compiled.
 //
 static const char *tmp_vars_insert(const char *str);
+
 static struct IrValue make_temporary(const struct IrFunction *function) {
-    const char* name_buf = uniquify_name("%.100s.tmp.%d", function->name);
+    const char *name_buf = uniquify_name("%.100s.tmp.%d", function->name);
     const char *tmp_name = tmp_vars_insert(name_buf);
     struct IrValue result = ir_value_new(IR_VAL_ID, tmp_name);
     return result;
 }
-static void make_conditional_labels(const struct IrFunction *function, struct IrValue* t, struct IrValue* f, struct IrValue* e) {
+
+static void make_unique_label(const char *context, const char *tag, int uniquifier, struct IrValue *label) {
+    if (!label) return;
     char name_buf[120];
-    int uniquifier = next_uniquifier();
-    if (t) {
-        sprintf(name_buf, "%.100s.true.%d", function->name, uniquifier);
-        const char *tmp_name = tmp_vars_insert(name_buf);
-        *t = ir_value_new(IR_VAL_LABEL, tmp_name);
-    }
-    if (f) {
-        sprintf(name_buf, "%.100s.false.%d", function->name, uniquifier);
-        const char *tmp_name = tmp_vars_insert(name_buf);
-        *f = ir_value_new(IR_VAL_LABEL, tmp_name);
-    }
-#pragma clang diagnostic push
-#pragma ide diagnostic ignored "ConstantConditionsOC"
-    if (e) {
-        sprintf(name_buf, "%.100s.end.%d", function->name, uniquifier);
-        const char *tmp_name = tmp_vars_insert(name_buf);
-        *e = ir_value_new(IR_VAL_LABEL, tmp_name);
-    }
-#pragma clang diagnostic pop
+    sprintf(name_buf, "%.100s.%s.%d", context, tag, uniquifier);
+    const char *tmp_name = tmp_vars_insert(name_buf);
+    *label = ir_value_new(IR_VAL_LABEL, tmp_name);
 }
+
+static void make_conditional_labels(const struct IrFunction *function, struct IrValue *t, struct IrValue *f, struct IrValue *e) {
+    int uniquifier = next_uniquifier();
+    make_unique_label(function->name, "true", uniquifier, t);
+    make_unique_label(function->name, "false", uniquifier, f);
+    make_unique_label(function->name, "end", uniquifier, e);
+}
+static void make_loop_labels (const struct IrFunction *function, int flow_id, struct IrValue *s, struct IrValue *b, struct IrValue *c) {
+    make_unique_label(function->name, "start", flow_id, s);
+    make_unique_label(function->name, "break", flow_id, b);
+    make_unique_label(function->name, "continue", flow_id, c);
+}
+
 
 struct set_of_str tmp_vars;
 /**
@@ -346,7 +462,7 @@ struct set_of_str tmp_vars;
 void tmp_vars_init(void) {
     set_of_str_init(&tmp_vars, 101);
 }
-const char * tmp_vars_insert(const char *str) {
+
+const char *tmp_vars_insert(const char *str) {
     return set_of_str_insert(&tmp_vars, str);
 }
-

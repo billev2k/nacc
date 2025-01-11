@@ -62,10 +62,14 @@ static void c_statement_print(struct CStatement *statement, int depth) {
     if (!statement) return;
     if (c_statement_has_labels(statement)) {
         struct CLabel * labels = c_statement_get_labels(statement);
-        while (labels->label.source_name) {
-            indent4(depth);
-            printf("%s:\n", labels->label.source_name);
-            ++labels;
+        for (int i=0; i<c_statement_num_labels(statement); ++i) {
+            indent4(depth-1);
+            if (labels[i].type == LABEL_DECL)
+                printf("%s:\n", labels->label.source_name);
+            else if (labels[i].type == LABEL_DEFAULT)
+                printf("default:\n");
+            else if (labels[i].type == LABEL_CASE)
+                printf("case %s:\n", labels->case_value);
         }
     }
     switch (statement->type) {
@@ -144,6 +148,11 @@ static void c_statement_print(struct CStatement *statement, int depth) {
             c_statement_print(statement->for_statement.body, depth+1);
             break;
         case STMT_SWITCH:
+            indent4(depth);
+            printf("switch (");
+            expression_print(statement->switch_statement.expression, depth+1);
+            printf(")\n");
+            c_statement_print(statement->switch_statement.body, depth+1);
             break;
         case STMT_WHILE:
             indent4(depth);

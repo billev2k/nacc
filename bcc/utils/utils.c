@@ -22,6 +22,12 @@ int long_is_zero(long l) {
     return l == 0;
 }
 
+int next_uniquifier(void) {
+    static int counter = 0;
+    return counter++;
+}
+
+
 ///////////////////////////////////////////////////////////////////////////////
 //
 // Set implementation for "strings".
