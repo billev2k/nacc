@@ -66,13 +66,6 @@ struct CFunction *parse_function() {
     expect(TK_L_BRACE);
     struct CBlock* block = parse_block(1 /* is_function */);
     struct CFunction *function = c_function_new(name, block);
-    // Add a "return 0"; if there's already a return, this unreachable instruction will be removed
-    // in a future pass ("future" as in someday it will be (hopefully) implemented).
-    struct CExpression *zero = c_expression_new_const(AST_CONST_INT, "0");
-    struct CStatement *ret_stmt = c_statement_new_return(zero);
-    ret_stmt->type = STMT_AUTO_RETURN;
-    struct CBlockItem *ret_item = c_block_item_new_stmt(ret_stmt);
-    c_block_append_item(block, ret_item);
     return function;
 }
 

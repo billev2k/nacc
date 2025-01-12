@@ -11,7 +11,7 @@
 static void tmp_vars_init(void);
 
 static struct IrFunction *compile_function(const struct CFunction *cFunction);
-
+static void compile_block(const struct list_of_CBlockItem *block, struct IrFunction *irFunction);
 static void compile_declaration(const struct CDeclaration *declaration, struct IrFunction *function);
 
 static void compile_statement(const struct CStatement *statement, struct IrFunction *function);
@@ -47,6 +47,12 @@ static void compile_block(const struct list_of_CBlockItem *block, struct IrFunct
 struct IrFunction *compile_function(const struct CFunction *cFunction) {
     struct IrFunction *function = ir_function_new(cFunction->name);
     compile_block(&cFunction->block->items, function);
+
+    // Add return instruction, in case the source didn't include one.
+    struct IrValue zero = ir_value_new_const("0");
+    struct IrInstruction* inst = ir_instruction_new_ret(zero);
+    ir_function_append_instruction(function, inst);
+
     return function;
 }
 

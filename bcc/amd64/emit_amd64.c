@@ -29,10 +29,6 @@ static int amd64_function_print(struct Amd64Function *amd64Function, FILE *out) 
     fprintf(out, "_%s:\n", amd64Function->name);
     fprintf(out, inst_fmt "%%rbp\n", "pushq");
     fprintf(out, inst_fmt "%%rsp, %%rbp\n", "movq");
-    if (amd64Function->stack_allocations) {
-        fprintf(out, inst_fmt "$%d, %%rsp\n", "subq", amd64Function->stack_allocations);
-    }
-    fprintf(out, "       # end prolog\n");
     for (int ix=0; ix < amd64Function->instructions.num_items; ++ix) {
         struct Amd64Instruction *inst = amd64Function->instructions.items[ix];
         amd64_instruction_print(inst, out);
@@ -93,6 +89,7 @@ static int amd64_instruction_print(struct Amd64Instruction *instruction, FILE *o
             fprintf(out, "%s:\n", instruction->label.identifier.name);
             break;
         case INST_ALLOC_STACK:
+            fprintf(out, inst_fmt "$%d, %%rsp\n", "subq", instruction->stack.bytes);
             break;
         case INST_RET:
             fprintf(out, "       # epilog\n");
@@ -100,7 +97,9 @@ static int amd64_instruction_print(struct Amd64Instruction *instruction, FILE *o
             fprintf(out, inst_fmt "%%rbp\n", inst_op_fmt(OPCODE_POP, 8));
             fprintf(out, "       ret\n");
             break;
-
+        case INST_COMMENT:
+            fprintf(out, "     # %s\n", instruction->comment.text);
+            break;
     }
     return 1;
 }

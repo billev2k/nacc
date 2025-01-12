@@ -10,18 +10,19 @@
 #include "../utils/utils.h"
 
 enum INSTRUCTION {
-    INST_MOV,
-    INST_UNARY,
+    INST_ALLOC_STACK,
     INST_BINARY,
-    INST_CMP,
-    INST_IDIV,
     INST_CDQ,
+    INST_CMP,
+    INST_COMMENT,
+    INST_IDIV,
     INST_JMP,
     INST_JMPCC,
-    INST_SETCC,
     INST_LABEL,
-    INST_ALLOC_STACK,
+    INST_MOV,
     INST_RET,
+    INST_SETCC,
+    INST_UNARY,
 };
 
 enum UNARY_OP {
@@ -33,7 +34,7 @@ enum UNARY_OP {
 enum BINARY_OP {
 #define X(a,b) BINARY_OP_##a
     IR_BINARY_OP_LIST__
-#undef X            
+#undef X
 };
 
 #define COND_CODE_LIST__ \
@@ -190,22 +191,28 @@ struct Amd64Instruction {
             struct Amd64Operand identifier;
         } label;
         struct {
+            int unused_subcode__;
             int bytes;
         } stack;
+        struct {
+            int unused_subcode__;
+            const char *text;
+        } comment;
     };
 };
-extern struct Amd64Instruction* amd64_instruction_new_mov(struct Amd64Operand src, struct Amd64Operand dst);
-extern struct Amd64Instruction* amd64_instruction_new_unary(enum UNARY_OP op, struct Amd64Operand operand);
+extern struct Amd64Instruction* amd64_instruction_new_alloc_stack(int bytes);
 extern struct Amd64Instruction* amd64_instruction_new_binary(enum BINARY_OP op, struct Amd64Operand operand1, struct Amd64Operand operand2);
-extern struct Amd64Instruction* amd64_instruction_new_cmp(struct Amd64Operand operand1, struct Amd64Operand operand2);
-extern struct Amd64Instruction* amd64_instruction_new_idiv(struct Amd64Operand operand);
 extern struct Amd64Instruction* amd64_instruction_new_cdq();
+extern struct Amd64Instruction* amd64_instruction_new_cmp(struct Amd64Operand operand1, struct Amd64Operand operand2);
+extern struct Amd64Instruction* amd64_instruction_new_comment(const char *text);
+extern struct Amd64Instruction* amd64_instruction_new_idiv(struct Amd64Operand operand);
 extern struct Amd64Instruction* amd64_instruction_new_jmp(struct Amd64Operand identifier);
 extern struct Amd64Instruction* amd64_instruction_new_jmpcc(enum COND_CODE cc, struct Amd64Operand identifier);
-extern struct Amd64Instruction* amd64_instruction_new_setcc(enum COND_CODE cc, struct Amd64Operand operand);
 extern struct Amd64Instruction* amd64_instruction_new_label(struct Amd64Operand identifier);
-extern struct Amd64Instruction* amd64_instruction_new_alloc_stack(int bytes);
+extern struct Amd64Instruction* amd64_instruction_new_mov(struct Amd64Operand src, struct Amd64Operand dst);
 extern struct Amd64Instruction* amd64_instruction_new_ret();
+extern struct Amd64Instruction* amd64_instruction_new_setcc(enum COND_CODE cc, struct Amd64Operand operand);
+extern struct Amd64Instruction* amd64_instruction_new_unary(enum UNARY_OP op, struct Amd64Operand operand);
 extern void Amd64Instruction_free(struct Amd64Instruction *instruction);
 //endregion
 

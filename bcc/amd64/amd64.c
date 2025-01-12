@@ -136,6 +136,11 @@ struct Amd64Instruction* amd64_instruction_new_cmp(struct Amd64Operand operand1,
     inst->cmp.operand2 = operand2;
     return inst;
 }
+struct Amd64Instruction* amd64_instruction_new_comment(const char *text) {
+    struct Amd64Instruction* inst = amd64_instruction_new(INST_COMMENT, 0 /* None */);
+    inst->comment.text = text;
+    return inst;
+}
 struct Amd64Instruction* amd64_instruction_new_idiv(struct Amd64Operand operand) {
     struct Amd64Instruction* inst = amd64_instruction_new(INST_IDIV, OPCODE_IDIV);
     inst->idiv.operand = operand;

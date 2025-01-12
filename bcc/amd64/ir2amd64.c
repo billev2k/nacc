@@ -7,6 +7,7 @@
 #include <stddef.h>
 #include <stdlib.h>
 #include <string.h>
+#include "amd64.h"
 #include "ir2amd64.h"
 
 struct pseudo_register {
@@ -76,12 +77,18 @@ struct Amd64Program *ir2amd64(struct IrProgram* irProgram) {
 
 static struct Amd64Function *compile_function(struct IrFunction *irFunction) {
     struct Amd64Function *function = amd64_function_new(irFunction->name);
+    amd64_function_append_instruction(function, amd64_instruction_new_comment("end of function prolog"));
     for (int ix=0; ix<irFunction->body.num_items; ix++) {
         struct IrInstruction *irInstruction = irFunction->body.items[ix];
         compile_instruction(function, irInstruction);
     }
     // Allocate the pseudo registers
     function->stack_allocations = allocate_pseudo_registers(function);
+    if (function->stack_allocations != 0) {
+        struct Amd64Instruction* stack = amd64_instruction_new_alloc_stack(function->stack_allocations);
+        list_of_Amd64Instruction_insert(&function->instructions, stack, 0);
+    }
+
     fixup_stack_accesses(function);
     return function;
 }
@@ -249,7 +256,7 @@ static int compile_instruction(struct Amd64Function *asmFunction, struct IrInstr
 }
 
 static struct Amd64Operand make_operand(struct IrValue value) {
-    struct Amd64Operand operand;
+    struct Amd64Operand operand = {0};
     switch (value.type) {
         case IR_VAL_CONST_INT:
             operand = amd64_operand_imm_literal(value.text);
