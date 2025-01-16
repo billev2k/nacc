@@ -125,7 +125,11 @@ extern void IrInstruction_free(struct IrInstruction *instruction);
 //endregion
 
 //region struct IrFunction
-LIST_OF_ITEM_DECL(IrInstruction, struct IrInstruction*)
+#define NAME list_of_IrInstruction
+#define TYPE struct IrInstruction*
+#include "../utils/list_of_item.h"
+#undef NAME
+#undef TYPE
 
 struct IrFunction {
     const char *name;

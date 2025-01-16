@@ -354,7 +354,7 @@ static void label_statement_loops(struct CStatement *statement, struct LoopLabel
                     printf("Error: 'case X:' label outside of switch\n");
                     exit(1);
                 }
-                c_statement_set_switch_case(context.enclosing_switch, statement, atoi(labels[i].case_value));
+                c_statement_register_switch_case(context.enclosing_switch, statement, atoi(labels[i].case_value));
                 c_statement_set_flow_id(statement, context.enclosing_switch->flow_id);
             }
         }

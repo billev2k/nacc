@@ -76,11 +76,14 @@ const enum OPCODE cond_code_to_setXX[] = {
 #undef X
 };
 
-struct list_of_Amd64Instruction_helpers Amd64Helpers = {
+struct list_of_Amd64Instruction_helpers list_of_Amd64Instruction_helpers = {
     .free = Amd64Instruction_free
 };
-LIST_OF_ITEM_DEFN(Amd64Instruction, struct Amd64Instruction*, Amd64Helpers)
-
+#define NAME list_of_Amd64Instruction
+#define TYPE struct Amd64Instruction*
+#include "../utils/list_of_item.tmpl"
+#undef NAME
+#undef TYPE
 
 struct Amd64Program* amd64_program_new(void ) {
     struct Amd64Program *result = (struct Amd64Program *)malloc(sizeof(struct Amd64Program));

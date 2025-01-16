@@ -15,17 +15,25 @@
 #include "../utils/startup.h"
 
 void c_label_free(struct CLabel var) {}
-struct list_of_CLabel_helpers c_label_helpers = {
+struct list_of_CLabel_helpers list_of_CLabel_helpers = {
         .free = c_label_free,
         .null = {0},
 };
-LIST_OF_ITEM_DEFN(CLabel, struct CLabel, c_label_helpers)
+#define NAME list_of_CLabel
+#define TYPE struct CLabel
+#include "../utils/list_of_item.tmpl"
+#undef NAME
+#undef TYPE
 
-struct list_of_CBlockItem_helpers c_blockitem_helpers = {
+struct list_of_CBlockItem_helpers list_of_CBlockItem_helpers = {
     .free = c_block_item_free,
     .null = NULL,
 };
-LIST_OF_ITEM_DEFN(CBlockItem, struct CBlockItem*, c_blockitem_helpers)
+#define NAME list_of_CBlockItem
+#define TYPE struct CBlockItem*
+#include "../utils/list_of_item.tmpl"
+#undef NAME
+#undef TYPE
 
 const char * const ASM_CONST_TYPE_NAMES[] = {
 #define X(a,b) b 
@@ -293,10 +301,10 @@ void c_statement_set_flow_id(struct CStatement * statement, int flow_id) {
     assert(statement->flow_id == 0);
     statement->flow_id = flow_id;
 }
-void c_statement_set_switch_default(struct CStatement* statement, struct CStatement* default_statement) {
+void c_statement_set_switch_default(struct CStatement* switch_statement, struct CStatement* default_statement) {
 
 }
-void c_statement_set_switch_case(struct CStatement* statement, struct CStatement* case_statement, int case_value) {
+void c_statement_register_switch_case(struct CStatement* switch_statement, struct CStatement* case_statement, int case_value) {
     
 }
 

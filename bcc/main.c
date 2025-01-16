@@ -53,10 +53,6 @@ int main(int argc, char **argv, char **envv) {
         fprintf(stderr, "Error in command line args.");
         return -1;
     }
-    if (configOptTest) {
-        unit_tests(argc, argv);
-        exit(0);
-    }
     preProcess();
     compile();
     //assembleAndLink();

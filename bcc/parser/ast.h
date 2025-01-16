@@ -167,8 +167,11 @@ struct CLabel {
     const char* case_value;
 };
 
-LIST_OF_ITEM_DECL(CLabel, struct CLabel);
-
+#define NAME list_of_CLabel
+#define TYPE struct CLabel
+#include "../utils/list_of_item.h"
+#undef NAME
+#undef TYPE
 
 //region struct CExpression
 struct CExpression {
@@ -252,7 +255,11 @@ extern void CBlockItem_free(struct CBlockItem* blockItem);  // actually used in 
 //endregion
 
 // Implementation of List<CBlockItem> (?list_of_CBlockItem")
-LIST_OF_ITEM_DECL(CBlockItem, struct CBlockItem*)
+#define NAME list_of_CBlockItem
+#define TYPE struct CBlockItem*
+#include "../utils/list_of_item.h"
+#undef NAME
+#undef TYPE
 
 //region CBlock
 struct CBlock {
@@ -314,8 +321,8 @@ extern void c_statement_add_labels(struct CStatement *pStatement, struct list_of
 extern struct CLabel * c_statement_get_labels(const struct CStatement * statement);
 extern int c_statement_num_labels(const struct CStatement * statement);
 extern void c_statement_set_flow_id(struct CStatement * statement, int flow_id);
-extern void c_statement_set_switch_default(struct CStatement* statement, struct CStatement* default_statement);
-extern void c_statement_set_switch_case(struct CStatement* statement, struct CStatement* case_statement, int case_value);
+extern void c_statement_set_switch_default(struct CStatement* switch_statement, struct CStatement* default_statement);
+extern void c_statement_register_switch_case(struct CStatement* switch_statement, struct CStatement* case_statement, int case_value);
 extern void c_statement_free(struct CStatement *statement);
 //endregion
 

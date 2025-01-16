@@ -27,8 +27,6 @@ add_executable(bcc main.c
         parser/ast2ir.h
         ir/print_ir.c
         ir/print_ir.h
-        SetOfItemTest.c
-        SetOfItemTest.h
         amd64/emit_amd64.h
         amd64/emit_amd64.c
         parser/semantics.c
@@ -41,3 +39,5 @@ add_executable(bcc_test SetOfItemTest.c
         utils/utils.c
         utils/utils.h
 )
+target_compile_definitions(bcc_test PRIVATE TESTING_SET_IMPL=1)
+

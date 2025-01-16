@@ -17,10 +17,14 @@ const char * const IR_BINARY_NAMES[] = {
 #undef X
 };
 
-struct list_of_IrInstruction_helpers IrInstructionHelpers = {
+struct list_of_IrInstruction_helpers list_of_IrInstruction_helpers = {
     .free = IrInstruction_free
 };
-LIST_OF_ITEM_DEFN(IrInstruction, struct IrInstruction*, IrInstructionHelpers)
+#define NAME list_of_IrInstruction
+#define TYPE struct IrInstruction*
+#include "../utils/list_of_item.tmpl"
+#undef NAME
+#undef TYPE
 
 struct IrProgram * ir_program_new() {
     struct IrProgram * program = (struct IrProgram*)malloc(sizeof(struct IrProgram));

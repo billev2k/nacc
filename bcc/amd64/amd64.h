@@ -217,7 +217,12 @@ extern void Amd64Instruction_free(struct Amd64Instruction *instruction);
 //endregion
 
 //region struct Amd64Function
-LIST_OF_ITEM_DECL(Amd64Instruction, struct Amd64Instruction*)
+#define NAME list_of_Amd64Instruction
+#define TYPE struct Amd64Instruction*
+#include "../utils/list_of_item.h"
+#undef NAME
+#undef TYPE
+
 struct Amd64Function {
     const char *name;
     int stack_allocations;

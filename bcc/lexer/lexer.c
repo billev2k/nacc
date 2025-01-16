@@ -389,7 +389,7 @@ void tokens_set_init(void) {
     set_of_str_init(&token_strings, 101);
 }
 int tokens_set_contains(const char *str) {
-    return set_of_str_find(&token_strings, str) != NULL;
+    return set_of_str_find(&token_strings, str, NULL);
 }
 const char * tokens_set_insert(const char *str) {
     return set_of_str_insert(&token_strings, str);

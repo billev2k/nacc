@@ -35,8 +35,11 @@ struct symtab_item symtab_item_dup(struct symtab_item item) {return item;}
 int symtab_item_is_null(struct symtab_item item) {
     return item.source_name == NULL;
 }
-SET_OF_ITEM_DECL(symtab_item, struct symtab_item)
-struct set_of_symtab_item_helpers symtab_item_helpers = {
+#define NAME set_of_symtab_item
+#define TYPE struct symtab_item
+#include "../utils/set_of_item.h"
+#include "../utils/set_of_item.tmpl"
+struct set_of_symtab_item_helpers set_of_symtab_item_helpers = {
         .hash = symtab_item_hash,
         .cmp = symtab_item_cmp,
         .dup = symtab_item_dup,
@@ -44,7 +47,8 @@ struct set_of_symtab_item_helpers symtab_item_helpers = {
         .null = {},
         .is_null = symtab_item_is_null
 };
-SET_OF_ITEM_DEFN(symtab_item, struct symtab_item, symtab_item_helpers)
+#undef NAME
+#undef TYPE
 
 // A scoped symbol table. 'prev' points to any containing scope.
 struct symbol_table {
@@ -102,9 +106,8 @@ const char* add_symbol(enum SYMTAB_TYPE type, const char* source_name) {
             .type = type,
             .source_name = source_name,
     };
-    // Result, if found.
-    struct symtab_item found = set_of_symtab_item_find(table, item);
-    if (!symtab_item_is_null(found)) {
+    int was_found = set_of_symtab_item_find(table, item, NULL);
+    if (was_found) {
         // Was found; duplicate declaration.
         fprintf(stderr, "Duplicate %s: \"%s\"\n", tag, source_name);
         exit(1);
@@ -134,8 +137,9 @@ const char* resolve_symbol(enum SYMTAB_TYPE type, const char* source_name) {
     // Look in local scope, then walk global-wards if not found.
     do {
         // Result, if found.
-        struct symtab_item found = set_of_symtab_item_find(symbols, item);
-        if (!symtab_item_is_null(found)) {
+        struct symtab_item found;
+        int was_found = set_of_symtab_item_find(symbols, item, &found);
+        if (was_found) {
             // Found it; return mapped name.
             return found.mapped_name;
         }

@@ -14,7 +14,9 @@ struct pseudo_register {
     const char *name;
     int offset;
 };
-SET_OF_ITEM_DECL(pseudo_register, struct pseudo_register*)
+#define NAME set_of_pseudo_register
+#define TYPE struct pseudo_register*
+#include "../utils/set_of_item.h"
 unsigned long pseudo_register_hash(struct pseudo_register* pl) {
     return hash_str(pl->name);
 }
@@ -29,14 +31,16 @@ struct pseudo_register* pseudo_register_dup(struct pseudo_register* pl) {
 void pseudo_register_free(struct pseudo_register* pl) {
     free(pl);
 }
-struct set_of_pseudo_register_helpers setOfPseudoLocationHelpers = {
+struct set_of_pseudo_register_helpers set_of_pseudo_register_helpers = {
         .hash=pseudo_register_hash,
         .cmp=pseudo_register_cmp,
         .dup=pseudo_register_dup,
         .free=pseudo_register_free,
         .is_null=(int (*)(struct pseudo_register *)) long_is_zero,
 };
-SET_OF_ITEM_DEFN(pseudo_register, struct pseudo_register*, setOfPseudoLocationHelpers)
+#include "../utils/set_of_item.tmpl"
+#undef NAME
+#undef TYPE
 
 static struct Amd64Function *compile_function(struct IrFunction *irFunction);
 static int compile_instruction(struct Amd64Function *asmFunction, struct IrInstruction *irInstruction);
@@ -384,9 +388,10 @@ static int allocate_pseudo_registers(struct Amd64Function* function) {
 static int fixup_pseudo_register(struct set_of_pseudo_register* locations, struct Amd64Operand* operand, int previously_allocated) {
     int allocated = 0;
     struct pseudo_register pl = {.name = operand->name};
-    struct pseudo_register* fixup = set_of_pseudo_register_find(locations, &pl);
+    struct pseudo_register* fixup;
+    int was_found = set_of_pseudo_register_find(locations, &pl, &fixup);
     // If the space for this pseudo hasn't already been allocated, do so now.
-    if (fixup == NULL) {
+    if (!was_found) {
         allocated = 4; // when we have other sizes of stack variables, this will need to change.
         pl.offset = -(previously_allocated + allocated);
         fixup = set_of_pseudo_register_insert(locations, &pl);
