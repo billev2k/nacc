@@ -170,10 +170,12 @@ static void resolve_for_init(struct CForInit *for_init) {
 static void resolve_statement(const struct CStatement *statement) {
     if (!statement) return;
     if (c_statement_has_labels(statement)) {
+        int num_labels = c_statement_num_labels(statement);
         struct CLabel *labels = c_statement_get_labels(statement);
-        while (labels && labels->label.source_name) {
-            uniquify_label(&labels->label);
-            ++labels;
+        for (int i=0; i<num_labels; ++i) {
+            if (labels[i].type == LABEL_DECL) {
+                uniquify_label(&labels[i].label);
+            }
         }
     }
     switch (statement->type) {
@@ -347,15 +349,23 @@ static void label_statement_loops(struct CStatement *statement, struct LoopLabel
                     printf("Error: 'default:' label outside of switch\n");
                     exit(1);
                 }
-                c_statement_set_switch_default(context.enclosing_switch, statement);
-                c_statement_set_flow_id(statement, context.enclosing_switch->flow_id);
+                if (c_statement_set_switch_has_default(context.enclosing_switch) == AST_DUPLICATE) {
+                    printf("Error: 'default:' label already used in switch\n");
+                    exit(1);
+                }
+                labels[i].switch_flow_id = context.enclosing_switch->flow_id;
             } else if (labels[i].type == LABEL_CASE) {
                 if (!context.enclosing_switch) {
                     printf("Error: 'case X:' label outside of switch\n");
                     exit(1);
                 }
-                c_statement_register_switch_case(context.enclosing_switch, statement, atoi(labels[i].case_value));
-                c_statement_set_flow_id(statement, context.enclosing_switch->flow_id);
+                if (c_statement_register_switch_case(context.enclosing_switch, atoi(labels[i].case_value)) == AST_DUPLICATE) {
+                    printf("Error: 'case X:' label '%s' already used in switch\n", labels[i].case_value);
+                    exit(1);
+                }
+                labels[i].switch_flow_id = context.enclosing_switch->flow_id;
+            } else if (labels[i].type == LABEL_DECL) {
+                // LABEL_DECL is handled completely in IR generation.
             }
         }
     }

@@ -14,7 +14,7 @@ static void c_declaration_print(struct CDeclaration *declaration, int depth);
 static void c_statement_print(struct CStatement *statement, int depth);
 static void expression_print(const struct CExpression *expression, int depth);
 void c_program_print(const struct CProgram *program) {
-    printf("Program(\n");
+    printf("\n\nAST:\nProgram(\n");
     if (program->function) c_function_print(program->function);
     printf(")\n");
 }
@@ -65,11 +65,11 @@ static void c_statement_print(struct CStatement *statement, int depth) {
         for (int i=0; i<c_statement_num_labels(statement); ++i) {
             indent4(depth-1);
             if (labels[i].type == LABEL_DECL)
-                printf("%s:\n", labels->label.source_name);
+                printf("%s:\n", labels[i].label.source_name);
             else if (labels[i].type == LABEL_DEFAULT)
                 printf("default:\n");
             else if (labels[i].type == LABEL_CASE)
-                printf("case %s:\n", labels->case_value);
+                printf("case %s:\n", labels[i].case_value);
         }
     }
     switch (statement->type) {
@@ -168,7 +168,7 @@ static void expression_print(const struct CExpression *expression, int depth) {
     int has_binop;
     switch (expression->type) {
         case AST_EXP_CONST:
-            printf("%s", expression->literal.value);
+            printf("%d", expression->literal.int_val);
             break;
         case AST_EXP_UNOP:
             has_binop = expression->unary.operand->type == AST_EXP_BINOP;

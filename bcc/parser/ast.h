@@ -29,6 +29,11 @@
     Nora Sandler
  */
 
+enum AST_RESULT {
+    AST_OK = 0,
+    AST_DUPLICATE,
+};
+
 enum AST_BLOCK_ITEM {
     AST_BI_STATEMENT,
     AST_BI_DECLARATION,
@@ -40,9 +45,9 @@ enum FOR_INIT_TYPE {
 };
 
 enum LABEL_TYPE {
-    LABEL_DECL,
-    LABEL_CASE,
-    LABEL_DEFAULT,
+    LABEL_DECL,         // "label:" before a statement.
+    LABEL_CASE,         // a "case X:" in a switch() statement body.
+    LABEL_DEFAULT,      // a "default:" in a switch() statement body.
 };
 
 enum AST_STMT {
@@ -165,6 +170,7 @@ struct CLabel {
     enum LABEL_TYPE type;
     struct CVariable label;
     const char* case_value;
+    int switch_flow_id;
 };
 
 #define NAME list_of_CLabel
@@ -188,7 +194,9 @@ struct CExpression {
         } binary;
         struct {
             enum AST_CONST_TYPE type;
-            const char *value;
+            union {
+                int int_val;
+            };
         } literal;
         struct CVariable var;
         struct {
@@ -201,14 +209,14 @@ struct CExpression {
         } increment;
         struct {
             struct CExpression* left_exp;       // condition
-            struct CExpression* middle_exp;     // if true value
-            struct CExpression* right_exp;      // if false value
+            struct CExpression* middle_exp;     // if true int_val
+            struct CExpression* right_exp;      // if false int_val
         } conditional;
     };
 };
 extern struct CExpression* c_expression_new_unop(enum AST_UNARY_OP op, struct CExpression* operand);
 extern struct CExpression* c_expression_new_binop(enum AST_BINARY_OP op, struct CExpression* left, struct CExpression* right);
-extern struct CExpression* c_expression_new_const(enum AST_CONST_TYPE const_type, const char *value);
+extern struct CExpression* c_expression_new_const(enum AST_CONST_TYPE const_type, int int_val);
 extern struct CExpression* c_expression_new_var(const char* name);
 extern struct CExpression* c_expression_new_assign(struct CExpression* src, struct CExpression* dst);
 extern struct CExpression* c_expression_new_increment(enum AST_INCREMENT_OP op, struct CExpression* operand);
@@ -297,6 +305,8 @@ struct CStatement {
         struct {
             struct CExpression* expression;
             struct CStatement* body;
+            struct list_of_int* case_labels;
+            int has_default;
         } switch_statement;
         struct CBlock* compound;
     };
@@ -320,9 +330,9 @@ extern int c_statement_has_labels(const struct CStatement * statement);
 extern void c_statement_add_labels(struct CStatement *pStatement, struct list_of_CLabel labels);
 extern struct CLabel * c_statement_get_labels(const struct CStatement * statement);
 extern int c_statement_num_labels(const struct CStatement * statement);
-extern void c_statement_set_flow_id(struct CStatement * statement, int flow_id);
-extern void c_statement_set_switch_default(struct CStatement* switch_statement, struct CStatement* default_statement);
-extern void c_statement_register_switch_case(struct CStatement* switch_statement, struct CStatement* case_statement, int case_value);
+extern enum AST_RESULT c_statement_set_flow_id(struct CStatement * statement, int flow_id);
+extern enum AST_RESULT c_statement_set_switch_has_default(struct CStatement *statement);
+extern enum AST_RESULT c_statement_register_switch_case(struct CStatement *statement, int case_value);
 extern void c_statement_free(struct CStatement *statement);
 //endregion
 

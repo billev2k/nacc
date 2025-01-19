@@ -196,6 +196,13 @@ struct Amd64Operand amd64_operand_imm_literal(const char* value_str) {
     };
     return imm_operand;
 }
+struct Amd64Operand amd64_operand_imm_int(int int_val) {
+    struct Amd64Operand imm_operand = {
+        .operand_type = OPERAND_IMM_INT,
+        .int_val = int_val
+    };
+    return imm_operand;
+}
 struct Amd64Operand amd64_operand_reg(enum REGISTER reg) {
     struct Amd64Operand reg_operand = {
             .operand_type = OPERAND_REGISTER,

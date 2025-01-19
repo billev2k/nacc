@@ -50,12 +50,12 @@ static int allocate_pseudo_registers(struct Amd64Function* function);
 static int fixup_pseudo_register(struct set_of_pseudo_register* locations, struct Amd64Operand* operand, int previously_allocated);
 
 struct Amd64Operand zero = {
-        .operand_type = OPERAND_IMM_LIT,
-        .name = "0"
+        .operand_type = OPERAND_IMM_INT,
+        .int_val = 0
 };
 struct Amd64Operand one = {
-        .operand_type = OPERAND_IMM_LIT,
-        .name = "1"
+        .operand_type = OPERAND_IMM_INT,
+        .int_val = 1
 };
 
 static void validate_Amd54Instruction_offsets(void) {
@@ -237,6 +237,16 @@ static int compile_instruction(struct Amd64Function *asmFunction, struct IrInstr
             inst = amd64_instruction_new_jmp(dst);
             amd64_function_append_instruction(asmFunction, inst);
             break;
+        case IR_OP_JUMP_EQ:
+            cc = CC_EQ;
+            src2 = make_operand(irInstruction->cjump.comparand);
+            src = make_operand(irInstruction->cjump.value);
+            dst = make_operand(irInstruction->cjump.target);
+            inst = amd64_instruction_new_cmp(src2, src);
+            amd64_function_append_instruction(asmFunction, inst);
+            inst = amd64_instruction_new_jmpcc(cc, dst);
+            amd64_function_append_instruction(asmFunction, inst);
+            break;
         case IR_OP_JUMP_ZERO:
             // Cmp(Imm(0), condition)
             // JmpCC(E, target)
@@ -255,6 +265,9 @@ static int compile_instruction(struct Amd64Function *asmFunction, struct IrInstr
             inst = amd64_instruction_new_label(make_operand(irInstruction->label.label));
             amd64_function_append_instruction(asmFunction, inst);
             break;
+        case IR_OP_COMMENT:
+            inst = amd64_instruction_new_comment(irInstruction->comment.text);
+            amd64_function_append_instruction(asmFunction, inst);
     }
     return 1;
 }
@@ -263,7 +276,7 @@ static struct Amd64Operand make_operand(struct IrValue value) {
     struct Amd64Operand operand = {0};
     switch (value.type) {
         case IR_VAL_CONST_INT:
-            operand = amd64_operand_imm_literal(value.text);
+            operand = amd64_operand_imm_int(value.int_val);
             break;
         case IR_VAL_ID:
             operand = amd64_operand_pseudo(value.text);
@@ -311,7 +324,7 @@ static void fixup_stack_accesses(struct Amd64Function* function) {
             }
         }
         else if (is_shift(inst)) {
-            if (! (inst->binary.operand1.operand_type == OPERAND_IMM_LIT ||
+            if (! (inst->binary.operand1.operand_type == OPERAND_IMM_INT ||
                     (inst->binary.operand1.operand_type==OPERAND_REGISTER && inst->binary.operand1.reg==REG_CL)) ) {
                 // if the operand1 operand isn't a constant, and isn't CX, use CX.
                 struct Amd64Operand operand1 = inst->binary.operand1;
@@ -344,7 +357,7 @@ static void fixup_stack_accesses(struct Amd64Function* function) {
                 list_of_Amd64Instruction_insert(&function->instructions, fixup, i);
                 // Fix up loop index to skip the instruction we've already fixed. One instruction inserted.
                 i += 1;
-            } else if (inst->cmp.operand2.operand_type == OPERAND_IMM_LIT) {
+            } else if (inst->cmp.operand2.operand_type == OPERAND_IMM_INT) {
                 // The second operand of a cmp instruction can't be a literal. Load literals into R11
                 struct Amd64Operand operand2 = inst->cmp.operand2;
                 inst->cmp.operand2 = amd64_operand_reg(REG_R11);

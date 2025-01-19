@@ -46,7 +46,7 @@ struct STRUCT {
     int num_items;                                                                                          
     int max_num_items;                                                                                      
 };                                                                                                          
-extern void MEMBER(init)(struct STRUCT *list, int init_size);                              
+extern void MEMBER(init)(struct STRUCT *list, int init_size);
 extern void MEMBER(append)(struct STRUCT* list, TYPE new_item);                            
 extern void MEMBER(insert)(struct STRUCT* list, TYPE new_item, int atIx);                  
 extern void MEMBER(clear)(struct STRUCT* list);                                            

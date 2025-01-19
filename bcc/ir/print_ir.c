@@ -11,7 +11,7 @@ static void print_ir_instruction(const struct IrInstruction *instruction, FILE *
 static void print_ir_value(struct IrValue value, FILE *file);
 
 void print_ir(const struct IrProgram *program, FILE *file) {
-    fprintf(file, "IR program\n");
+    fprintf(file, "\n\nIR program\n");
     print_ir_function(program->function, file);
 }
 
@@ -57,6 +57,15 @@ void print_ir_instruction(const struct IrInstruction *instruction, FILE *file) {
             print_ir_value(instruction->jump.target, file);
             fputs("\n", file);
             break;
+        case IR_OP_JUMP_EQ:
+            fprintf(file, inst_fmt, "je");
+            print_ir_value(instruction->cjump.comparand, file);
+            fputs(", ", file);
+            print_ir_value(instruction->cjump.value, file);
+            fputs(", ", file);
+            print_ir_value(instruction->cjump.target, file);
+            fputc('\n', file);
+            break;
         case IR_OP_JUMP_ZERO:
             fprintf(file, inst_fmt, "jz");
             print_ir_value(instruction->cjump.value, file);
@@ -81,7 +90,7 @@ void print_ir_instruction(const struct IrInstruction *instruction, FILE *file) {
 void print_ir_value(struct IrValue value, FILE *file) {
     switch (value.type) {
         case IR_VAL_CONST_INT:
-            fprintf(file, "$%s", value.text);
+            fprintf(file, "$%d", value.int_val);
             break;
         case IR_VAL_ID:
         case IR_VAL_LABEL:

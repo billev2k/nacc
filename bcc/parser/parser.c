@@ -359,7 +359,7 @@ static struct CExpression* parse_factor() {
     struct CExpression *result;
     struct Token next_token = lex_take_token();
     if (next_token.token == TK_LITERAL) {
-        result = c_expression_new_const(AST_CONST_INT, next_token.text);
+        result = c_expression_new_const(AST_CONST_INT, atoi(next_token.text));
     }
     else if (next_token.token == TK_HYPHEN) {
         struct CExpression *operand = parse_factor();

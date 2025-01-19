@@ -100,6 +100,7 @@ extern const enum OPCODE cond_code_to_setXX[];
 enum OPERAND {
     OPERAND_NONE,
     OPERAND_IMM_LIT,
+    OPERAND_IMM_INT,
     OPERAND_REGISTER,
     OPERAND_PSEUDO,
     OPERAND_STACK,
@@ -130,11 +131,12 @@ struct Amd64Operand {
         const char *name;
         int offset;
         enum REGISTER reg;
-        int value;
+        int int_val;
     };
 };
 extern struct Amd64Operand amd64_operand_none;
 extern struct Amd64Operand amd64_operand_imm_literal(const char* value_str);
+extern struct Amd64Operand amd64_operand_imm_int(int int_val);
 extern struct Amd64Operand amd64_operand_reg(enum REGISTER reg);
 extern struct Amd64Operand amd64_operand_pseudo(const char* pseudo_name);
 extern struct Amd64Operand amd64_operand_stack(int offset);

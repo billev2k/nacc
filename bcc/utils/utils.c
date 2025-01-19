@@ -68,3 +68,13 @@ struct set_of_int_helpers set_of_int_helpers = {
         .null = 0,
         .is_null = (int (*)(int)) long_is_zero,
 };
+
+#define NAME list_of_int
+#define TYPE int
+struct list_of_int_helpers list_of_int_helpers = {
+        .free = no_free,
+        .null = 0,
+};
+#include "./list_of_item.tmpl"
+#undef NAME
+#undef TYPE

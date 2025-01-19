@@ -30,8 +30,8 @@
 #define HELPERS W_SUFFIX(NAME,helpers)
 #define MEMBER(m) W_SUFFIX(NAME,m)
 
-void MEMBER(init)(struct STRUCT *list, int init_size) {                                    
-    list->helpers = HELPERS;                                                                                
+void MEMBER(init)(struct STRUCT *list, int init_size) {
+    list->helpers = HELPERS;
     list->num_items = 0;                                                                                    
     list->max_num_items = init_size;                                                                        
     list->items = (TYPE *)malloc(list->max_num_items * sizeof(TYPE));                                       

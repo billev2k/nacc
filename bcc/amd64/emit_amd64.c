@@ -25,7 +25,7 @@ static char * inst_op_fmt(enum OPCODE opcode, int nbytes) {
 
 static int amd64_instruction_print(struct Amd64Instruction *instruction, FILE *out);
 static int amd64_function_print(struct Amd64Function *amd64Function, FILE *out) {
-    fprintf(out, "       .globl _%s\n", amd64Function->name);
+    fprintf(out, "\n       .globl _%s\n", amd64Function->name);
     fprintf(out, "_%s:\n", amd64Function->name);
     fprintf(out, inst_fmt "%%rbp\n", "pushq");
     fprintf(out, inst_fmt "%%rsp, %%rbp\n", "movq");
@@ -106,6 +106,9 @@ static int amd64_instruction_print(struct Amd64Instruction *instruction, FILE *o
 
 static int amd64_operand_print(struct Amd64Operand operand, FILE *out) {
     switch (operand.operand_type) {
+        case OPERAND_IMM_INT:
+            fprintf(out, "$%d", operand.int_val);
+            break;
         case OPERAND_IMM_LIT:
             fprintf(out, "$%s", operand.name);
             break;

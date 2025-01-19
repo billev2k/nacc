@@ -80,7 +80,7 @@ void str_set_checker(const char *string) {
     if (!result) {
         printf("Expected but not found: %s\n", string);
     } else if (strcmp(string, found) != 0) {
-        printf("Found but not expected value: %s -> %s\n", string, found);
+        printf("Found but not expected int_val: %s -> %s\n", string, found);
     }
     if (strcmp(string, protected_str) != 0) {
         set_of_str_remove(&str_set, string);

@@ -88,10 +88,10 @@ struct CExpression* c_expression_new_binop(enum AST_BINARY_OP op, struct CExpres
     expression->binary.right = right;
     return expression;
 }
-struct CExpression* c_expression_new_const(enum AST_CONST_TYPE const_type, const char *value) {
+struct CExpression* c_expression_new_const(enum AST_CONST_TYPE const_type, int int_val) {
     struct CExpression* expression = c_expression_new(AST_EXP_CONST);
     expression->literal.type = const_type;
-    expression->literal.value = value;
+    expression->literal.int_val = int_val;
     return expression;
 }
 struct CExpression* c_expression_new_var(const char* name) {
@@ -129,7 +129,7 @@ struct CExpression* c_expression_clone(const struct CExpression* expression) {
             break;
         case AST_EXP_CONST:
             clone->literal.type = expression->literal.type;
-            clone->literal.value = expression->literal.value;
+            clone->literal.int_val = expression->literal.int_val;
             break;
         case AST_EXP_UNOP:
             clone->unary.op = expression->unary.op;
@@ -297,15 +297,27 @@ struct CLabel  * c_statement_get_labels(const struct CStatement * statement) {
     if (statement->labels == NULL) return &empty;
     return statement->labels->items;
 }
-void c_statement_set_flow_id(struct CStatement * statement, int flow_id) {
-    assert(statement->flow_id == 0);
+enum AST_RESULT c_statement_set_flow_id(struct CStatement * statement, int flow_id) {
+    if (statement->flow_id != 0) return AST_DUPLICATE;
     statement->flow_id = flow_id;
+    return AST_OK;
 }
-void c_statement_set_switch_default(struct CStatement* switch_statement, struct CStatement* default_statement) {
-
+enum AST_RESULT c_statement_set_switch_has_default(struct CStatement *statement) {
+    if (statement->switch_statement.has_default) return AST_DUPLICATE;
+    statement->switch_statement.has_default = 1;
+    return AST_OK;
 }
-void c_statement_register_switch_case(struct CStatement* switch_statement, struct CStatement* case_statement, int case_value) {
-    
+enum AST_RESULT c_statement_register_switch_case(struct CStatement *statement, int case_value) {
+    if (statement->switch_statement.case_labels == NULL) {
+        statement->switch_statement.case_labels = malloc(sizeof(struct list_of_int));
+        list_of_int_init(statement->switch_statement.case_labels, 31);
+    } else {
+        for (int ix = 0; ix < statement->switch_statement.case_labels->num_items; ix++) {
+            if (statement->switch_statement.case_labels->items[ix] == case_value) { return AST_DUPLICATE; }
+        }
+    }
+    list_of_int_append(statement->switch_statement.case_labels, case_value);
+    return AST_OK;
 }
 
 void c_statement_free(struct CStatement *statement) {
@@ -349,6 +361,10 @@ void c_statement_free(struct CStatement *statement) {
         case STMT_SWITCH:
             c_expression_free(statement->switch_statement.expression);
             c_statement_free(statement->switch_statement.body);
+            if (statement->switch_statement.case_labels) {
+                list_of_int_free(statement->switch_statement.case_labels);
+                free(statement->switch_statement.case_labels);
+            }
             break;
         case STMT_WHILE:
             c_expression_free(statement->while_or_do_statement.condition);

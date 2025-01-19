@@ -16,7 +16,9 @@ enum IR_OP {
     IR_OP_JUMP,
     IR_OP_JUMP_ZERO,
     IR_OP_JUMP_NZERO,
-    IR_OP_LABEL
+    IR_OP_JUMP_EQ,
+    IR_OP_LABEL,
+    IR_OP_COMMENT,
 };
 
 #define IR_UNARY_OP_LIST__ \
@@ -68,11 +70,15 @@ enum IR_VAL {
 
 struct IrValue {
     enum IR_VAL type;
-    const char *text;
+    union {
+        int int_val;
+        const char *text;
+    };
 };
 extern struct IrValue ir_value_new(enum IR_VAL valType, const char *valText);
 extern struct IrValue ir_value_new_id(const char* id);
-extern struct IrValue ir_value_new_const(const char* text);
+extern struct IrValue ir_value_new_label(const char* label_name);
+extern struct IrValue ir_value_new_int(int int_val);
 //endregion VALUE
 
 //region struct IrInstruction
@@ -83,7 +89,7 @@ struct IrInstruction {
             struct IrValue value;
         } var;
         struct {
-             struct IrValue value;
+            struct IrValue value;
         } ret;
         struct {
             enum IR_UNARY_OP op;
@@ -105,11 +111,15 @@ struct IrInstruction {
         } jump;
         struct {
             struct IrValue value;
+            struct IrValue comparand;
             struct IrValue target; // must be "IR_VAL_LABEL"
         } cjump;
         struct {
             struct IrValue label;
         } label;
+        struct {
+            const char *text;
+        } comment;
     };
 };
 extern struct IrInstruction* ir_instruction_new_var(struct IrValue var);
@@ -118,9 +128,12 @@ extern struct IrInstruction *ir_instruction_new_unary(enum IR_UNARY_OP op, struc
 extern struct IrInstruction *ir_instruction_new_binary(enum IR_BINARY_OP op, struct IrValue src1, struct IrValue src2, struct IrValue dst);
 extern struct IrInstruction* ir_instruction_new_copy(struct IrValue src, struct IrValue dst);
 extern struct IrInstruction* ir_instruction_new_jump(struct IrValue target);
+extern struct IrInstruction *
+ir_instruction_new_jumpeq(struct IrValue value, struct IrValue comparand, struct IrValue target);
 extern struct IrInstruction* ir_instruction_new_jumpz(struct IrValue value, struct IrValue target);
 extern struct IrInstruction* ir_instruction_new_jumpnz(struct IrValue value, struct IrValue target);
 extern struct IrInstruction* ir_instruction_new_label(struct IrValue label);
+extern struct IrInstruction* ir_instruction_new_comment(const char* text);
 extern void IrInstruction_free(struct IrInstruction *instruction);
 //endregion
 

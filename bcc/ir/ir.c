@@ -104,15 +104,24 @@ struct IrInstruction* ir_instruction_new_jump(struct IrValue target) {
     instruction->jump.target = target;
     return instruction;
 }
+struct IrInstruction *ir_instruction_new_jumpeq(struct IrValue value, struct IrValue comparand, struct IrValue target) {
+struct IrInstruction *instruction = ir_instruction_new(IR_OP_JUMP_EQ);
+    instruction->cjump.value = value;
+    instruction->cjump.comparand = comparand;
+    instruction->cjump.target = target;
+    return instruction;
+}
 struct IrInstruction* ir_instruction_new_jumpz(struct IrValue value, struct IrValue target) {
     struct IrInstruction *instruction = ir_instruction_new(IR_OP_JUMP_ZERO);
     instruction->cjump.value = value;
+    instruction->cjump.comparand = ir_value_new_int(0);
     instruction->cjump.target = target;
     return instruction;
 }
 struct IrInstruction* ir_instruction_new_jumpnz(struct IrValue value, struct IrValue target) {
     struct IrInstruction *instruction = ir_instruction_new(IR_OP_JUMP_NZERO);
     instruction->cjump.value = value;
+    instruction->cjump.comparand = ir_value_new_int(0);
     instruction->cjump.target = target;
     return instruction;
 }
@@ -121,7 +130,11 @@ struct IrInstruction* ir_instruction_new_label(struct IrValue label) {
     instruction->label.label = label;
     return instruction;
 }
-
+struct IrInstruction* ir_instruction_new_comment(const char *text) {
+    struct IrInstruction *instruction = ir_instruction_new(IR_OP_COMMENT);
+    instruction->comment.text = text;
+    return instruction;
+}
 /**
  * Releases the memory associated with an IrInstruction.
  * @param instruction the IrInstruction to be freed.
@@ -132,7 +145,7 @@ void IrInstruction_free(struct IrInstruction *instruction) {
 
 /**
  * Initialize a new IrValue.
- * @param valType The type of value, a member of IR_VAL.
+ * @param valType The type of int_val, a member of IR_VAL.
  * @param valText The text representation; a variable name, register name, or constant literal (which
  *      must have a lifetime greater than the IrValue).
  * @return The new IrValue.
@@ -145,6 +158,10 @@ struct IrValue ir_value_new(enum IR_VAL valType, const char *valText) {
 struct IrValue ir_value_new_id(const char* id) {
     return ir_value_new(IR_VAL_ID, id);
 }
-struct IrValue ir_value_new_const(const char* text) {
-    return ir_value_new(IR_VAL_CONST_INT, text);
+struct IrValue ir_value_new_label(const char* label_name) {
+    return ir_value_new(IR_VAL_LABEL, label_name);
+}
+struct IrValue ir_value_new_int(int int_val) {
+    struct IrValue result = {.type = IR_VAL_CONST_INT, .int_val = int_val};
+    return result;
 }
