@@ -69,13 +69,13 @@ enum IR_VAL {
 };
 
 struct IrValue {
-    enum IR_VAL type;
+    enum IR_VAL kind;
     union {
         int int_val;
         const char *text;
     };
 };
-extern struct IrValue ir_value_new(enum IR_VAL valType, const char *valText);
+extern struct IrValue ir_value_new(enum IR_VAL valKind, const char *valText);
 extern struct IrValue ir_value_new_id(const char* id);
 extern struct IrValue ir_value_new_label(const char* label_name);
 extern struct IrValue ir_value_new_int(int int_val);

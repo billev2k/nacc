@@ -13,7 +13,7 @@ static void tmp_vars_init(void);
 
 static struct IrFunction *compile_function(const struct CFunction *cFunction);
 static void compile_block(const struct list_of_CBlockItem *block, struct IrFunction *irFunction);
-static void compile_declaration(const struct CDeclaration *declaration, struct IrFunction *function);
+static void compile_vardecl(const struct CVarDecl *vardecl, struct IrFunction *function);
 
 static void compile_statement(const struct CStatement *statement, struct IrFunction *function);
 
@@ -30,7 +30,9 @@ static void make_default_label(const struct IrFunction *function, int flow_id, s
 struct IrProgram *ast2ir(const struct CProgram *cProgram) {
     tmp_vars_init();
     struct IrProgram *program = ir_program_new();
-    program->function = compile_function(cProgram->function);
+    for (int ix = 0; ix < cProgram->functions.num_items; ix++) {
+        program->function = compile_function(cProgram->functions.items[ix]);
+    }
     return program;
 }
 
@@ -38,18 +40,20 @@ static void compile_block(const struct list_of_CBlockItem *block, struct IrFunct
     //    push_symtab_context();
     for (int ix = 0; ix < block->num_items; ix++) {
         struct CBlockItem *bi = block->items[ix];
-        if (bi->type == AST_BI_STATEMENT) {
+        if (bi->kind == AST_BI_STATEMENT) {
             compile_statement(bi->statement, irFunction);
         } else {
-            compile_declaration(bi->declaration, irFunction);
+            compile_vardecl(bi->vardecl, irFunction);
         }
     }
     //    pop_symtab_context();
 }
 
 struct IrFunction *compile_function(const struct CFunction *cFunction) {
+    // If only declaration, no body and nothing to compile.
+    if (!cFunction->body) return NULL;
     struct IrFunction *function = ir_function_new(cFunction->name);
-    compile_block(&cFunction->block->items, function);
+    compile_block(&cFunction->body->items, function);
 
     // Add return instruction, in case the source didn't include one.
     struct IrValue zero = ir_value_new_int(0);
@@ -59,12 +63,12 @@ struct IrFunction *compile_function(const struct CFunction *cFunction) {
     return function;
 }
 
-static void compile_declaration(const struct CDeclaration *declaration, struct IrFunction *function) {
-    struct IrValue var = ir_value_new_id(declaration->var.name);
+static void compile_vardecl(const struct CVarDecl *vardecl, struct IrFunction *function) {
+    struct IrValue var = ir_value_new_id(vardecl->var.name);
     struct IrInstruction *inst = ir_instruction_new_var(var);
     ir_function_append_instruction(function, inst);
-    if (declaration->initializer) {
-        struct IrValue initializer = compile_expression(declaration->initializer, function);
+    if (vardecl->initializer) {
+        struct IrValue initializer = compile_expression(vardecl->initializer, function);
         inst = ir_instruction_new_copy(initializer, var);
         ir_function_append_instruction(function, inst);
     }
@@ -123,12 +127,12 @@ static void compile_for(const struct CStatement *for_statement, struct IrFunctio
 
     // emit init
     if (for_statement->for_statement.init) {
-        if (for_statement->for_statement.init->type == FOR_INIT_EXPR) {
+        if (for_statement->for_statement.init->kind == FOR_INIT_EXPR) {
             compile_expression(for_statement->for_statement.init->expression, function);
-        } else if (for_statement->for_statement.init->type == FOR_INIT_DECL) {
-            compile_declaration(for_statement->for_statement.init->declaration, function);
+        } else if (for_statement->for_statement.init->kind == FOR_INIT_DECL) {
+            compile_vardecl(for_statement->for_statement.init->vardecl, function);
         } else {
-            assert("Unknown type in 'for init'" && 0);
+            assert("Unknown kind in 'for init'" && 0);
         }
     }
     // emit start label
@@ -196,15 +200,15 @@ static void compile_labels(const struct CStatement *statement, struct IrFunction
     int num_labels = c_statement_num_labels(statement);
     struct CLabel *labels = c_statement_get_labels(statement);
     for (int i=0; i<num_labels; ++i) {
-        if (labels[i].type == LABEL_DEFAULT) {
+        if (labels[i].kind == LABEL_DEFAULT) {
             make_default_label(function, labels[i].switch_flow_id, &label);
             inst = ir_instruction_new_label(label);
             ir_function_append_instruction(function, inst);
-        } else if (labels[i].type == LABEL_CASE) {
+        } else if (labels[i].kind == LABEL_CASE) {
             make_case_label(function, labels[i].switch_flow_id, atoi(labels[i].case_value), &label);
             inst = ir_instruction_new_label(label);
             ir_function_append_instruction(function, inst);
-        } else if (labels[i].type == LABEL_DECL) {
+        } else if (labels[i].kind == LABEL_DECL) {
             label = ir_value_new_label(labels[i].label.name);
             inst = ir_instruction_new_label(label);
             ir_function_append_instruction(function, inst);
@@ -224,7 +228,7 @@ void compile_statement(const struct CStatement *statement, struct IrFunction *fu
     // Emit any labels that target this statement.
     compile_labels(statement, function);
 
-    switch (statement->type) {
+    switch (statement->kind) {
         case STMT_RETURN:
         case STMT_AUTO_RETURN:
             src = compile_expression(statement->expression, function);
@@ -312,7 +316,7 @@ struct IrValue compile_expression(struct CExpression *cExpression, struct IrFunc
     struct IrInstruction *inst;
     enum IR_UNARY_OP unary_op;
     enum IR_BINARY_OP binary_op;
-    switch (cExpression->type) {
+    switch (cExpression->kind) {
         case AST_EXP_CONST:
             switch (cExpression->literal.type) {
                 case AST_CONST_INT:

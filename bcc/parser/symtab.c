@@ -13,16 +13,16 @@
 
 
 struct symtab_item {
-    enum SYMTAB_TYPE type;
+    enum SYMTAB_KIND kind;
     const char* source_name;
     const char* mapped_name;
 };
 unsigned long symtab_item_hash(struct symtab_item item) {
-    return hash_str(item.source_name) + item.type;
+    return hash_str(item.source_name) + item.kind;
 }
 int symtab_item_cmp(struct symtab_item l, struct symtab_item r) {
-    if (l.type < r.type) return -1;
-    else if (l.type > r.type) return 1;
+    if (l.kind < r.kind) return -1;
+    else if (l.kind > r.kind) return 1;
     return strcmp(l.source_name, r.source_name);
 }
 #pragma clang diagnostic push
@@ -78,37 +78,37 @@ void symtab_init() {
     set_of_str_init(&mapped_vars, 101);
 }
 
-static const char* tag_for(enum SYMTAB_TYPE type) {
-    if (type == SYMTAB_VAR)
+static const char* tag_for(enum SYMTAB_KIND kind) {
+    if (kind == SYMTAB_VAR)
         return "var";
-    else if (type == SYMTAB_LABEL)
+    else if (kind == SYMTAB_LABEL)
         return "label";
     else
         return "??";
 }
 
-static struct set_of_symtab_item* symtab_for(enum SYMTAB_TYPE type) {
-    if (type == SYMTAB_VAR) {
+static struct set_of_symtab_item* symtab_for(enum SYMTAB_KIND kind) {
+    if (kind == SYMTAB_VAR) {
         assert(symbol_table != NULL);
         return &symbol_table->symbols;
-    } else if (type == SYMTAB_LABEL) {
+    } else if (kind == SYMTAB_LABEL) {
         assert(function_symbol_table != NULL);
         return &function_symbol_table->symbols;
     } else
-        assert("Unknown symbol type" && 0);
+        assert("Unknown symbol kind" && 0);
 }
 
-const char* add_symbol(enum SYMTAB_TYPE type, const char* source_name) {
-    const char* tag = tag_for(type);
-    struct set_of_symtab_item* table = symtab_for(type);
+const char* add_symbol(enum SYMTAB_KIND kind, const char* source_name) {
+    const char* tag = tag_for(kind);
+    struct set_of_symtab_item* table = symtab_for(kind);
     // The key for find()
     struct symtab_item item = {
-            .type = type,
+            .kind = kind,
             .source_name = source_name,
     };
     int was_found = set_of_symtab_item_find(table, item, NULL);
     if (was_found) {
-        // Was found; duplicate declaration.
+        // Was found; duplicate vardecl.
         fprintf(stderr, "Duplicate %s: \"%s\"\n", tag, source_name);
         exit(1);
     }
@@ -125,13 +125,13 @@ const char* add_symbol(enum SYMTAB_TYPE type, const char* source_name) {
     // return the uniquified name
     return name_buf;
 }
-const char* resolve_symbol(enum SYMTAB_TYPE type, const char* source_name) {
-//    const char* tag = tag_for(type);
+const char* resolve_symbol(enum SYMTAB_KIND kind, const char* source_name) {
+//    const char* tag = tag_for(kind);
     struct symbol_table* table = symbol_table;
-    struct set_of_symtab_item* symbols = symtab_for(type);
+    struct set_of_symtab_item* symbols = symtab_for(kind);
     // The key for find()
     struct symtab_item item = {
-            .type = type,
+            .kind = kind,
             .source_name = source_name,
     };
     // Look in local scope, then walk global-wards if not found.

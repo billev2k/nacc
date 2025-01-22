@@ -14,6 +14,20 @@
 
 #include "../utils/startup.h"
 
+//region list and set definitions
+//region struct CIdentifier
+void c_variable_free(struct CIdentifier var) {}
+struct list_of_CIdentifier_helpers list_of_CIdentifier_helpers = {
+        .free = c_variable_free,
+        .null = {0},
+};
+#define NAME list_of_CIdentifier
+#define TYPE struct CIdentifier
+#include "../utils/list_of_item.tmpl"
+#undef NAME
+#undef TYPE
+//endregion struct CIdentifier
+
 void c_label_free(struct CLabel var) {}
 struct list_of_CLabel_helpers list_of_CLabel_helpers = {
         .free = c_label_free,
@@ -25,16 +39,29 @@ struct list_of_CLabel_helpers list_of_CLabel_helpers = {
 #undef NAME
 #undef TYPE
 
-struct list_of_CBlockItem_helpers list_of_CBlockItem_helpers = {
-    .free = c_block_item_free,
-    .null = NULL,
-};
+struct list_of_CExpression_helpers list_of_CExpression_helpers = { .free = c_expression_free };
+#define NAME list_of_CExpression
+#define TYPE struct CExpression*
+#include "../utils/list_of_item.tmpl"
+#undef NAME
+#undef TYPE
+
+struct list_of_CBlockItem_helpers list_of_CBlockItem_helpers = { .free = c_block_item_free };
 #define NAME list_of_CBlockItem
 #define TYPE struct CBlockItem*
 #include "../utils/list_of_item.tmpl"
 #undef NAME
 #undef TYPE
 
+struct list_of_CFunction_helpers list_of_CFunction_helpers = { .free = c_function_free };
+#define NAME list_of_CFunction
+#define TYPE struct CFunction*
+#include "../utils/list_of_item.tmpl"
+#undef NAME
+#undef TYPE
+//endregion list and set definitions
+
+//region global data definitions (kind names, precedence tables, etc.)
 const char * const ASM_CONST_TYPE_NAMES[] = {
 #define X(a,b) b 
     AST_CONST_LIST__
@@ -57,7 +84,6 @@ const int AST_TO_IR_BINARY[] = {
 #undef X
 };
 
-
 const char * const AST_UNARY_NAMES[] = {
 #define X(a,b) b
         AST_UNARY_LIST__
@@ -68,17 +94,18 @@ enum IR_UNARY_OP const AST_TO_IR_UNARY[] = {
         AST_UNARY_LIST__
 #undef X
 };
+//endregion global data
 
 //region CExpression
-static struct CExpression* c_expression_new(enum AST_EXP_TYPE type) {
+static struct CExpression* c_expression_new(enum AST_EXP_KIND kind) {
     struct CExpression* expression = malloc(sizeof(struct CExpression));
-    expression->type = type;
+    expression->kind = kind;
     return expression;
 }
-struct CExpression* c_expression_new_unop(enum AST_UNARY_OP op, struct CExpression* operand) {
-    struct CExpression* expression = c_expression_new(AST_EXP_UNOP);
-    expression->unary.op = op;
-    expression->unary.operand = operand;
+struct CExpression* c_expression_new_assign(struct CExpression* src, struct CExpression* dst) {
+    struct CExpression* expression = c_expression_new(AST_EXP_ASSIGNMENT);
+    expression->assign.dst = dst;
+    expression->assign.src = src;
     return expression;
 }
 struct CExpression* c_expression_new_binop(enum AST_BINARY_OP op, struct CExpression* left, struct CExpression* right) {
@@ -88,22 +115,23 @@ struct CExpression* c_expression_new_binop(enum AST_BINARY_OP op, struct CExpres
     expression->binary.right = right;
     return expression;
 }
+struct CExpression* c_expression_new_conditional(struct CExpression* left_exp, struct CExpression* middle_exp, struct CExpression* right_exp) {
+    struct CExpression* expression = c_expression_new(AST_EXP_CONDITIONAL);
+    expression->conditional.left_exp = left_exp;
+    expression->conditional.middle_exp = middle_exp;
+    expression->conditional.right_exp = right_exp;
+    return expression;
+}
 struct CExpression* c_expression_new_const(enum AST_CONST_TYPE const_type, int int_val) {
     struct CExpression* expression = c_expression_new(AST_EXP_CONST);
     expression->literal.type = const_type;
     expression->literal.int_val = int_val;
     return expression;
 }
-struct CExpression* c_expression_new_var(const char* name) {
-    struct CExpression* expression = c_expression_new(AST_EXP_VAR);
-    expression->var.name = name;
-    expression->var.source_name = name;
-    return expression;
-}
-struct CExpression* c_expression_new_assign(struct CExpression* src, struct CExpression* dst) {
-    struct CExpression* expression = c_expression_new(AST_EXP_ASSIGNMENT);
-    expression->assign.dst = dst;
-    expression->assign.src = src;
+struct CExpression* c_expression_new_function_call(struct CIdentifier func) {
+    struct CExpression* expression = c_expression_new(AST_EXP_FUNCTION_CALL);
+    expression->function_call.func = func;
+    list_of_CExpression_init(&expression->function_call.args, 7);
     return expression;
 }
 struct CExpression* c_expression_new_increment(enum AST_INCREMENT_OP op, struct CExpression* operand) {
@@ -112,16 +140,28 @@ struct CExpression* c_expression_new_increment(enum AST_INCREMENT_OP op, struct 
     expression->increment.operand = operand;
     return expression;
 }
-struct CExpression* c_expression_new_conditional(struct CExpression* left_exp, struct CExpression* middle_exp, struct CExpression* right_exp) {
-    struct CExpression* expression = c_expression_new(AST_EXP_CONDITIONAL);
-    expression->conditional.left_exp = left_exp;
-    expression->conditional.middle_exp = middle_exp;
-    expression->conditional.right_exp = right_exp;
+struct CExpression* c_expression_new_unop(enum AST_UNARY_OP op, struct CExpression* operand) {
+    struct CExpression* expression = c_expression_new(AST_EXP_UNOP);
+    expression->unary.op = op;
+    expression->unary.operand = operand;
     return expression;
 }
+struct CExpression* c_expression_new_var(const char* name) {
+    struct CExpression* expression = c_expression_new(AST_EXP_VAR);
+    expression->var.name = name;
+    expression->var.source_name = name;
+    return expression;
+}
+void c_expression_function_call_add_arg(struct CExpression* expression, struct CExpression* arg) {
+    if (expression->kind != AST_EXP_FUNCTION_CALL) {
+        fprintf(stderr, "Error: c_expression_function_call_add_arg called on non-function call expression\n");
+        exit(1);
+    }
+    list_of_CExpression_append(&expression->function_call.args, arg);
+}
 struct CExpression* c_expression_clone(const struct CExpression* expression) {
-    struct CExpression* clone = c_expression_new(expression->type);
-    switch (expression->type) {
+    struct CExpression* clone = c_expression_new(expression->kind);
+    switch (expression->kind) {
         case AST_EXP_BINOP:
             clone->binary.op = expression->binary.op;
             if (expression->binary.left) clone->binary.left = c_expression_clone(expression->binary.left);
@@ -152,13 +192,20 @@ struct CExpression* c_expression_clone(const struct CExpression* expression) {
             clone->conditional.middle_exp = c_expression_clone(expression->conditional.middle_exp);
             clone->conditional.right_exp = c_expression_clone(expression->conditional.right_exp);
             break;
+        case AST_EXP_FUNCTION_CALL:
+            clone->function_call.func = expression->function_call.func;
+            list_of_CExpression_init(&clone->function_call.args, expression->function_call.args.num_items);
+            for (int i = 0; i < expression->function_call.args.num_items; i++) {
+                list_of_CExpression_append(&clone->function_call.args, c_expression_clone(expression->function_call.args.items[i]));
+            }
+            break;
     }
     return clone;
 }
 void c_expression_free(struct CExpression *expression) {
     if (!expression) return;
     if (traceAstMem) printf("Free expression @ %p\n", expression);
-    switch (expression->type) {
+    switch (expression->kind) {
         case AST_EXP_BINOP:
             if (expression->binary.left) c_expression_free(expression->binary.left);
             if (expression->binary.right) c_expression_free(expression->binary.right);
@@ -183,6 +230,9 @@ void c_expression_free(struct CExpression *expression) {
             c_expression_free(expression->conditional.middle_exp);
             c_expression_free(expression->conditional.right_exp);
             break;
+        case AST_EXP_FUNCTION_CALL:
+            list_of_CExpression_free(&expression->function_call.args);
+            break;
     }
     free(expression);
 }
@@ -205,9 +255,9 @@ void c_block_free(struct CBlock *block) {
 //endregion
 
 //region CStatement
-static struct CStatement* c_statement_new(enum AST_STMT type) {
+static struct CStatement* c_statement_new(enum AST_STMT kind) {
     struct CStatement* statement = malloc(sizeof(struct CStatement));
-    statement->type = type;
+    statement->kind = kind;
     return statement;
 }
 struct CStatement* c_statement_new_break(void) {
@@ -322,7 +372,7 @@ enum AST_RESULT c_statement_register_switch_case(struct CStatement *statement, i
 
 void c_statement_free(struct CStatement *statement) {
     if (!statement) return;
-    switch (statement->type) {
+    switch (statement->kind) {
         case STMT_BREAK:
             // Nothing to free.
             break;
@@ -383,35 +433,35 @@ void c_statement_free(struct CStatement *statement) {
 }
 //endregion CStatement
 
-//region CDeclaration
-struct CDeclaration* c_declaration_new(const char* identifier) {
-    struct CDeclaration* result = malloc(sizeof(struct CDeclaration));
+//region struct CVarDecl
+struct CVarDecl* c_vardecl_new(const char* identifier) {
+    struct CVarDecl* result = malloc(sizeof(struct CVarDecl));
     result->var.name = identifier;
     result->var.source_name = identifier;
     return result;
 }
-struct CDeclaration* c_declaration_new_init(const char* identifier, struct CExpression* initializer) {
-    struct CDeclaration* result = c_declaration_new(identifier);
+struct CVarDecl* c_vardecl_new_init(const char* identifier, struct CExpression* initializer) {
+    struct CVarDecl* result = c_vardecl_new(identifier);
     result->initializer = initializer;
     return result;
 }
-void c_declaration_free(struct CDeclaration* declaration) {
-    if (!declaration) return;
-    if (declaration->initializer) {
-        c_expression_free(declaration->initializer);
+void c_vardecl_free(struct CVarDecl* vardecl) {
+    if (!vardecl) return;
+    if (vardecl->initializer) {
+        c_expression_free(vardecl->initializer);
     }
 }
-//endregion CDeclaration
+//endregion struct CVarDecl
 
-//region CForInit
-struct CForInit* c_for_init_new(enum FOR_INIT_TYPE type) {
+//region struct CForInit
+struct CForInit* c_for_init_new(enum FOR_INIT_KIND kind) {
     struct CForInit* result = malloc(sizeof(struct CForInit));
-    result->type = type;
+    result->kind = kind;
     return result;
 }
-struct CForInit* c_for_init_new_declaration(struct CDeclaration* declaration)  {
+struct CForInit* c_for_init_new_vardecl(struct CVarDecl* vardecl)  {
     struct CForInit* result = c_for_init_new(FOR_INIT_DECL);
-    result->declaration = declaration;
+    result->vardecl = vardecl;
     return result;
 }
 struct CForInit* c_for_init_new_expression(struct CExpression* expression)  {
@@ -421,65 +471,103 @@ struct CForInit* c_for_init_new_expression(struct CExpression* expression)  {
 }
 void c_for_init_free(struct CForInit* for_init)  {
     if (!for_init) return;
-    if (for_init->type == FOR_INIT_DECL) {
-        c_declaration_free(for_init->declaration);
-    } else if (for_init->type == FOR_INIT_EXPR) {
+    if (for_init->kind == FOR_INIT_DECL) {
+        c_vardecl_free(for_init->vardecl);
+    } else if (for_init->kind == FOR_INIT_EXPR) {
         c_expression_free(for_init->expression);
     }
 }
 //endregion
 
-//region CBlockItem
-struct CBlockItem* c_block_item_new_decl(struct CDeclaration* declaration) {
+//region struct CBlockItem
+struct CBlockItem* c_block_item_new_var_decl(struct CVarDecl* vardecl) {
     struct CBlockItem* result = malloc(sizeof(struct CBlockItem));
-    result->type = AST_BI_DECLARATION;
-    result->declaration = declaration;
+    result->kind = AST_BI_VAR_DECL;
+    result->vardecl = vardecl;
+    return result;
+}
+struct CBlockItem* c_block_item_new_func_decl(struct CFunction* funcdecl) {
+    struct CBlockItem* result = malloc(sizeof(struct CBlockItem));
+    result->kind = AST_BI_FUNC_DECL;
+    result->funcdecl = funcdecl;
     return result;
 }
 struct CBlockItem* c_block_item_new_stmt(struct CStatement* statement) {
     struct CBlockItem* result = malloc(sizeof(struct CBlockItem));
-    result->type = AST_BI_STATEMENT;
+    result->kind = AST_BI_STATEMENT;
     result->statement = statement;
     return result;
 }
 void c_block_item_free(struct CBlockItem* blockItem) {
     if (blockItem == NULL) return;
-    if (blockItem->type == AST_BI_STATEMENT) {
-        c_statement_free(blockItem->statement);
-    } else {
-        c_declaration_free(blockItem->declaration);
+    switch (blockItem->kind) {
+        case AST_BI_STATEMENT:
+            c_statement_free(blockItem->statement);
+            break;
+        case AST_BI_VAR_DECL:
+            c_vardecl_free(blockItem->vardecl);
+            break;
+        case AST_BI_FUNC_DECL:
+            c_function_free(blockItem->funcdecl);
+            break;
     }
     free(blockItem);
 }
-void CBlockItem_free(struct CBlockItem* blockItem) {
-    c_block_item_free(blockItem);
-}
 //endregion CBlockItem
 
-//region CFunction
-struct CFunction* c_function_new(const char* name, struct CBlock* block) {
+//region struct CFunction
+struct CFunction *c_function_new(const char *name) {
     struct CFunction* result = malloc(sizeof(struct CFunction));
     result->name = name;
-    result->block = block;
+    result->body = NULL;
+    list_of_CIdentifier_init(&result->params, 7);
     return result;
 }
-
-void c_function_append_block_item(const struct CFunction* function, struct CBlockItem* item) {
-    list_of_CBlockItem_append(&function->block->items, item);
+enum AST_RESULT c_function_add_param(struct CFunction* function, const char* param_name) {
+    struct CIdentifier* params = function->params.items;
+    for (int i = 0; i < function->params.num_items; i++) {
+        if (strcmp(params[i].name, param_name) == 0) {
+            return AST_DUPLICATE;
+        }
+    }
+    struct CIdentifier param = {param_name, param_name};
+    list_of_CIdentifier_append(&function->params, param);
+    return AST_OK;
 }
-
+enum AST_RESULT c_function_add_body(struct CFunction* function, struct CBlock* body) {
+    if (function->body) return AST_DUPLICATE;
+    function->body = body;
+    return AST_OK;
+}
 void c_function_free(struct CFunction *function) {
     if (!function) return;
     // Don't free 'name'; owned by global name table.
-    c_block_free(function->block);
+    if (function->body) {
+        c_block_free(function->body);
+    }
+    list_of_CIdentifier_free(&function->params);
     free(function);
 }
 //endregion CFunction
 
 //region CProgram
+struct CProgram* c_program_new(void) {
+    struct CProgram* result = malloc(sizeof(struct CProgram));
+    list_of_CFunction_init(&result->functions, 3);
+    return result;
+}
+enum AST_RESULT c_program_add_func(struct CProgram* program, struct CFunction* function) {
+    for (int i = 0; i < program->functions.num_items; i++) {
+        if (strcmp(program->functions.items[i]->name, function->name) == 0) {
+            return AST_DUPLICATE;
+        }
+    }
+    list_of_CFunction_append(&program->functions, function);
+    return AST_OK;
+}
 void c_program_free(struct CProgram *program) {
     if (!program) return;
-    if (program->function) c_function_free(program->function);
+    list_of_CFunction_free(&program->functions);
     free(program);
 }
 //endregion CProgram

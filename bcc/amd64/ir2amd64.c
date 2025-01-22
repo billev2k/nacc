@@ -274,7 +274,7 @@ static int compile_instruction(struct Amd64Function *asmFunction, struct IrInstr
 
 static struct Amd64Operand make_operand(struct IrValue value) {
     struct Amd64Operand operand = {0};
-    switch (value.type) {
+    switch (value.kind) {
         case IR_VAL_CONST_INT:
             operand = amd64_operand_imm_int(value.int_val);
             break;

@@ -9,16 +9,30 @@
 
 /*
  *  Current AST:
-    program = Program(function_definition)
-    function_definition = Function(identifier name, block_item* body)
-    block_item = S(statement) | D(declaration)
-    declaration = Declaration(identifier name, exp? init)
-    statement = Return(exp) | Expression(exp) | Null
+    program = Program(function_vardecl*)
+    vardecl = FunDecl(function_vardecl) | VarDecl(variable_vardecl)
+    variable_vardecl = (identifier name, exp? init)
+    function_vardecl = (identifier name, identifier* params, body? body)
+    block_item = S(statement) | D(vardecl)
+    body = Block(block_item*)
+    for_init = InitDecl(variable_vardecl) | InitExp(exp?)
+    statement = Return(exp)
+              | Expression(exp)
+              | If(exp condition, statement then, statement? else)
+              | Compound(body)
+              | Break
+              | Continue
+              | While(exp condition, statement body)
+              | DoWhile(statement body, exp condition)
+              | For(for_init init, exp? condition, exp? post, statement body)
+              | Null
     exp = Constant(int)
         | Var(identifier)
         | Unary(unary_operator, exp)
         | Binary(binary_operator, exp, exp)
         | Assignment(exp, exp)
+        | Conditional(exp condition, exp, exp)
+        | FunctionCall(identifier, exp* args)
     unary_operator = Complement | Negate | Not
     binary_operator = Add | Subtract | Multiply | Divide | Remainder | And | Or
                     | Equal | NotEqual | LessThan | LessOrEqual
@@ -27,6 +41,7 @@
     Excerpt From
     Writing a C Compiler
     Nora Sandler
+    This material may be protected by copyright.
  */
 
 enum AST_RESULT {
@@ -36,15 +51,16 @@ enum AST_RESULT {
 
 enum AST_BLOCK_ITEM {
     AST_BI_STATEMENT,
-    AST_BI_DECLARATION,
+    AST_BI_VAR_DECL,
+    AST_BI_FUNC_DECL,
 };
 
-enum FOR_INIT_TYPE {
+enum FOR_INIT_KIND {
     FOR_INIT_DECL,
     FOR_INIT_EXPR,
 };
 
-enum LABEL_TYPE {
+enum LABEL_KIND {
     LABEL_DECL,         // "label:" before a statement.
     LABEL_CASE,         // a "case X:" in a switch() statement body.
     LABEL_DEFAULT,      // a "default:" in a switch() statement body.
@@ -66,14 +82,15 @@ enum AST_STMT {
     STMT_AUTO_RETURN,
 };
 
-enum AST_EXP_TYPE {
-    AST_EXP_CONST,
-    AST_EXP_UNOP,
-    AST_EXP_BINOP,
-    AST_EXP_VAR,
+enum AST_EXP_KIND {
     AST_EXP_ASSIGNMENT,
-    AST_EXP_INCREMENT,
+    AST_EXP_BINOP,
     AST_EXP_CONDITIONAL,
+    AST_EXP_CONST,
+    AST_EXP_FUNCTION_CALL,
+    AST_EXP_INCREMENT,
+    AST_EXP_UNOP,
+    AST_EXP_VAR,
 };
 
 enum AST_INCREMENT_OP {
@@ -158,17 +175,25 @@ extern const char * const AST_BINARY_NAMES[];
 extern const int AST_BINARY_PRECEDENCE[];
 extern const int AST_TO_IR_BINARY[];
 
+//region struct CIdentifier
 /**
  * Holds the declared name and the uniqufied name for a variable, including labels.
  */
-struct CVariable {
+struct CIdentifier {
     const char* name;
     const char* source_name;
 };
-
+#define NAME list_of_CIdentifier
+#define TYPE struct CIdentifier
+#include "../utils/list_of_item.h"
+#undef NAME
+#undef TYPE
+//endregion CIdentifier
+   
+//region struct CLabel
 struct CLabel {
-    enum LABEL_TYPE type;
-    struct CVariable label;
+    enum LABEL_KIND kind;
+    struct CIdentifier label;
     const char* case_value;
     int switch_flow_id;
 };
@@ -178,10 +203,17 @@ struct CLabel {
 #include "../utils/list_of_item.h"
 #undef NAME
 #undef TYPE
+//endregion struct CLabel
 
 //region struct CExpression
+struct CExpression;
+#define NAME list_of_CExpression
+#define TYPE struct CExpression*
+#include "../utils/list_of_item.h"
+#undef NAME
+#undef TYPE
 struct CExpression {
-    enum AST_EXP_TYPE type;
+    enum AST_EXP_KIND kind;
     union {
         struct {
             enum AST_UNARY_OP op;
@@ -198,7 +230,7 @@ struct CExpression {
                 int int_val;
             };
         } literal;
-        struct CVariable var;
+        struct CIdentifier var;
         struct {
             struct CExpression* dst;
             struct CExpression* src;
@@ -212,64 +244,71 @@ struct CExpression {
             struct CExpression* middle_exp;     // if true int_val
             struct CExpression* right_exp;      // if false int_val
         } conditional;
+        struct {
+            struct CIdentifier func;
+            struct list_of_CExpression args;
+        } function_call;
     };
 };
-extern struct CExpression* c_expression_new_unop(enum AST_UNARY_OP op, struct CExpression* operand);
-extern struct CExpression* c_expression_new_binop(enum AST_BINARY_OP op, struct CExpression* left, struct CExpression* right);
-extern struct CExpression* c_expression_new_const(enum AST_CONST_TYPE const_type, int int_val);
-extern struct CExpression* c_expression_new_var(const char* name);
 extern struct CExpression* c_expression_new_assign(struct CExpression* src, struct CExpression* dst);
-extern struct CExpression* c_expression_new_increment(enum AST_INCREMENT_OP op, struct CExpression* operand);
+extern struct CExpression* c_expression_new_binop(enum AST_BINARY_OP op, struct CExpression* left, struct CExpression* right);
 extern struct CExpression* c_expression_new_conditional(struct CExpression* left_exp, struct CExpression* middle_exp, struct CExpression* right_exp);
+extern struct CExpression* c_expression_new_const(enum AST_CONST_TYPE const_type, int int_val);
+extern struct CExpression* c_expression_new_function_call(struct CIdentifier func);
+extern struct CExpression* c_expression_new_increment(enum AST_INCREMENT_OP op, struct CExpression* operand);
+extern struct CExpression* c_expression_new_unop(enum AST_UNARY_OP op, struct CExpression* operand);
+extern struct CExpression* c_expression_new_var(const char* name);
+extern void c_expression_function_call_add_arg(struct CExpression* call, struct CExpression* arg);
 extern struct CExpression* c_expression_clone(const struct CExpression* expression);
 extern void c_expression_free(struct CExpression *expression);
-//endregion
+//endregion CExpression
 
-//region struct CDeclaration
-struct CDeclaration {
-    struct CVariable var;
+//region struct CVarDecl
+struct CVarDecl {
+    struct CIdentifier var;
     struct CExpression* initializer;
 };
-extern struct CDeclaration* c_declaration_new(const char* identifier);
-extern struct CDeclaration* c_declaration_new_init(const char* identifier, struct CExpression* initializer);
-extern void c_declaration_free(struct CDeclaration* declaration);
-//endregion
+extern struct CVarDecl* c_vardecl_new(const char* identifier);
+extern struct CVarDecl* c_vardecl_new_init(const char* identifier, struct CExpression* initializer);
+extern void c_vardecl_free(struct CVarDecl* vardecl);
+//endregion CVarDecl
 
 //region struct CForInit
 struct CForInit {
-    enum FOR_INIT_TYPE type;
+    enum FOR_INIT_KIND kind;
     union {
-        struct CDeclaration* declaration;
+        struct CVarDecl* vardecl;
         struct CExpression* expression;
     };
 };
-extern struct CForInit* c_for_init_new_declaration(struct CDeclaration* declaration);
+extern struct CForInit* c_for_init_new_vardecl(struct CVarDecl* vardecl);
 extern struct CForInit* c_for_init_new_expression(struct CExpression* expression);
 extern void c_for_init_free(struct CForInit* for_init);
-//endregion
+//endregion  CForInit
 
 //region struct CBlockItem
 struct CBlockItem {
-    enum AST_BLOCK_ITEM type;
+    enum AST_BLOCK_ITEM kind;
     union {
-        struct CDeclaration* declaration;
+        struct CVarDecl* vardecl;
+        struct CFunction* funcdecl;
         struct CStatement* statement;
     };
 };
-extern struct CBlockItem* c_block_item_new_decl(struct CDeclaration* declaration);
+extern struct CBlockItem* c_block_item_new_var_decl(struct CVarDecl* vardecl);
+extern struct CBlockItem* c_block_item_new_func_decl(struct CFunction* funcdecl);
 extern struct CBlockItem* c_block_item_new_stmt(struct CStatement* statement);
 extern void c_block_item_free(struct CBlockItem* blockItem);
 extern void CBlockItem_free(struct CBlockItem* blockItem);  // actually used in c_blockitem_helpers
-//endregion
-
 // Implementation of List<CBlockItem> (?list_of_CBlockItem")
 #define NAME list_of_CBlockItem
 #define TYPE struct CBlockItem*
 #include "../utils/list_of_item.h"
 #undef NAME
 #undef TYPE
+//endregion CBlockItem
 
-//region CBlock
+//region struct CBlock
 struct CBlock {
     struct list_of_CBlockItem items;
     int is_function_block;
@@ -277,11 +316,11 @@ struct CBlock {
 extern struct CBlock* c_block_new(int is_function);
 extern void c_block_append_item(struct CBlock* block, struct CBlockItem* item);
 extern void c_block_free(struct CBlock *block);
-//endregion
+//endregion CBlock
 
 //region struct CStatement
 struct CStatement {
-    enum AST_STMT type;
+    enum AST_STMT kind;
     union {
         struct CExpression* expression;
         struct {
@@ -334,23 +373,32 @@ extern enum AST_RESULT c_statement_set_flow_id(struct CStatement * statement, in
 extern enum AST_RESULT c_statement_set_switch_has_default(struct CStatement *statement);
 extern enum AST_RESULT c_statement_register_switch_case(struct CStatement *statement, int case_value);
 extern void c_statement_free(struct CStatement *statement);
-//endregion
+//endregion CStatement
 
 //region struct CFunction
 struct CFunction {
     const char *name;
-    struct CBlock* block;
+    struct CBlock* body;
+    struct list_of_CIdentifier params;
 };
-extern struct CFunction* c_function_new(const char* name, struct CBlock* block);
-extern void c_function_append_block_item(const struct CFunction* function, struct CBlockItem* item);
+#define NAME list_of_CFunction
+#define TYPE struct CFunction*
+#include "../utils/list_of_item.h"
+#undef NAME
+#undef TYPE
+extern struct CFunction *c_function_new(const char *name);
+extern enum AST_RESULT c_function_add_param(struct CFunction* function, const char* param_name);
+extern enum AST_RESULT c_function_add_body(struct CFunction* function, struct CBlock* body);
 extern void c_function_free(struct CFunction *function);
-//endregion
+//endregion CFunction
 
 //region struct CProgram
 struct CProgram {
-    struct CFunction *function;
+    struct list_of_CFunction functions;
 };
+extern struct CProgram* c_program_new(void);
+extern enum AST_RESULT c_program_add_func(struct CProgram* program, struct CFunction* function);
 extern void c_program_free(struct CProgram *program);
-//endregion
+//endregion CProgram
 
 #endif //BCC_AST_H

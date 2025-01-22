@@ -39,7 +39,7 @@ static struct CProgram * parse_program(void);
 static struct CFunction * parse_function(void);
 static struct CBlock* parse_block(int is_function);
 static struct CBlockItem* parse_block_item(void);
-static struct CDeclaration* parse_declaration(void);
+static struct CVarDecl* parse_vardecl(void);
 static struct CStatement * parse_statement(void);
 static struct CExpression * parse_expression(int minimum_precedence);
 static struct CExpression * parse_factor(void);
@@ -58,25 +58,65 @@ void analyze_program(const struct CProgram* program) {
 }
 
 struct CProgram *parse_program() {
-    struct CProgram *result = (struct CProgram *)malloc(sizeof(struct CProgram));
-    result->function = parse_function();
+    struct Token token = lex_peek_token();
+    struct CProgram *program = c_program_new();
+    while (token.token != TK_EOF) {
+        struct CFunction *func = parse_function();
+        c_program_add_func(program, func);
+        token = lex_peek_token();
+    }
     expect(TK_EOF);
-    return result;
+    return program;
 }
 
-struct CFunction *parse_function() {
+struct CFunction *parse_function(void) {
     expect(TK_INT);
     expect(TK_ID);
     const char *name = current_token.text;
     expect(TK_L_PAREN);
-    expect(TK_VOID);
+    struct CFunction *function = c_function_new(name);
+
+    struct Token token = lex_peek_token();
+    if (token.token == TK_VOID && lex_peek_ahead(1).token == TK_VOID && lex_peek_ahead(2).token == TK_R_PAREN) {
+        lex_take_token(); // void
+    } else {
+        int num_params = 0;
+        while (token.token != TK_R_PAREN) {
+            if (num_params++ > 0) {
+                expect(TK_COMMA);
+            }
+            // parse kind
+            expect(TK_INT);
+            // parse name [todo: optional if declaration]
+            token = lex_take_token();
+            c_function_add_param(function, token.text);
+            // optional comma, if more params
+            token = lex_peek_token();
+        }
+    }
     expect(TK_R_PAREN);
-    expect(TK_L_BRACE);
-    struct CBlock* block = parse_block(1 /* is_function */);
-    struct CFunction *function = c_function_new(name, block);
+
+    token = lex_peek_token();
+    if (token.token == TK_L_BRACE) {
+        // function definition
+        lex_take_token();
+        struct CBlock *block = parse_block(1 /* is_function */);
+        c_function_add_body(function, block);
+    } else {
+        // function declaration
+        expect(TK_SEMI);
+    }
     return function;
 }
 
+/**
+ * Parse a block of declarations/definitions and/or statements.
+ *
+ * Assumes opening brace already consumed; consumes the closing brace.
+ *
+ * @param is_function non-zero if the block is a function's block.
+ * @return a pointer to the new block object.
+ */
 struct CBlock* parse_block(int is_function) {
     struct CBlock* result = c_block_new(is_function);
     struct Token token = lex_peek_token();
@@ -85,15 +125,20 @@ struct CBlock* parse_block(int is_function) {
         c_block_append_item(result, item);
         token = lex_peek_token();
     }
-    lex_take_token();
+    lex_take_token(); // TK_R_BRACE
     return result;
 }
 
 struct CBlockItem* parse_block_item() {
     struct Token token = lex_peek_token();
     if (token.token == TK_INT) {
-        struct CDeclaration* decl = parse_declaration();
-        return c_block_item_new_decl(decl);
+        if (lex_peek_ahead(2).token == TK_ID && lex_peek_ahead(3).token == TK_L_PAREN) {
+            struct CFunction *func = parse_function();
+            return c_block_item_new_func_decl(func);
+        } else {
+            struct CVarDecl *decl = parse_vardecl();
+            return c_block_item_new_var_decl(decl);
+        }
     } else {
         // Get the statement. Will include any preceeding labels;
         struct CStatement *stmt = parse_statement();
@@ -101,9 +146,9 @@ struct CBlockItem* parse_block_item() {
     }
 }
 
-struct CDeclaration* parse_declaration() {
+struct CVarDecl* parse_vardecl() {
     expect(TK_INT);
-    struct CDeclaration* result;
+    struct CVarDecl* result;
     struct Token id = lex_take_token();
     if (id.token != TK_ID) {
         fprintf(stderr, "Expected id: %s\n", id.text);
@@ -113,20 +158,20 @@ struct CDeclaration* parse_declaration() {
     if (init.token == TK_ASSIGN) {
         lex_take_token();
         struct CExpression* initializer = parse_expression(0);
-        result = c_declaration_new_init(id.text, initializer);
+        result = c_vardecl_new_init(id.text, initializer);
     } else {
-        result = c_declaration_new(id.text);
+        result = c_vardecl_new(id.text);
     }
     expect(TK_SEMI);
     return result;
 }
 
 /**
- * Parses a 'for' loop initialization expression or declaration.
+ * Parses a 'for' loop initialization expression or vardecl.
  *
  * This function determines whether the initialization part of a 'for' loop is
- * a declaration or an expression. If the token at the current position is of
- * type `TK_INT`, it is identified as a declaration, which is parsed
+ * a vardecl or an expression. If the token at the current position is of
+ * kind `TK_INT`, it is identified as a vardecl, which is parsed
  * accordingly. If not, it is treated as an expression and parsed as such.
  * The parsed result is then wrapped into an appropriate `CForInit` structure
  * and returned.
@@ -138,8 +183,8 @@ struct CForInit* parse_for_init() {
     struct CForInit* result = NULL;
     struct Token next_token = lex_peek_token();
     if (next_token.token == TK_INT) {
-        struct CDeclaration* decl = parse_declaration(); // expects to end with (and consumes) ';'
-        result = c_for_init_new_declaration(decl);
+        struct CVarDecl* decl = parse_vardecl(); // expects to end with (and consumes) ';'
+        result = c_for_init_new_vardecl(decl);
     }
     else if (next_token.token != TK_SEMI) {
         struct CExpression* expression = parse_expression(0);
@@ -178,13 +223,13 @@ struct CStatement *parse_statement() {
             // TODO: support constant expressions
             lex_take_token();   // case
             next_token = lex_take_token();   // get value
-            label = (struct CLabel){.type = LABEL_CASE, .case_value = next_token.text};
+            label = (struct CLabel){.kind = LABEL_CASE, .case_value = next_token.text};
         } else if (next_token.token == TK_DEFAULT) {
             lex_take_token();   // default
-            label = (struct CLabel){.type = LABEL_DEFAULT};
+            label = (struct CLabel){.kind = LABEL_DEFAULT};
         } else {
             lex_take_token();   // label name (TK_ID)
-            label = (struct CLabel){.type = LABEL_DECL, .label = {.name = next_token.text, .source_name = next_token.text}};
+            label = (struct CLabel){.kind = LABEL_DECL, .label = {.name = next_token.text, .source_name = next_token.text}};
         }
         expect(TK_COLON);
         if (!have_labels) {
@@ -324,6 +369,25 @@ struct CExpression *parse_conditional_middle() {
     return middle_exp;
 }
 
+struct CExpression* parse_function_call(const char *name) {
+    struct CIdentifier func = { .name = name, .source_name = name};
+    struct CExpression* function_call = c_expression_new_function_call(func);
+    expect(TK_L_PAREN);
+    struct Token token = lex_peek_token();
+    int num_args = 0;
+    while (token.token != TK_R_PAREN) {
+        if (num_args++ > 0) {
+            expect(TK_COMMA);
+        }
+        // gather args; here TK_COMMA is arg separator, not comma-operator!
+        struct CExpression* arg = parse_expression(0);
+        c_expression_function_call_add_arg(function_call, arg);
+        token = lex_peek_token();
+    }
+    lex_take_token(); // TK_R_PAREN
+    return function_call;
+}
+
 struct CExpression *parse_expression(int minimum_precedence) {
     struct CExpression* left_exp = parse_factor();
     struct Token next_token = lex_peek_token();
@@ -382,7 +446,11 @@ static struct CExpression* parse_factor() {
         expect(TK_R_PAREN);
     }
     else if (next_token.token == TK_ID) {
-        result = c_expression_new_var(next_token.text);
+        if (lex_peek_token().token == TK_L_PAREN) {
+            result = parse_function_call(next_token.text);
+        } else {
+            result = c_expression_new_var(next_token.text);
+        }
     }
     else if (next_token.token == TK_INCREMENT || next_token.token == TK_DECREMENT) {
         struct CExpression *operand = parse_factor();

@@ -7,15 +7,15 @@
 
 
 
-enum SYMTAB_TYPE {
+enum SYMTAB_KIND {
     SYMTAB_VAR,
     SYMTAB_LABEL,
 };
 
 extern void symtab_init(void);
 
-extern const char* add_symbol(enum SYMTAB_TYPE type, const char* source_name);
-extern const char* resolve_symbol(enum SYMTAB_TYPE type, const char* source_name);
+extern const char* add_symbol(enum SYMTAB_KIND kind, const char* source_name);
+extern const char* resolve_symbol(enum SYMTAB_KIND kind, const char* source_name);
 
 extern void push_symtab_context(int is_function_context);
 extern void pop_symtab_context(void);

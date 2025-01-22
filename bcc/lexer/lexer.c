@@ -213,6 +213,8 @@ static enum TK tokenizer(void) {
             return TK_R_BRACE;
         case ';':
             return TK_SEMI;
+        case ',':
+            return TK_COMMA;
         case '+':
             if (*pBuffer == '+') {
                 ++pBuffer;
@@ -345,7 +347,7 @@ static enum TK tokenizer(void) {
 /**
  * Reads a "word" token_text from the stream.
  *
- * @return the TK type.
+ * @return the TK kind.
  */
 enum TK wordToken(/*int intCh*/) {
     while (isalnum(*pBuffer) || *pBuffer=='_') {

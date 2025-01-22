@@ -145,13 +145,13 @@ void IrInstruction_free(struct IrInstruction *instruction) {
 
 /**
  * Initialize a new IrValue.
- * @param valType The type of int_val, a member of IR_VAL.
+ * @param valKind The kind of int_val, a member of IR_VAL.
  * @param valText The text representation; a variable name, register name, or constant literal (which
  *      must have a lifetime greater than the IrValue).
  * @return The new IrValue.
  */
-struct IrValue ir_value_new(enum IR_VAL valType, const char *valText) {
-    struct IrValue result = {.type = valType, .text = valText};
+struct IrValue ir_value_new(enum IR_VAL valKind, const char *valText) {
+    struct IrValue result = {.kind = valKind, .text = valText};
     return result;
 }
 
@@ -162,6 +162,6 @@ struct IrValue ir_value_new_label(const char* label_name) {
     return ir_value_new(IR_VAL_LABEL, label_name);
 }
 struct IrValue ir_value_new_int(int int_val) {
-    struct IrValue result = {.type = IR_VAL_CONST_INT, .int_val = int_val};
+    struct IrValue result = {.kind = IR_VAL_CONST_INT, .int_val = int_val};
     return result;
 }

@@ -88,7 +88,7 @@ void print_ir_instruction(const struct IrInstruction *instruction, FILE *file) {
 }
 
 void print_ir_value(struct IrValue value, FILE *file) {
-    switch (value.type) {
+    switch (value.kind) {
         case IR_VAL_CONST_INT:
             fprintf(file, "$%d", value.int_val);
             break;

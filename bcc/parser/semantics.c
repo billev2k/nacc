@@ -28,7 +28,7 @@ static void resolve_statement(const struct CStatement *statement);
 
 static void resolve_goto(const struct CStatement *statement);
 
-static void resolve_declaration(struct CDeclaration *decl);
+static void resolve_vardecl(struct CVarDecl *vardecl);
 
 static void label_block_loops(const struct CBlock *block, struct LoopLabelContext context);
 
@@ -36,28 +36,32 @@ static void label_statement_loops(struct CStatement *statement, struct LoopLabel
 
 void semantic_analysis(const struct CProgram *program) {
     symtab_init();
-    analyze_function(program->function);
+    struct CFunction** functions = program->functions.items;
+    for (int ix=0; ix<program->functions.num_items; ix++) {
+        analyze_function(program->functions.items[ix]);
+    }
 }
 
 static void analyze_function(const struct CFunction *function) {
-    resolve_block(function->block);
-    label_block_loops(function->block, (struct LoopLabelContext){0});
+    if (!function || !function->body) return;
+    resolve_block(function->body);
+    label_block_loops(function->body, (struct LoopLabelContext){0});
 }
 
 static void resolve_block(const struct CBlock *block) {
     push_symtab_context(block->is_function_block);
     for (int ix = 0; ix < block->items.num_items; ix++) {
         struct CBlockItem *bi = block->items.items[ix];
-        if (bi->type == AST_BI_STATEMENT) {
+        if (bi->kind == AST_BI_STATEMENT) {
             resolve_statement(bi->statement);
         } else {
-            resolve_declaration(bi->declaration);
+            resolve_vardecl(bi->vardecl);
         }
     }
     if (block->is_function_block) {
         for (int ix = 0; ix < block->items.num_items; ix++) {
             struct CBlockItem *bi = block->items.items[ix];
-            if (bi->type == AST_BI_STATEMENT) {
+            if (bi->kind == AST_BI_STATEMENT) {
                 resolve_goto(bi->statement);
             }
         }
@@ -76,7 +80,7 @@ static const char *resolve_var(const char *source_name) {
 static void resolve_exp(struct CExpression *exp) {
     if (!exp) return;
     const char *mapped_name;
-    switch (exp->type) {
+    switch (exp->kind) {
         case AST_EXP_CONST:
             break;
         case AST_EXP_UNOP:
@@ -98,7 +102,7 @@ static void resolve_exp(struct CExpression *exp) {
             exp->var.name = mapped_name;
             break;
         case AST_EXP_ASSIGNMENT:
-            if (exp->assign.dst->type != AST_EXP_VAR) {
+            if (exp->assign.dst->kind != AST_EXP_VAR) {
                 printf("Error in assignment; invalid lvalue\n");
                 exit(1);
             }
@@ -114,7 +118,7 @@ static void resolve_exp(struct CExpression *exp) {
             resolve_exp(exp->assign.src);
             break;
         case AST_EXP_INCREMENT:
-            if (exp->increment.operand->type != AST_EXP_VAR) {
+            if (exp->increment.operand->kind != AST_EXP_VAR) {
                 printf("Error in increment/decrement; invalid lvalue\n");
                 exit(1);
             }
@@ -136,32 +140,32 @@ static void resolve_exp(struct CExpression *exp) {
     }
 }
 
-static void uniquify_thing(struct CVariable *var, enum SYMTAB_TYPE type) {
-    const char *uniquified = add_symbol(type, var->source_name);
+static void uniquify_thing(struct CIdentifier *var, enum SYMTAB_KIND kind) {
+    const char *uniquified = add_symbol(kind, var->source_name);
     var->name = uniquified;
 }
 
-static void uniquify_variable(struct CVariable *var) {
+static void uniquify_variable(struct CIdentifier *var) {
     uniquify_thing(var, SYMTAB_VAR);
 }
 
-static void uniquify_label(struct CVariable *var) {
+static void uniquify_label(struct CIdentifier *var) {
     uniquify_thing(var, SYMTAB_LABEL);
 }
 
-static void resolve_declaration(struct CDeclaration *decl) {
-    if (!decl) return;
-    uniquify_variable(&decl->var);
+static void resolve_vardecl(struct CVarDecl *vardecl) {
+    if (!vardecl) return;
+    uniquify_variable(&vardecl->var);
     // Update the initializer, if there is one.
-    if (decl->initializer) {
-        resolve_exp(decl->initializer);
+    if (vardecl->initializer) {
+        resolve_exp(vardecl->initializer);
     }
 }
 
 static void resolve_for_init(struct CForInit *for_init) {
     if (!for_init) return;
-    if (for_init->type == FOR_INIT_DECL) {
-        resolve_declaration(for_init->declaration);
+    if (for_init->kind == FOR_INIT_DECL) {
+        resolve_vardecl(for_init->vardecl);
     } else {
         resolve_exp(for_init->expression);
     }
@@ -173,12 +177,12 @@ static void resolve_statement(const struct CStatement *statement) {
         int num_labels = c_statement_num_labels(statement);
         struct CLabel *labels = c_statement_get_labels(statement);
         for (int i=0; i<num_labels; ++i) {
-            if (labels[i].type == LABEL_DECL) {
+            if (labels[i].kind == LABEL_DECL) {
                 uniquify_label(&labels[i].label);
             }
         }
     }
-    switch (statement->type) {
+    switch (statement->kind) {
         case STMT_RETURN:
         case STMT_AUTO_RETURN:
             resolve_exp(statement->expression);
@@ -224,7 +228,7 @@ static void resolve_statement(const struct CStatement *statement) {
 
 static void resolve_goto(const struct CStatement *statement) {
     const char *mapped_name;
-    switch (statement->type) {
+    switch (statement->kind) {
         case STMT_RETURN:
         case STMT_AUTO_RETURN:
         case STMT_EXP:
@@ -253,7 +257,7 @@ static void resolve_goto(const struct CStatement *statement) {
         case STMT_COMPOUND:
             for (int ix = 0; ix < statement->compound->items.num_items; ix++) {
                 struct CBlockItem *bi = statement->compound->items.items[ix];
-                if (bi->type == AST_BI_STATEMENT) {
+                if (bi->kind == AST_BI_STATEMENT) {
                     resolve_goto(bi->statement);
                 }
             }
@@ -274,7 +278,7 @@ static void resolve_goto(const struct CStatement *statement) {
 static void label_block_loops(const struct CBlock *block, struct LoopLabelContext context) {
     for (int ix = 0; ix < block->items.num_items; ix++) {
         struct CBlockItem *bi = block->items.items[ix];
-        if (bi->type == AST_BI_STATEMENT) {
+        if (bi->kind == AST_BI_STATEMENT) {
             label_statement_loops(bi->statement, context);
         }
     }
@@ -286,7 +290,7 @@ static void label_statement_loops(struct CStatement *statement, struct LoopLabel
     struct LoopLabelContext new_context = context;
     struct CStatement *body;
 
-    switch (statement->type) {
+    switch (statement->kind) {
         case STMT_BREAK:
             if (!context.enclosing_break_id) {
                 printf("Error: break statement outside of loop\n");
@@ -344,7 +348,7 @@ static void label_statement_loops(struct CStatement *statement, struct LoopLabel
         int num_labels = c_statement_num_labels(statement);
         struct CLabel *labels = c_statement_get_labels(statement);
         for (int i=0; i<num_labels; ++i) {
-            if (labels[i].type == LABEL_DEFAULT) {
+            if (labels[i].kind == LABEL_DEFAULT) {
                 if (!context.enclosing_switch) {
                     printf("Error: 'default:' label outside of switch\n");
                     exit(1);
@@ -354,7 +358,7 @@ static void label_statement_loops(struct CStatement *statement, struct LoopLabel
                     exit(1);
                 }
                 labels[i].switch_flow_id = context.enclosing_switch->flow_id;
-            } else if (labels[i].type == LABEL_CASE) {
+            } else if (labels[i].kind == LABEL_CASE) {
                 if (!context.enclosing_switch) {
                     printf("Error: 'case X:' label outside of switch\n");
                     exit(1);
@@ -364,7 +368,7 @@ static void label_statement_loops(struct CStatement *statement, struct LoopLabel
                     exit(1);
                 }
                 labels[i].switch_flow_id = context.enclosing_switch->flow_id;
-            } else if (labels[i].type == LABEL_DECL) {
+            } else if (labels[i].kind == LABEL_DECL) {
                 // LABEL_DECL is handled completely in IR generation.
             }
         }

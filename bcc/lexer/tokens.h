@@ -7,7 +7,7 @@
 
 // Token attributes:
 //  Flags for: (can be) unop, binop, keyword, identifier, literal
-//  Fields for corresponding unop, binop, type of literal
+//  Fields for corresponding unop, binop, kind of literal
 enum TOKEN_FLAGS  {
     TF_UNOP         = 0x00000001,
     TF_BINOP        = 0x00000002,

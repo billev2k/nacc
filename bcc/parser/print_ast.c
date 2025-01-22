@@ -5,57 +5,86 @@
 //
 
 #include <stdio.h>
+#include <assert.h>
 
 #include "ast.h"
 #include "print_ast.h"
 
+static void print_block(const struct CBlock *block, int depth);
 static void c_function_print(const struct CFunction *function);
-static void c_declaration_print(struct CDeclaration *declaration, int depth);
+static void c_vardecl_print(struct CVarDecl *vardecl, int depth);
 static void c_statement_print(struct CStatement *statement, int depth);
 static void expression_print(const struct CExpression *expression, int depth);
 void c_program_print(const struct CProgram *program) {
     printf("\n\nAST:\nProgram(\n");
-    if (program->function) c_function_print(program->function);
-    printf(")\n");
+    for (int ix=0; ix<program->functions.num_items; ix++) {
+        if (ix > 0) printf("\n");
+        c_function_print(program->functions.items[ix]);
+    }
 }
 static void c_function_print(const struct CFunction *function) {
-    printf("int %s() {\n", function->name);
-    for (int ix=0; ix<function->block->items.num_items; ix++) {
-        struct CBlockItem* bi = function->block->items.items[ix];
-        if (bi->type == AST_BI_STATEMENT) {
-            c_statement_print(bi->statement, 0);
-        } else {
-            c_declaration_print(bi->declaration, 0);
+    printf("int %s(", function->name);
+    if (function->params.num_items == 0) {
+        printf("void");
+    } else {
+        for (int ix = 0; ix < function->params.num_items; ix++) {
+            if (ix > 0) printf(", ");
+            printf("int %s", function->params.items[ix].source_name);
         }
     }
-    printf("}\n");
+    if (!function->body) {
+        printf(");\n");
+    } else {
+        print_block(function->body, 0);
+    }
 }
 
 static void indent4(int n) {
     for (int i=0; i<=n; ++i) printf("    ");
 }
 
-static void c_declaration_print(struct CDeclaration *declaration, int depth) {
-    if (!declaration) return;
+static void c_vardecl_print(struct CVarDecl *vardecl, int depth) {
+    if (!vardecl) return;
     indent4(depth);
-    printf("int %s", declaration->var.source_name);
-    if (declaration->initializer) {
+    printf("int %s", vardecl->var.source_name);
+    if (vardecl->initializer) {
         printf(" = ");
-        expression_print(declaration->initializer, depth);
+        expression_print(vardecl->initializer, depth);
     }
     printf(";\n");
 }
 
 void for_init_print(struct CForInit * init) {
     if (!init) return;
-    switch (init->type) {
+    switch (init->kind) {
         case FOR_INIT_DECL:
-            c_declaration_print(init->declaration, -1);
+            c_vardecl_print(init->vardecl, -1);
             break;
         case FOR_INIT_EXPR:
-            expression_print(init->expression, -1);
+            expression_print(init->expression, 0);
             break;
     }
+}
+
+static void print_block(const struct CBlock *block, int depth) {
+    indent4(depth-1);
+    printf("{\n");
+    for (int ix=0; ix<block->items.num_items; ix++) {
+        struct CBlockItem* bi = block->items.items[ix];
+        switch (bi->kind) {
+            case AST_BI_STATEMENT:
+                c_statement_print(bi->statement, depth);
+                break;
+            case AST_BI_VAR_DECL:
+                c_vardecl_print(bi->vardecl, depth);
+                break;
+            case AST_BI_FUNC_DECL:
+                c_function_print(bi->funcdecl);
+                break;
+        }
+    }
+    indent4(depth-1);
+    printf("}\n");
 }
 
 static void c_statement_print(struct CStatement *statement, int depth) {
@@ -64,15 +93,15 @@ static void c_statement_print(struct CStatement *statement, int depth) {
         struct CLabel * labels = c_statement_get_labels(statement);
         for (int i=0; i<c_statement_num_labels(statement); ++i) {
             indent4(depth-1);
-            if (labels[i].type == LABEL_DECL)
+            if (labels[i].kind == LABEL_DECL)
                 printf("%s:\n", labels[i].label.source_name);
-            else if (labels[i].type == LABEL_DEFAULT)
+            else if (labels[i].kind == LABEL_DEFAULT)
                 printf("default:\n");
-            else if (labels[i].type == LABEL_CASE)
+            else if (labels[i].kind == LABEL_CASE)
                 printf("case %s:\n", labels[i].case_value);
         }
     }
-    switch (statement->type) {
+    switch (statement->kind) {
         case STMT_RETURN:
         case STMT_AUTO_RETURN:
             indent4(depth);
@@ -82,7 +111,7 @@ static void c_statement_print(struct CStatement *statement, int depth) {
             break;
         case STMT_EXP:
             indent4(depth);
-            expression_print(statement->expression, depth);
+            expression_print(statement->expression, 0);
             printf(" ;\n");
             break;
         case STMT_NULL:
@@ -90,13 +119,13 @@ static void c_statement_print(struct CStatement *statement, int depth) {
         case STMT_GOTO:
             indent4(depth);
             printf("goto ");
-            expression_print(statement->goto_statement.label, depth);
+            expression_print(statement->goto_statement.label, 0);
             printf(";\n");
             break;
         case STMT_IF:
             indent4(depth);
             printf("if (");
-            expression_print(statement->if_statement.condition, depth);
+            expression_print(statement->if_statement.condition, 0);
             printf(")\n");
             c_statement_print(statement->if_statement.then_statement, depth+1);
             if (statement->if_statement.else_statement) {
@@ -106,18 +135,7 @@ static void c_statement_print(struct CStatement *statement, int depth) {
             }
             break;
         case STMT_COMPOUND:
-            indent4(depth-1);
-            printf("{\n");
-            for (int ix=0; ix<statement->compound->items.num_items; ix++) {
-                struct CBlockItem* bi = statement->compound->items.items[ix];
-                if (bi->type == AST_BI_STATEMENT) {
-                    c_statement_print(bi->statement, depth);
-                } else {
-                    c_declaration_print(bi->declaration, depth);
-                }
-            }
-            indent4(depth-1);
-            printf("}\n");
+            print_block(statement->compound, depth);
             break;
         case STMT_BREAK:
             indent4(depth);
@@ -133,7 +151,7 @@ static void c_statement_print(struct CStatement *statement, int depth) {
             c_statement_print(statement->while_or_do_statement.body, depth+1);
             indent4(depth);
             printf("while (");
-            expression_print(statement->while_or_do_statement.condition, depth+1);
+            expression_print(statement->while_or_do_statement.condition, 0);
             printf(" )");
             break;
         case STMT_FOR:
@@ -141,48 +159,60 @@ static void c_statement_print(struct CStatement *statement, int depth) {
             printf("for (");
             for_init_print(statement->for_statement.init);
             printf(" ; ");
-            expression_print(statement->for_statement.condition, depth+1);
+            expression_print(statement->for_statement.condition, 0);
             printf(" ; ");
-            expression_print(statement->for_statement.post, depth+1);
+            expression_print(statement->for_statement.post, 0);
             printf(" )\n");
             c_statement_print(statement->for_statement.body, depth+1);
             break;
         case STMT_SWITCH:
             indent4(depth);
             printf("switch (");
-            expression_print(statement->switch_statement.expression, depth+1);
+            expression_print(statement->switch_statement.expression, 0);
             printf(")\n");
             c_statement_print(statement->switch_statement.body, depth+1);
             break;
         case STMT_WHILE:
             indent4(depth);
             printf("while (");
-            expression_print(statement->while_or_do_statement.condition, depth+1);
+            expression_print(statement->while_or_do_statement.condition, 0);
             printf(")\n");
             c_statement_print(statement->while_or_do_statement.body, depth+1);
             break;
     }
 }
+
+static int expression_needs_parens(const struct CExpression *pExpression) {
+    assert(pExpression->kind == AST_EXP_BINOP);
+    int this_precedence = AST_BINARY_PRECEDENCE[pExpression->kind];
+    if (pExpression->binary.left->kind == AST_EXP_BINOP && AST_BINARY_PRECEDENCE[pExpression->binary.left->kind] < this_precedence) {return 1;}
+    if (pExpression->binary.right->kind == AST_EXP_BINOP && AST_BINARY_PRECEDENCE[pExpression->binary.right->kind] < this_precedence) {return 1;}
+    return 0;
+}
+
 static void expression_print(const struct CExpression *expression, int depth) {
     if (!expression) return;
+    int needs_parens;
     int has_binop;
-    switch (expression->type) {
+    switch (expression->kind) {
         case AST_EXP_CONST:
             printf("%d", expression->literal.int_val);
             break;
         case AST_EXP_UNOP:
-            has_binop = expression->unary.operand->type == AST_EXP_BINOP;
+            // Is the target of the unary operator a binary operation? If so, parenthesize.
+            has_binop = expression->unary.operand->kind == AST_EXP_BINOP;
             printf("%s", AST_UNARY_NAMES[expression->unary.op]);
-            if (has_binop) { printf("*"); }
+            if (has_binop) { printf("("); }
             expression_print(expression->unary.operand, depth+1);
             if (has_binop) { printf(")"); }
             break;
         case AST_EXP_BINOP:
-            printf("(");
+            needs_parens = expression_needs_parens(expression);
+            if (needs_parens) printf("(");
             expression_print(expression->binary.left, depth+1);
             printf(" %s ", AST_BINARY_NAMES[expression->binary.op]);
             expression_print(expression->binary.right, depth+1);
-            printf(")");
+            if (needs_parens) printf(")");
             break;
         case AST_EXP_VAR:
             printf("%s", expression->var.source_name);
@@ -210,6 +240,14 @@ static void expression_print(const struct CExpression *expression, int depth) {
             expression_print(expression->conditional.middle_exp, depth+1);
             printf(" : ");
             expression_print(expression->conditional.right_exp, depth+1);
+            printf(")");
+            break;
+        case AST_EXP_FUNCTION_CALL:
+            printf("%s(", expression->function_call.func.source_name);
+            for (int ix=0; ix<expression->function_call.args.num_items; ix++) {
+                if (ix > 0) printf(", ");
+                expression_print(expression->function_call.args.items[ix], depth+1);
+            }
             printf(")");
             break;
     }
