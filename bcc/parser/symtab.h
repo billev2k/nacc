@@ -5,20 +5,23 @@
 #ifndef BCC_SYMTAB_H
 #define BCC_SYMTAB_H
 
+enum SYMTAB_FLAGS {
+    SYMTAB_NONE,
+    SYMTAB_EXTERN = 0x01,          // Symbol has external linkage
+};
 
-
-enum SYMTAB_KIND {
-    SYMTAB_VAR,
-    SYMTAB_LABEL,
+enum IDENTIFIER_KIND {
+    IDENTIFIER_ID,
+    IDENTIFIER_LABEL,
 };
 
 extern void symtab_init(void);
 
-extern const char* add_symbol(enum SYMTAB_KIND kind, const char* source_name);
-extern const char* resolve_symbol(enum SYMTAB_KIND kind, const char* source_name);
+extern const char *add_identifier(enum IDENTIFIER_KIND kind, const char *source_name, enum SYMTAB_FLAGS flags);
+extern const char *resolve_identifier(enum IDENTIFIER_KIND kind, const char *source_name, enum SYMTAB_FLAGS *pFlags);
 
-extern void push_symtab_context(int is_function_context);
-extern void pop_symtab_context(void);
+extern void push_id_context(int is_function_context);
+extern void pop_id_context(void);
 
 
 /**

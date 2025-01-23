@@ -21,17 +21,12 @@ struct LoopLabelContext {
 
 
 static void analyze_function(const struct CFunction *function);
-
 static void resolve_block(const struct CBlock *block);
-
 static void resolve_statement(const struct CStatement *statement);
-
 static void resolve_goto(const struct CStatement *statement);
-
 static void resolve_vardecl(struct CVarDecl *vardecl);
-
+static void resolve_funcdecl(struct CFunction *function, int isExtern);
 static void label_block_loops(const struct CBlock *block, struct LoopLabelContext context);
-
 static void label_statement_loops(struct CStatement *statement, struct LoopLabelContext context);
 
 void semantic_analysis(const struct CProgram *program) {
@@ -43,19 +38,27 @@ void semantic_analysis(const struct CProgram *program) {
 }
 
 static void analyze_function(const struct CFunction *function) {
-    if (!function || !function->body) return;
-    resolve_block(function->body);
-    label_block_loops(function->body, (struct LoopLabelContext){0});
+    if (!function) return;
+    resolve_funcdecl(function, 1);
+    if (function->body) {
+        label_block_loops(function->body, (struct LoopLabelContext) {0});
+    }
 }
 
 static void resolve_block(const struct CBlock *block) {
-    push_symtab_context(block->is_function_block);
+    push_id_context(block->is_function_block);
     for (int ix = 0; ix < block->items.num_items; ix++) {
         struct CBlockItem *bi = block->items.items[ix];
-        if (bi->kind == AST_BI_STATEMENT) {
-            resolve_statement(bi->statement);
-        } else {
-            resolve_vardecl(bi->vardecl);
+        switch( bi->kind ) {
+            case AST_BI_STATEMENT:
+                resolve_statement(bi->statement);
+                break;
+            case AST_BI_VAR_DECL:
+                resolve_vardecl(bi->vardecl);
+                break;
+            case AST_BI_FUNC_DECL:
+                resolve_funcdecl(bi->funcdecl, 1);
+                break;
         }
     }
     if (block->is_function_block) {
@@ -66,29 +69,29 @@ static void resolve_block(const struct CBlock *block) {
             }
         }
     }
-    pop_symtab_context();
+    pop_id_context();
 }
 
 static const char *resolve_label(const char *source_name) {
-    return resolve_symbol(SYMTAB_LABEL, source_name);
+    return resolve_identifier(IDENTIFIER_LABEL, source_name, NULL);
 }
 
 static const char *resolve_var(const char *source_name) {
-    return resolve_symbol(SYMTAB_VAR, source_name);
+    return resolve_identifier(IDENTIFIER_ID, source_name, NULL);
 }
 
-static void resolve_exp(struct CExpression *exp) {
+static void resolve_expression(struct CExpression *exp) {
     if (!exp) return;
     const char *mapped_name;
     switch (exp->kind) {
         case AST_EXP_CONST:
             break;
         case AST_EXP_UNOP:
-            resolve_exp(exp->unary.operand);
+            resolve_expression(exp->unary.operand);
             break;
         case AST_EXP_BINOP:
-            resolve_exp(exp->binary.left);
-            resolve_exp(exp->binary.right);
+            resolve_expression(exp->binary.left);
+            resolve_expression(exp->binary.right);
             break;
         case AST_EXP_VAR:
             mapped_name = resolve_var(exp->var.source_name);
@@ -115,7 +118,7 @@ static void resolve_exp(struct CExpression *exp) {
                 printf("resolving %s as %s\n", exp->assign.dst->var.name, mapped_name);
             }
             exp->assign.dst->var.name = mapped_name;
-            resolve_exp(exp->assign.src);
+            resolve_expression(exp->assign.src);
             break;
         case AST_EXP_INCREMENT:
             if (exp->increment.operand->kind != AST_EXP_VAR) {
@@ -133,24 +136,51 @@ static void resolve_exp(struct CExpression *exp) {
             exp->increment.operand->var.name = mapped_name;
             break;
         case AST_EXP_CONDITIONAL:
-            resolve_exp(exp->conditional.left_exp);
-            resolve_exp(exp->conditional.middle_exp);
-            resolve_exp(exp->conditional.right_exp);
+            resolve_expression(exp->conditional.left_exp);
+            resolve_expression(exp->conditional.middle_exp);
+            resolve_expression(exp->conditional.right_exp);
+            break;
+        case AST_EXP_FUNCTION_CALL:
+            mapped_name = resolve_var(exp->function_call.func.source_name);
+            if (!mapped_name) {
+                printf("Error: function %s has not been declared\n", exp->function_call.func.name);
+                exit(1);
+            }
+            exp->function_call.func.name = mapped_name;
+            for (int ix = 0; ix < exp->function_call.args.num_items; ix++) {
+                resolve_expression(exp->function_call.args.items[ix]);
+            }
             break;
     }
 }
 
-static void uniquify_thing(struct CIdentifier *var, enum SYMTAB_KIND kind) {
-    const char *uniquified = add_symbol(kind, var->source_name);
+static void uniquify_thing(struct CIdentifier *var, enum IDENTIFIER_KIND kind, int isExtern) {
+    const char *uniquified = add_identifier(kind, var->source_name, isExtern?SYMTAB_EXTERN:SYMTAB_NONE);
     var->name = uniquified;
 }
 
 static void uniquify_variable(struct CIdentifier *var) {
-    uniquify_thing(var, SYMTAB_VAR);
+    uniquify_thing(var, IDENTIFIER_ID, 0);
 }
 
 static void uniquify_label(struct CIdentifier *var) {
-    uniquify_thing(var, SYMTAB_LABEL);
+    uniquify_thing(var, IDENTIFIER_LABEL, 0);
+}
+
+static void resolve_funcdecl(struct CFunction *function, int isExtern) {
+    // Doesn't decorate, just makes sure it doesn't collide with a non-extern.
+    struct CIdentifier function_id = {function->name, function->name};
+    uniquify_thing(&function_id, IDENTIFIER_ID, 1);
+
+    if (function->body) {
+        // Any parameters are in the same scope as function block declarations.
+        push_id_context(1);
+        for (int ix = 0; ix < function->params.num_items; ix++) {
+            uniquify_variable(&function->params.items[ix]);
+        }
+        resolve_block(function->body);
+        pop_id_context();
+    }
 }
 
 static void resolve_vardecl(struct CVarDecl *vardecl) {
@@ -158,16 +188,16 @@ static void resolve_vardecl(struct CVarDecl *vardecl) {
     uniquify_variable(&vardecl->var);
     // Update the initializer, if there is one.
     if (vardecl->initializer) {
-        resolve_exp(vardecl->initializer);
+        resolve_expression(vardecl->initializer);
     }
 }
 
-static void resolve_for_init(struct CForInit *for_init) {
+static void resolve_forinit(struct CForInit *for_init) {
     if (!for_init) return;
     if (for_init->kind == FOR_INIT_DECL) {
         resolve_vardecl(for_init->vardecl);
     } else {
-        resolve_exp(for_init->expression);
+        resolve_expression(for_init->expression);
     }
 }
 
@@ -185,15 +215,15 @@ static void resolve_statement(const struct CStatement *statement) {
     switch (statement->kind) {
         case STMT_RETURN:
         case STMT_AUTO_RETURN:
-            resolve_exp(statement->expression);
+            resolve_expression(statement->expression);
             break;
         case STMT_EXP:
-            resolve_exp(statement->expression);
+            resolve_expression(statement->expression);
             break;
         case STMT_NULL:
             break;
         case STMT_IF:
-            resolve_exp(statement->if_statement.condition);
+            resolve_expression(statement->if_statement.condition);
             resolve_statement(statement->if_statement.then_statement);
             resolve_statement(statement->if_statement.else_statement);
             break;
@@ -207,20 +237,20 @@ static void resolve_statement(const struct CStatement *statement) {
         case STMT_CONTINUE:
             break;
         case STMT_FOR:
-            push_symtab_context(0);
-            resolve_for_init(statement->for_statement.init);
-            resolve_exp(statement->for_statement.condition);
-            resolve_exp(statement->for_statement.post);
+            push_id_context(0);
+            resolve_forinit(statement->for_statement.init);
+            resolve_expression(statement->for_statement.condition);
+            resolve_expression(statement->for_statement.post);
             resolve_statement(statement->for_statement.body);
-            pop_symtab_context();
+            pop_id_context();
             break;
         case STMT_SWITCH:
-            resolve_exp(statement->switch_statement.expression);
+            resolve_expression(statement->switch_statement.expression);
             resolve_statement(statement->switch_statement.body);
             break;
         case STMT_WHILE:
         case STMT_DOWHILE:
-            resolve_exp(statement->while_or_do_statement.condition);
+            resolve_expression(statement->while_or_do_statement.condition);
             resolve_statement(statement->while_or_do_statement.body);
             break;
     }

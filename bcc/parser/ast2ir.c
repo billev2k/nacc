@@ -37,7 +37,7 @@ struct IrProgram *ast2ir(const struct CProgram *cProgram) {
 }
 
 static void compile_block(const struct list_of_CBlockItem *block, struct IrFunction *irFunction) {
-    //    push_symtab_context();
+    //    push_id_context();
     for (int ix = 0; ix < block->num_items; ix++) {
         struct CBlockItem *bi = block->items[ix];
         if (bi->kind == AST_BI_STATEMENT) {
@@ -46,7 +46,7 @@ static void compile_block(const struct list_of_CBlockItem *block, struct IrFunct
             compile_vardecl(bi->vardecl, irFunction);
         }
     }
-    //    pop_symtab_context();
+    //    pop_id_context();
 }
 
 struct IrFunction *compile_function(const struct CFunction *cFunction) {
