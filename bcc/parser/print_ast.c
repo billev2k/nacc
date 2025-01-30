@@ -29,12 +29,13 @@ static void print_ast_funcdecl(const struct CFunction *function) {
     } else {
         for (int ix = 0; ix < function->params.num_items; ix++) {
             if (ix > 0) printf(", ");
-            printf("int %s", function->params.items[ix].source_name);
+            printf("int %s(%s)", function->params.items[ix].name, function->params.items[ix].source_name);
         }
     }
     if (!function->body) {
         printf(");\n");
     } else {
+        printf(") ");
         print_ast_block(function->body, 0);
     }
 }
@@ -81,6 +82,7 @@ static void print_ast_block(const struct CBlock *block, int depth) {
                 printf(";\n");
                 break;
             case AST_BI_FUNC_DECL:
+                indent4(depth);
                 print_ast_funcdecl(bi->funcdecl);
                 break;
         }
@@ -187,8 +189,8 @@ static void print_ast_statement(struct CStatement *statement, int depth) {
 static int expression_needs_parens(const struct CExpression *pExpression) {
     assert(pExpression->kind == AST_EXP_BINOP);
     int this_precedence = AST_BINARY_PRECEDENCE[pExpression->kind];
-    if (pExpression->binary.left->kind == AST_EXP_BINOP && AST_BINARY_PRECEDENCE[pExpression->binary.left->kind] < this_precedence) {return 1;}
-    if (pExpression->binary.right->kind == AST_EXP_BINOP && AST_BINARY_PRECEDENCE[pExpression->binary.right->kind] < this_precedence) {return 1;}
+    if (pExpression->binop.left->kind == AST_EXP_BINOP && AST_BINARY_PRECEDENCE[pExpression->binop.left->kind] < this_precedence) {return 1;}
+    if (pExpression->binop.right->kind == AST_EXP_BINOP && AST_BINARY_PRECEDENCE[pExpression->binop.right->kind] < this_precedence) {return 1;}
     return 0;
 }
 
@@ -201,7 +203,7 @@ static void print_ast_expression(const struct CExpression *expression, int depth
             printf("%d", expression->literal.int_val);
             break;
         case AST_EXP_UNOP:
-            // Is the target of the unary operator a binary operation? If so, parenthesize.
+            // Is the target of the unary operator a binop operation? If so, parenthesize.
             has_binop = expression->unary.operand->kind == AST_EXP_BINOP;
             printf("%s", AST_UNARY_NAMES[expression->unary.op]);
             if (has_binop) { printf("("); }
@@ -211,9 +213,9 @@ static void print_ast_expression(const struct CExpression *expression, int depth
         case AST_EXP_BINOP:
             needs_parens = expression_needs_parens(expression);
             if (needs_parens) printf("(");
-            print_ast_expression(expression->binary.left, depth + 1);
-            printf(" %s ", AST_BINARY_NAMES[expression->binary.op]);
-            print_ast_expression(expression->binary.right, depth + 1);
+            print_ast_expression(expression->binop.left, depth + 1);
+            printf(" %s ", AST_BINARY_NAMES[expression->binop.op]);
+            print_ast_expression(expression->binop.right, depth + 1);
             if (needs_parens) printf(")");
             break;
         case AST_EXP_VAR:

@@ -4,6 +4,8 @@
 
 #include <stdlib.h>
 #include <string.h>
+#include <stdio.h>
+#include <stdarg.h>
 #include "utils.h"
 
 unsigned long hash_str(const char *str)
@@ -20,6 +22,20 @@ unsigned long hash_str(const char *str)
 
 int long_is_zero(long l) {
     return l == 0;
+}
+
+void fail(const char* msg) {
+    fprintf(stderr, "Fail: %s\n", msg);
+    exit(1);
+}
+void failf(const char* fmt, ...) {
+    fputs("Fail: ", stderr);
+    va_list args;
+    va_start(args, fmt);
+    vfprintf(stderr, fmt, args);
+    va_end(args);
+    fputc('\n', stderr);
+    exit(1);
 }
 
 int next_uniquifier(void) {

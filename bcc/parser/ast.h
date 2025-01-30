@@ -223,7 +223,7 @@ struct CExpression {
             enum AST_BINARY_OP op;
             struct CExpression *left;
             struct CExpression *right;
-        } binary;
+        } binop;
         struct {
             enum AST_CONST_TYPE type;
             union {
@@ -258,7 +258,7 @@ extern struct CExpression* c_expression_new_function_call(struct CIdentifier fun
 extern struct CExpression* c_expression_new_increment(enum AST_INCREMENT_OP op, struct CExpression* operand);
 extern struct CExpression* c_expression_new_unop(enum AST_UNARY_OP op, struct CExpression* operand);
 extern struct CExpression* c_expression_new_var(const char* name);
-extern void c_expression_function_call_add_arg(struct CExpression* call, struct CExpression* arg);
+extern void c_expression_function_call_add_arg(struct CExpression* call_expr, struct CExpression* arg);
 extern struct CExpression* c_expression_clone(const struct CExpression* expression);
 extern void c_expression_free(struct CExpression *expression);
 //endregion CExpression

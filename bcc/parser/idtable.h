@@ -2,27 +2,24 @@
 // Created by Bill Evans on 12/5/24.
 //
 
-#ifndef BCC_SYMTAB_H
-#define BCC_SYMTAB_H
+#ifndef BCC_IDTABLE_H
+#define BCC_IDTABLE_H
 
-enum SYMTAB_FLAGS {
-    SYMTAB_NONE,
-    SYMTAB_EXTERN = 0x01,          // Symbol has external linkage
-};
+#include "ast.h"
+#include "symtable.h"
 
 enum IDENTIFIER_KIND {
     IDENTIFIER_ID,
     IDENTIFIER_LABEL,
 };
 
-extern void symtab_init(void);
+extern void idtable_init(void);
 
 extern const char *add_identifier(enum IDENTIFIER_KIND kind, const char *source_name, enum SYMTAB_FLAGS flags);
 extern const char *resolve_identifier(enum IDENTIFIER_KIND kind, const char *source_name, enum SYMTAB_FLAGS *pFlags);
 
 extern void push_id_context(int is_function_context);
 extern void pop_id_context(void);
-
 
 /**
  * Returns a monotonically increasing number, starting with 0.
@@ -41,4 +38,4 @@ extern int next_uniquifier(void);
 */
 extern const char* uniquify_name(const char* fmt, const char* context);
 
-#endif //BCC_SYMTAB_H
+#endif //BCC_IDTABLE_H

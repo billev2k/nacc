@@ -122,7 +122,7 @@ struct IrInstruction {
         } comment;
     };
 };
-extern struct IrInstruction* ir_instruction_new_var(struct IrValue var);
+extern struct IrInstruction* ir_instruction_new_var(struct IrValue value);
 extern struct IrInstruction* ir_instruction_new_ret(struct IrValue value);
 extern struct IrInstruction *ir_instruction_new_unary(enum IR_UNARY_OP op, struct IrValue src, struct IrValue dst);
 extern struct IrInstruction *ir_instruction_new_binary(enum IR_BINARY_OP op, struct IrValue src1, struct IrValue src2, struct IrValue dst);

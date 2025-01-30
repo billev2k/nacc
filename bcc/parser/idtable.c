@@ -6,7 +6,8 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <assert.h>
-#include "symtab.h"
+#include "idtable.h"
+#include "symtable.h"
 #include "../utils/utils.h"
 #include "../utils/startup.h"
 
@@ -51,31 +52,31 @@ struct set_of_identifier_item_helpers set_of_identifier_item_helpers = {
 #undef NAME
 #undef TYPE
 
-// A scoped symbol table. 'prev' points to any containing scope.
-struct symbol_table {
-    struct symbol_table* prev;
-    struct set_of_identifier_item symbols;
+// A scoped identifier table. 'prev' points to any containing scope.
+struct identifier_table {
+    struct identifier_table* prev;
+    struct set_of_identifier_item ids;
 };
-struct symbol_table* symbol_table_new(struct symbol_table* prev) {
-    struct symbol_table* table = malloc(sizeof(struct symbol_table));
+struct identifier_table* symbol_table_new(struct identifier_table* prev) {
+    struct identifier_table* table = malloc(sizeof(struct identifier_table));
     table->prev = prev;
-    set_of_identifier_item_init(&table->symbols, 5);
+    set_of_identifier_item_init(&table->ids, 5);
     return table;
 }
-void symbol_table_free(struct symbol_table* table) {
-    set_of_identifier_item_free(&table->symbols);
+void identifier_table_free(struct identifier_table* table) {
+    set_of_identifier_item_free(&table->ids);
     free(table);
 }
 
 // The complete, segmented symbol table, as a linked list. Each prev-> is a containing scope.
-struct symbol_table* symbol_table = NULL;
-struct symbol_table* function_symbol_table = NULL;
+struct identifier_table* identifier_table = NULL;
+struct identifier_table* function_identifier_table = NULL;
 
 // This holds long-lifetime strings, for the mapped variable names, like "a.0".
 struct set_of_str mapped_vars;
 
-void symtab_init() {
-    symbol_table = symbol_table_new(NULL);
+void idtable_init() {
+    identifier_table = symbol_table_new(NULL);
     set_of_str_init(&mapped_vars, 101);
 }
 
@@ -90,11 +91,11 @@ static const char* tag_for(enum IDENTIFIER_KIND kind) {
 
 static struct set_of_identifier_item* symtab_for(enum IDENTIFIER_KIND kind) {
     if (kind == IDENTIFIER_ID) {
-        assert(symbol_table != NULL);
-        return &symbol_table->symbols;
+        assert(identifier_table != NULL);
+        return &identifier_table->ids;
     } else if (kind == IDENTIFIER_LABEL) {
-        assert(function_symbol_table != NULL);
-        return &function_symbol_table->symbols;
+        assert(function_identifier_table != NULL);
+        return &function_identifier_table->ids;
     } else
         assert("Unknown symbol kind" && 0);
 }
@@ -140,7 +141,7 @@ const char *add_identifier(enum IDENTIFIER_KIND kind, const char *source_name, e
 }
 const char *resolve_identifier(enum IDENTIFIER_KIND kind, const char *source_name, enum SYMTAB_FLAGS *pFlags) {
 //    const char* tag = tag_for(kind);
-    struct symbol_table* table = symbol_table;
+    struct identifier_table* table = identifier_table;
     struct set_of_identifier_item* symbols = symtab_for(kind);
     // The key for find()
     struct identifier_item item = {
@@ -162,7 +163,7 @@ const char *resolve_identifier(enum IDENTIFIER_KIND kind, const char *source_nam
         // Not found, look in containing scope.
         table = table->prev;
         if (table) {
-            symbols = &table->symbols;
+            symbols = &table->ids;
         }
     } while (table != NULL);
     return NULL;
@@ -170,19 +171,19 @@ const char *resolve_identifier(enum IDENTIFIER_KIND kind, const char *source_nam
 
 void push_id_context(int is_function_context) {
     printf("push_id_context: %s function context\n", is_function_context?"":"not ");
-    symbol_table = symbol_table_new(symbol_table);
+    identifier_table = symbol_table_new(identifier_table);
     if (is_function_context) {
-        function_symbol_table = symbol_table;
+        function_identifier_table = identifier_table;
     }
 }
 
 void pop_id_context(void) {
     printf("pop_id_context\n");
-    struct symbol_table* old = symbol_table;
-    symbol_table = old->prev;
-    symbol_table_free(old);
-    if (old == function_symbol_table) {
-        function_symbol_table = NULL;
+    struct identifier_table* old = identifier_table;
+    identifier_table = old->prev;
+    identifier_table_free(old);
+    if (old == function_identifier_table) {
+        function_identifier_table = NULL;
     }
 }
 

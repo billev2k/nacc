@@ -110,9 +110,9 @@ struct CExpression* c_expression_new_assign(struct CExpression* src, struct CExp
 }
 struct CExpression* c_expression_new_binop(enum AST_BINARY_OP op, struct CExpression* left, struct CExpression* right) {
     struct CExpression* expression = c_expression_new(AST_EXP_BINOP);
-    expression->binary.op = op;
-    expression->binary.left = left;
-    expression->binary.right = right;
+    expression->binop.op = op;
+    expression->binop.left = left;
+    expression->binop.right = right;
     return expression;
 }
 struct CExpression* c_expression_new_conditional(struct CExpression* left_exp, struct CExpression* middle_exp, struct CExpression* right_exp) {
@@ -152,20 +152,20 @@ struct CExpression* c_expression_new_var(const char* name) {
     expression->var.source_name = name;
     return expression;
 }
-void c_expression_function_call_add_arg(struct CExpression* expression, struct CExpression* arg) {
-    if (expression->kind != AST_EXP_FUNCTION_CALL) {
+void c_expression_function_call_add_arg(struct CExpression* call_expr, struct CExpression* arg) {
+    if (call_expr->kind != AST_EXP_FUNCTION_CALL) {
         fprintf(stderr, "Error: c_expression_function_call_add_arg called on non-function call expression\n");
         exit(1);
     }
-    list_of_CExpression_append(&expression->function_call.args, arg);
+    list_of_CExpression_append(&call_expr->function_call.args, arg);
 }
 struct CExpression* c_expression_clone(const struct CExpression* expression) {
     struct CExpression* clone = c_expression_new(expression->kind);
     switch (expression->kind) {
         case AST_EXP_BINOP:
-            clone->binary.op = expression->binary.op;
-            if (expression->binary.left) clone->binary.left = c_expression_clone(expression->binary.left);
-            if (expression->binary.right) clone->binary.right = c_expression_clone(expression->binary.right);
+            clone->binop.op = expression->binop.op;
+            if (expression->binop.left) clone->binop.left = c_expression_clone(expression->binop.left);
+            if (expression->binop.right) clone->binop.right = c_expression_clone(expression->binop.right);
             break;
         case AST_EXP_CONST:
             clone->literal.type = expression->literal.type;
@@ -207,8 +207,8 @@ void c_expression_free(struct CExpression *expression) {
     if (traceAstMem) printf("Free expression @ %p\n", expression);
     switch (expression->kind) {
         case AST_EXP_BINOP:
-            if (expression->binary.left) c_expression_free(expression->binary.left);
-            if (expression->binary.right) c_expression_free(expression->binary.right);
+            if (expression->binop.left) c_expression_free(expression->binop.left);
+            if (expression->binop.right) c_expression_free(expression->binop.right);
             break;
         case AST_EXP_CONST:
             // Nothing to do; strings owned by global string table.
@@ -557,11 +557,6 @@ struct CProgram* c_program_new(void) {
     return result;
 }
 enum AST_RESULT c_program_add_func(struct CProgram* program, struct CFunction* function) {
-    for (int i = 0; i < program->functions.num_items; i++) {
-        if (strcmp(program->functions.items[i]->name, function->name) == 0) {
-            return AST_DUPLICATE;
-        }
-    }
     list_of_CFunction_append(&program->functions, function);
     return AST_OK;
 }

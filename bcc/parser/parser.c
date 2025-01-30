@@ -45,7 +45,6 @@ static struct CExpression * parse_expression(int minimum_precedence);
 static struct CExpression * parse_factor(void);
 
 static struct Token expect(enum TK expected);
-static void fail(const char * msg);
 
 struct CProgram * c_program_parse(void) {
     struct CProgram *program = parse_program();
@@ -355,8 +354,7 @@ static int get_binop_precedence(struct Token token) {
 static enum AST_BINARY_OP parse_binop() {
     struct Token token = lex_take_token();
     if (!TK_IS_BINOP(token.token)) {
-        fprintf(stderr, "Expected binary-op but got %s\n", token.text);
-        exit(1);
+        failf("Expected binop-op but got %s", token.text);
     }
     enum AST_BINARY_OP binop = TK_GET_BINOP(token.token);
     return binop;
@@ -400,7 +398,7 @@ struct CExpression *parse_expression(int minimum_precedence) {
                 // simple assignment; assign right_exp to lvalue_exp.
                 left_exp = c_expression_new_assign(right_exp, left_exp);
             } else {
-                // compound assignment; perform binary op on lvalue_exp op right_exp, then assign result to lvalue_exp
+                // compound assignment; perform binop op on lvalue_exp op right_exp, then assign result to lvalue_exp
                 struct CExpression* op_result_exp = c_expression_new_binop(binary_op, c_expression_clone(left_exp), right_exp);
                 left_exp = c_expression_new_assign(op_result_exp, left_exp);
             }
@@ -458,7 +456,7 @@ static struct CExpression* parse_factor() {
     }
     else {
         result = NULL;
-        fail("Malformed factor");
+        failf("Malformed factor, token = '%s'", next_token.text);
     }
     next_token = lex_peek_token();
     while (next_token.token == TK_INCREMENT || next_token.token == TK_DECREMENT) {
@@ -472,18 +470,9 @@ static struct CExpression* parse_factor() {
 static struct Token expect(enum TK expected) {
     struct Token next = lex_take_token();
     if (next.token != expected) {
-        fprintf(stderr, "Expected %s but got %s\n", lex_token_name(expected), next.text);
-        exit(1);
+        failf("Expected %s but got %s", lex_token_name(expected), next.text);
     }
     return next;
 }
-
-#pragma clang diagnostic push
-#pragma ide diagnostic ignored "ConstantParameter"
-static void fail(const char * msg) {
-    fprintf(stderr, "Fail: %s\n", msg);
-    exit(1);
-}
-#pragma clang diagnostic pop
 
 #pragma clang diagnostic pop

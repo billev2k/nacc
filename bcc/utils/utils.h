@@ -10,6 +10,9 @@
 extern unsigned long hash_str(const char *str);
 extern int long_is_zero(long l);
 
+extern void fail(const char* msg);
+extern void failf(const char* fmt, ...);
+
 extern int next_uniquifier(void);
 
 #define NAME set_of_str

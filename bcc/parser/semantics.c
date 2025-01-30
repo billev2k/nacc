@@ -10,7 +10,8 @@
 #include <assert.h>
 #include "ast.h"
 #include "semantics.h"
-#include "symtab.h"
+#include "idtable.h"
+#include "symtable.h"
 #include "../utils/startup.h"
 
 struct LoopLabelContext {
@@ -20,7 +21,7 @@ struct LoopLabelContext {
 };
 
 
-static void analyze_function(const struct CFunction *function);
+static void analyze_function(struct CFunction *function);
 static void resolve_block(const struct CBlock *block);
 static void resolve_statement(const struct CStatement *statement);
 static void resolve_goto(const struct CStatement *statement);
@@ -29,15 +30,23 @@ static void resolve_funcdecl(struct CFunction *function, int isExtern);
 static void label_block_loops(const struct CBlock *block, struct LoopLabelContext context);
 static void label_statement_loops(struct CStatement *statement, struct LoopLabelContext context);
 
+static void typecheck_program(const struct CProgram *program);
+static void typecheck_function(struct CFunction *function);
+static void typecheck_block(struct CBlock* block);
+static void typecheck_statement(const struct CStatement *statement);
+static void typecheck_vardecl(struct CVarDecl *vardecl);
+static void typecheck_expression(struct CExpression *exp);
+
 void semantic_analysis(const struct CProgram *program) {
     symtab_init();
     struct CFunction** functions = program->functions.items;
     for (int ix=0; ix<program->functions.num_items; ix++) {
         analyze_function(program->functions.items[ix]);
     }
+    typecheck_program(program);
 }
 
-static void analyze_function(const struct CFunction *function) {
+static void analyze_function(struct CFunction *function) {
     if (!function) return;
     resolve_funcdecl(function, 1);
     if (function->body) {
@@ -46,7 +55,6 @@ static void analyze_function(const struct CFunction *function) {
 }
 
 static void resolve_block(const struct CBlock *block) {
-    push_id_context(block->is_function_block);
     for (int ix = 0; ix < block->items.num_items; ix++) {
         struct CBlockItem *bi = block->items.items[ix];
         switch( bi->kind ) {
@@ -57,6 +65,9 @@ static void resolve_block(const struct CBlock *block) {
                 resolve_vardecl(bi->vardecl);
                 break;
             case AST_BI_FUNC_DECL:
+                if (bi->funcdecl->body) {
+                    failf("Nested function definitions are not supported: %s\n", bi->funcdecl->name);
+                }
                 resolve_funcdecl(bi->funcdecl, 1);
                 break;
         }
@@ -69,7 +80,6 @@ static void resolve_block(const struct CBlock *block) {
             }
         }
     }
-    pop_id_context();
 }
 
 static const char *resolve_label(const char *source_name) {
@@ -90,8 +100,8 @@ static void resolve_expression(struct CExpression *exp) {
             resolve_expression(exp->unary.operand);
             break;
         case AST_EXP_BINOP:
-            resolve_expression(exp->binary.left);
-            resolve_expression(exp->binary.right);
+            resolve_expression(exp->binop.left);
+            resolve_expression(exp->binop.right);
             break;
         case AST_EXP_VAR:
             mapped_name = resolve_var(exp->var.source_name);
@@ -231,7 +241,9 @@ static void resolve_statement(const struct CStatement *statement) {
             // Not handled here; separate pass, after all labels in function have been found.
             break;
         case STMT_COMPOUND:
+            push_id_context(0);
             resolve_block(statement->compound);
+            pop_id_context();
             break;
         case STMT_BREAK:
         case STMT_CONTINUE:
@@ -404,5 +416,180 @@ static void label_statement_loops(struct CStatement *statement, struct LoopLabel
         }
     }
 }
+
+void typecheck_program(const struct CProgram *program) {
+    for (int ix=0; ix<program->functions.num_items; ix++) {
+        typecheck_function(program->functions.items[ix]);
+    }
+}
+void typecheck_block(struct CBlock* block) {
+    for (int ix = 0; ix < block->items.num_items; ix++) {
+        struct CBlockItem *bi = block->items.items[ix];
+        switch (bi->kind) {
+            case AST_BI_STATEMENT:
+                typecheck_statement(bi->statement);
+                break;
+            case AST_BI_VAR_DECL:
+                typecheck_vardecl(bi->vardecl);
+                break;
+            case AST_BI_FUNC_DECL:
+                typecheck_function(bi->funcdecl);
+                break;
+        }
+    }
+}
+void typecheck_expression(struct CExpression *exp) {
+    if (!exp) return;
+    struct Symbol symbol;
+    switch (exp->kind) {
+        case AST_EXP_FUNCTION_CALL:
+            if (find_symbol(exp->var, &symbol) == SYMTAB_OK) {
+                if (!(symbol.flags & SYMTAB_FUNC)) {
+                    failf("Non function used as function: %s", exp->var.name);
+                }
+                if (symbol.num_params != exp->function_call.args.num_items) {
+                    failf("Function %s called with %d arguments, but %d expected",
+                           exp->var.name, exp->function_call.args.num_items, symbol.num_params);
+                }
+                for (int ix = 0; ix < exp->function_call.args.num_items; ix++) {
+                    typecheck_expression(exp->function_call.args.items[ix]);
+                }
+            } else {
+                failf("(Internal) Function not found in symbol table: %s", exp->var.name);
+            }
+            break;
+        case AST_EXP_VAR:
+            if (find_symbol(exp->var, &symbol) == SYMTAB_OK) {
+                if (!(symbol.flags & SYMTAB_VAR)) {
+                    failf("Non variable used as variable: %s", exp->var.name);
+                }
+            } else {
+                failf("(Internal) Variable not found in symbol table: %s", exp->var.name);
+            }
+            break;
+        case AST_EXP_ASSIGNMENT:
+            typecheck_expression(exp->assign.dst);
+            typecheck_expression(exp->assign.src);
+            break;
+        case AST_EXP_BINOP:
+            typecheck_expression(exp->binop.left);
+            typecheck_expression(exp->binop.right);
+            break;
+        case AST_EXP_CONDITIONAL:
+            typecheck_expression(exp->conditional.left_exp);
+            typecheck_expression(exp->conditional.middle_exp);
+            typecheck_expression(exp->conditional.right_exp);
+            break;
+        case AST_EXP_CONST:
+            // We only have integer constants at this time, so nothing to check.
+            break;
+        case AST_EXP_INCREMENT:
+            typecheck_expression(exp->increment.operand);
+            break;
+        case AST_EXP_UNOP:
+            typecheck_expression(exp->unary.operand);
+            break;
+    }
+}
+void typecheck_forinit(struct CForInit *for_init) {
+    if (!for_init) return;
+    switch (for_init->kind) {
+        case FOR_INIT_DECL:
+            typecheck_vardecl(for_init->vardecl);
+        case FOR_INIT_EXPR:
+            typecheck_expression(for_init->expression);
+            break;
+    }
+}
+void typecheck_function(struct CFunction *function) {
+    if (!function) return;
+    int num_params = function->params.num_items;
+    int has_body = function->body != NULL;
+    int func_defined = 0;
+
+    struct CIdentifier function_id = {function->name, function->name};
+    struct Symbol symbol;
+    if (find_symbol(function_id, &symbol) == SYMTAB_OK) {
+        if (symbol.flags & SYMTAB_VAR) {
+            failf("Incompatible function/var declarations: %s", function->name);
+        }
+        func_defined = symbol.flags & SYMTAB_FUNC_DEFINED ? 1 : 0;
+        if (func_defined && has_body) {
+            failf("Function %s already defined", function->name);
+        }
+        if (num_params != symbol.num_params) {
+            failf("Incompatible function declarations for %s; %d vs %d params", function->name, num_params, symbol.num_params);
+        }
+    }
+    symbol = (struct Symbol) {
+        // We don't yet support "static", so all functions are "extern"
+        .flags = SYMTAB_FUNC | SYMTAB_EXTERN | ((func_defined || has_body) ? SYMTAB_FUNC_DEFINED : 0),
+        .identifier = function_id,
+        .num_params = function->params.num_items,
+    };
+    upsert_symbol(symbol);
+    if (has_body) {
+        // Add decorated param names to symbol table. They've been uniquified, so no collisions.
+        for (int ix = 0; ix < function->params.num_items; ix++) {
+            symbol = (struct Symbol) {
+                .flags = SYMTAB_VAR,
+                .identifier = function->params.items[ix],
+            };
+            add_symbol(symbol);
+        }
+        typecheck_block(function->body);
+    }
+}
+void typecheck_statement(const struct CStatement *statement) {
+    if (!statement) return;
+    switch (statement->kind) {
+        case STMT_RETURN:
+        case STMT_AUTO_RETURN:
+            typecheck_expression(statement->expression);
+            break;
+        case STMT_EXP:
+            typecheck_expression(statement->expression);
+            break;
+        case STMT_COMPOUND:
+            typecheck_block(statement->compound);
+            break;
+        case STMT_WHILE:
+        case STMT_DOWHILE:
+            typecheck_expression(statement->while_or_do_statement.condition);
+            typecheck_statement(statement->while_or_do_statement.body);
+            break;
+        case STMT_FOR:
+            typecheck_forinit(statement->for_statement.init);
+            typecheck_expression(statement->for_statement.condition);
+            typecheck_expression(statement->for_statement.post);
+            typecheck_statement(statement->for_statement.body);
+            break;
+        case STMT_IF:
+            typecheck_expression(statement->if_statement.condition);
+            typecheck_statement(statement->if_statement.then_statement);
+            typecheck_statement(statement->if_statement.else_statement);
+            break;
+        case STMT_SWITCH:
+            typecheck_expression(statement->switch_statement.expression);
+            typecheck_statement(statement->switch_statement.body);
+            break;
+        case STMT_BREAK:
+        case STMT_CONTINUE:
+        case STMT_GOTO:
+        case STMT_NULL:
+            break;
+    }
+}
+void typecheck_vardecl(struct CVarDecl *vardecl) {
+    struct Symbol symbol = {
+            .flags = SYMTAB_VAR,
+            .identifier = vardecl->var,
+    };
+    add_symbol(symbol);
+    if (vardecl->initializer) {
+        typecheck_expression(vardecl->initializer);
+    }
+}
+
 
 #pragma clang diagnostic pop

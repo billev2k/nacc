@@ -31,8 +31,11 @@ add_executable(bcc main.c
         amd64/emit_amd64.c
         parser/semantics.c
         parser/semantics.h
-        parser/symtab.c
-        parser/symtab.h
+        parser/idtable.c
+        parser/idtable.h
+        parser/symtable.c
+        parser/symtable.h
+        parser/symtable.c
 )
 
 add_executable(bcc_test SetOfItemTest.c

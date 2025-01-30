@@ -383,6 +383,7 @@ enum TK numericToken(void) {
     return TK_LITERAL;
 }
 
+extern struct set_of_str token_strings;
 struct set_of_str token_strings;
 /**
  * Initialize the set of token_text strings.

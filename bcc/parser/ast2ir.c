@@ -7,7 +7,7 @@
 #include <stdlib.h>
 #include "ast.h"
 #include "ast2ir.h"
-#include "symtab.h"
+#include "idtable.h"
 
 static void tmp_vars_init(void);
 
@@ -37,7 +37,6 @@ struct IrProgram *ast2ir(const struct CProgram *cProgram) {
 }
 
 static void compile_block(const struct list_of_CBlockItem *block, struct IrFunction *irFunction) {
-    //    push_id_context();
     for (int ix = 0; ix < block->num_items; ix++) {
         struct CBlockItem *bi = block->items[ix];
         if (bi->kind == AST_BI_STATEMENT) {
@@ -46,7 +45,6 @@ static void compile_block(const struct list_of_CBlockItem *block, struct IrFunct
             compile_vardecl(bi->vardecl, irFunction);
         }
     }
-    //    pop_id_context();
 }
 
 struct IrFunction *compile_function(const struct CFunction *cFunction) {
@@ -331,7 +329,7 @@ struct IrValue compile_expression(struct CExpression *cExpression, struct IrFunc
             ir_function_append_instruction(irFunction, inst);
             return dst;
         case AST_EXP_BINOP:
-            switch (cExpression->binary.op) {
+            switch (cExpression->binop.op) {
                 case AST_BINARY_MULTIPLY:
                 case AST_BINARY_DIVIDE:
                 case AST_BINARY_REMAINDER:
@@ -348,9 +346,9 @@ struct IrValue compile_expression(struct CExpression *cExpression, struct IrFunc
                 case AST_BINARY_GE:
                 case AST_BINARY_EQ:
                 case AST_BINARY_NE:
-                    binary_op = AST_TO_IR_BINARY[cExpression->binary.op];
-                    src = compile_expression(cExpression->binary.left, irFunction);
-                    src2 = compile_expression(cExpression->binary.right, irFunction);
+                    binary_op = AST_TO_IR_BINARY[cExpression->binop.op];
+                    src = compile_expression(cExpression->binop.left, irFunction);
+                    src2 = compile_expression(cExpression->binop.right, irFunction);
                     dst = make_temporary(irFunction);
                     inst = ir_instruction_new_binary(binary_op, src, src2, dst);
                     ir_function_append_instruction(irFunction, inst);
@@ -359,11 +357,11 @@ struct IrValue compile_expression(struct CExpression *cExpression, struct IrFunc
                     dst = make_temporary(irFunction);
                     make_conditional_labels(irFunction, NULL, &false_label, &end_label);
                 // Evaluate left-hand side of && and, if false, jump to false_label.
-                    src = compile_expression(cExpression->binary.left, irFunction);
+                    src = compile_expression(cExpression->binop.left, irFunction);
                     inst = ir_instruction_new_jumpz(src, false_label);
                     ir_function_append_instruction(irFunction, inst);
                 // Otherwise, evaluate right-hand side of && and, if false, jump to false_label.
-                    src2 = compile_expression(cExpression->binary.right, irFunction);
+                    src2 = compile_expression(cExpression->binop.right, irFunction);
                     inst = ir_instruction_new_jumpz(src2, false_label);
                     ir_function_append_instruction(irFunction, inst);
                 // Not false, so result is 1, then jump to end label.
@@ -384,11 +382,11 @@ struct IrValue compile_expression(struct CExpression *cExpression, struct IrFunc
                     dst = make_temporary(irFunction);
                     make_conditional_labels(irFunction, &true_label, NULL, &end_label);
                 // Evaluate left-hand side of || and, if true, jump to true_label.
-                    src = compile_expression(cExpression->binary.left, irFunction);
+                    src = compile_expression(cExpression->binop.left, irFunction);
                     inst = ir_instruction_new_jumpnz(src, true_label);
                     ir_function_append_instruction(irFunction, inst);
                 // Otherwise, evaluate right-hand side of || and, if true, jump to true_label.
-                    src2 = compile_expression(cExpression->binary.right, irFunction);
+                    src2 = compile_expression(cExpression->binop.right, irFunction);
                     inst = ir_instruction_new_jumpnz(src2, true_label);
                     ir_function_append_instruction(irFunction, inst);
                 // Not true, so result is 0, then jump to end label.
