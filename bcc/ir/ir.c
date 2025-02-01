@@ -17,18 +17,45 @@ const char * const IR_BINARY_NAMES[] = {
 #undef X
 };
 
-struct list_of_IrInstruction_helpers list_of_IrInstruction_helpers = {
-    .free = IrInstruction_free
+
+#define NAME list_of_IrValue
+#define TYPE struct IrValue
+static void IrValue_free(struct IrValue val) {}
+struct list_of_IrValue_helpers list_of_IrValue_helpers = {
+        .free = IrValue_free,
+        .null = {0},
 };
+#include "../utils/list_of_item.tmpl"
+#undef NAME
+#undef TYPE
+
 #define NAME list_of_IrInstruction
 #define TYPE struct IrInstruction*
+struct list_of_IrInstruction_helpers list_of_IrInstruction_helpers = {
+        .free = IrInstruction_free
+};
+#include "../utils/list_of_item.tmpl"
+#undef NAME
+#undef TYPE
+
+#define NAME list_of_IrFunction
+#define TYPE struct IrFunction*
+struct list_of_IrFunction_helpers list_of_IrFunction_helpers = {
+        .free = IrFunction_free,
+        .null = NULL,
+};
 #include "../utils/list_of_item.tmpl"
 #undef NAME
 #undef TYPE
 
 struct IrProgram * ir_program_new() {
     struct IrProgram * program = (struct IrProgram*)malloc(sizeof(struct IrProgram));
+    list_of_IrFunction_init(&program->functions, 10);
     return program;
+}
+
+void ir_program_add_function(struct IrProgram* program, struct IrFunction* function) {
+    list_of_IrFunction_append(&program->functions, function);
 }
 
 /**
@@ -36,13 +63,15 @@ struct IrProgram * ir_program_new() {
  * @param program the IrProgram to be freed.
  */
 void IrProgram_free(struct IrProgram *program) {
-    if (program->function) IrFunction_free(program->function);
+    if (!program) return;
+    list_of_IrFunction_free(&program->functions);
     free(program);
 }
 
 struct IrFunction * ir_function_new(const char *name) {
     struct IrFunction *function = (struct IrFunction*)malloc(sizeof(struct IrFunction));
     function->name = name;
+    list_of_IrValue_init(&function->params, 10);
     list_of_IrInstruction_init(&function->body, 10);
     return function;
 }
@@ -54,6 +83,9 @@ struct IrFunction * ir_function_new(const char *name) {
 void IrFunction_free(struct IrFunction *function) {
     list_of_IrInstruction_free(&function->body);
     free(function);
+}
+void IrFunction_add_param(struct IrFunction* function, const char* param_name) {
+    list_of_IrValue_append(&function->params, ir_value_new_id(param_name));
 }
 void ir_function_append_instruction(struct IrFunction *function, struct IrInstruction *instruction) {
     list_of_IrInstruction_append(&function->body, instruction);
@@ -130,6 +162,17 @@ struct IrInstruction* ir_instruction_new_label(struct IrValue label) {
     instruction->label.label = label;
     return instruction;
 }
+struct IrInstruction* ir_instruction_new_funcall(struct IrValue func_name, struct list_of_IrValue* args, struct IrValue dst) {
+    struct IrInstruction *instruction = ir_instruction_new(IR_OP_FUNCALL);
+    instruction->funcall.func_name = func_name;
+    list_of_IrValue_init(&instruction->funcall.args, args->num_items);
+    for (int i = 0; i < args->num_items; i++) {
+        list_of_IrValue_append(&instruction->funcall.args, args->items[i]);
+    }
+    instruction->funcall.dst = dst;
+    return instruction;
+}
+
 struct IrInstruction* ir_instruction_new_comment(const char *text) {
     struct IrInstruction *instruction = ir_instruction_new(IR_OP_COMMENT);
     instruction->comment.text = text;
@@ -140,6 +183,13 @@ struct IrInstruction* ir_instruction_new_comment(const char *text) {
  * @param instruction the IrInstruction to be freed.
  */
 void IrInstruction_free(struct IrInstruction *instruction) {
+    switch (instruction->inst) {
+        case IR_OP_FUNCALL:
+            list_of_IrValue_free(&instruction->funcall.args);
+            break;
+        default:
+            break;
+    }
     free(instruction);
 }
 

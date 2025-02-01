@@ -12,7 +12,9 @@ static void print_ir_value(struct IrValue value, FILE *file);
 
 void print_ir(const struct IrProgram *program, FILE *file) {
     fprintf(file, "\n\nIR program\n");
-    print_ir_function(program->function, file);
+    for (int i=0; i<program->functions.num_items; ++i) {
+        print_ir_function(program->functions.items[i], file);
+    }
 }
 
 void print_ir_function(const struct IrFunction *function, FILE *file) {
@@ -83,6 +85,20 @@ void print_ir_instruction(const struct IrInstruction *instruction, FILE *file) {
         case IR_OP_LABEL:
             print_ir_value(instruction->label.label, file);
             fputs(":\n", file);
+            break;
+        case IR_OP_VAR:
+            fprintf(file, "    VAR %s\n", instruction->var.value.text);
+            break;
+        case IR_OP_FUNCALL:
+            fprintf(file, "    CALL %s(", instruction->funcall.func_name.text);
+            for (int i=0; i<instruction->funcall.args.num_items; ++i) {
+                if (i>0) fputs(", ", file);
+                print_ir_value(instruction->funcall.args.items[i], file);
+            }
+            fprintf(file, ") => %s\n", instruction->funcall.dst.text);
+            break;
+        case IR_OP_COMMENT:
+            fprintf(file, "    # %s\n", instruction->comment.text);
             break;
     }
 }

@@ -126,7 +126,7 @@ extern char const * register_names[];
 
 //region struct Amd64Operand
 struct Amd64Operand {
-    enum OPERAND operand_type;
+    enum OPERAND operand_kind;
     union {
         const char *name;
         int offset;

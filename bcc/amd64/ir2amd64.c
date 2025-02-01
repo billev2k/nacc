@@ -15,28 +15,30 @@ struct pseudo_register {
     int offset;
 };
 #define NAME set_of_pseudo_register
-#define TYPE struct pseudo_register*
+#define TYPE struct pseudo_register
 #include "../utils/set_of_item.h"
-unsigned long pseudo_register_hash(struct pseudo_register* pl) {
-    return hash_str(pl->name);
+unsigned long pseudo_register_hash(struct pseudo_register pl) {
+    return hash_str(pl.name);
 }
-int pseudo_register_cmp(struct pseudo_register* l, struct pseudo_register* r) {
-    return strcmp(l->name, r->name);
+int pseudo_register_cmp(struct pseudo_register l, struct pseudo_register r) {
+    return strcmp(l.name, r.name);
 }
-struct pseudo_register* pseudo_register_dup(struct pseudo_register* pl) {
-    struct pseudo_register* plNew = (struct pseudo_register*)malloc(sizeof(struct pseudo_register));
-    *plNew = *pl;
-    return plNew;
+struct pseudo_register pseudo_register_dup(struct pseudo_register pl) {
+    return pl;
 }
-void pseudo_register_free(struct pseudo_register* pl) {
-    free(pl);
+void pseudo_register_free(struct pseudo_register pl) {
+    ; // no-op
+}
+int pseudo_register_is_null(struct pseudo_register pl) {
+    return pl.name == NULL;
 }
 struct set_of_pseudo_register_helpers set_of_pseudo_register_helpers = {
         .hash=pseudo_register_hash,
         .cmp=pseudo_register_cmp,
         .dup=pseudo_register_dup,
         .free=pseudo_register_free,
-        .is_null=(int (*)(struct pseudo_register *)) long_is_zero,
+        .is_null=pseudo_register_is_null,
+        .null={0}
 };
 #include "../utils/set_of_item.tmpl"
 #undef NAME
@@ -50,17 +52,17 @@ static int allocate_pseudo_registers(struct Amd64Function* function);
 static int fixup_pseudo_register(struct set_of_pseudo_register* locations, struct Amd64Operand* operand, int previously_allocated);
 
 struct Amd64Operand zero = {
-        .operand_type = OPERAND_IMM_INT,
+        .operand_kind = OPERAND_IMM_INT,
         .int_val = 0
 };
 struct Amd64Operand one = {
-        .operand_type = OPERAND_IMM_INT,
+        .operand_kind = OPERAND_IMM_INT,
         .int_val = 1
 };
 
 static void validate_Amd54Instruction_offsets(void) {
     int offset = offsetof(struct Amd64Instruction, mov.src);
-    if ((offsetof(struct Amd64Instruction, unary.operand) != offset) != 0 ||
+    if ((offsetof(struct Amd64Instruction, unary.operand) != offset) ||
         (offsetof(struct Amd64Instruction, cmp.operand1) != offset) ||
         (offsetof(struct Amd64Instruction, idiv.operand) != offset) ||
         (offsetof(struct Amd64Instruction, jmp.identifier) != offset) ||
@@ -75,7 +77,9 @@ static void validate_Amd54Instruction_offsets(void) {
 struct Amd64Program *ir2amd64(struct IrProgram* irProgram) {
     validate_Amd54Instruction_offsets();
     struct Amd64Program *result = amd64_program_new();
-    result->function = compile_function(irProgram->function);
+    for (int ix=0; ix<irProgram->functions.num_items; ix++) {
+        result->function = compile_function(irProgram->functions.items[ix]);
+    }
     return result;
 }
 
@@ -86,7 +90,7 @@ static struct Amd64Function *compile_function(struct IrFunction *irFunction) {
         struct IrInstruction *irInstruction = irFunction->body.items[ix];
         compile_instruction(function, irInstruction);
     }
-    // Allocate the pseudo registers
+    // Allocate space on the stack for the pseudo registers (locals and temporaries)
     function->stack_allocations = allocate_pseudo_registers(function);
     if (function->stack_allocations != 0) {
         struct Amd64Instruction* stack = amd64_instruction_new_alloc_stack(function->stack_allocations);
@@ -300,7 +304,7 @@ static void fixup_stack_accesses(struct Amd64Function* function) {
     for (int i = 0; i < function->instructions.num_items; ++i) {
         struct Amd64Instruction* inst = function->instructions.items[i];
         
-        if (is_multiply(inst) && inst->binary.operand2.operand_type != OPERAND_REGISTER) {
+        if (is_multiply(inst) && inst->binary.operand2.operand_kind != OPERAND_REGISTER) {
             // The stack address that we must flow through a scratch register.
             struct Amd64Operand operand2 = inst->binary.operand2;
             inst->binary.operand2 = amd64_operand_reg(REG_R11);
@@ -314,7 +318,7 @@ static void fixup_stack_accesses(struct Amd64Function* function) {
             i+=2;
         }
         else if (inst->instruction == INST_IDIV) {
-            if (inst->idiv.operand.operand_type != OPERAND_REGISTER) {
+            if (inst->idiv.operand.operand_kind != OPERAND_REGISTER) {
                 struct Amd64Operand operand = inst->idiv.operand;
                 inst->idiv.operand = amd64_operand_reg(REG_R10);
                 // Load the scratch register before the instruction.
@@ -324,8 +328,8 @@ static void fixup_stack_accesses(struct Amd64Function* function) {
             }
         }
         else if (is_shift(inst)) {
-            if (! (inst->binary.operand1.operand_type == OPERAND_IMM_INT ||
-                    (inst->binary.operand1.operand_type==OPERAND_REGISTER && inst->binary.operand1.reg==REG_CL)) ) {
+            if (! (inst->binary.operand1.operand_kind == OPERAND_IMM_INT ||
+                   (inst->binary.operand1.operand_kind == OPERAND_REGISTER && inst->binary.operand1.reg == REG_CL)) ) {
                 // if the operand1 operand isn't a constant, and isn't CX, use CX.
                 struct Amd64Operand operand1 = inst->binary.operand1;
                 inst->binary.operand1 = amd64_operand_reg(REG_CL);
@@ -335,8 +339,8 @@ static void fixup_stack_accesses(struct Amd64Function* function) {
             }
         }
         else if ((inst->instruction == INST_BINARY || inst->instruction == INST_MOV) &&
-                 inst->binary.operand1.operand_type == OPERAND_STACK &&
-                 inst->binary.operand2.operand_type == OPERAND_STACK) {
+                 inst->binary.operand1.operand_kind == OPERAND_STACK &&
+                 inst->binary.operand2.operand_kind == OPERAND_STACK) {
             // Fix instructions that can't use two stack locations.
             // Look for "add -4(%rbp),-8(%rbp)" and use a scratch register.
             // Change the instruction to use the scratch register.
@@ -348,8 +352,8 @@ static void fixup_stack_accesses(struct Amd64Function* function) {
             // Fix up loop index to skip the instruction we've already fixed. One instruction inserted.
             i += 1;
         } else if (inst->instruction == INST_CMP) {
-            if (inst->cmp.operand1.operand_type == OPERAND_STACK &&
-                    inst->cmp.operand2.operand_type == OPERAND_STACK) {
+            if (inst->cmp.operand1.operand_kind == OPERAND_STACK &&
+                inst->cmp.operand2.operand_kind == OPERAND_STACK) {
                 struct Amd64Operand operand1 = inst->cmp.operand1;
                 inst->cmp.operand1 = amd64_operand_reg(REG_R10);
                 // Load the scratch register before the instruction.
@@ -357,7 +361,7 @@ static void fixup_stack_accesses(struct Amd64Function* function) {
                 list_of_Amd64Instruction_insert(&function->instructions, fixup, i);
                 // Fix up loop index to skip the instruction we've already fixed. One instruction inserted.
                 i += 1;
-            } else if (inst->cmp.operand2.operand_type == OPERAND_IMM_INT) {
+            } else if (inst->cmp.operand2.operand_kind == OPERAND_IMM_INT) {
                 // The second operand of a cmp instruction can't be a literal. Load literals into R11
                 struct Amd64Operand operand2 = inst->cmp.operand2;
                 inst->cmp.operand2 = amd64_operand_reg(REG_R11);
@@ -371,17 +375,32 @@ static void fixup_stack_accesses(struct Amd64Function* function) {
     }
 }
 
+/**
+ * Allocate the pseudo registers for one function. A pseudo register is a stack location used to hold a
+ * value, which may be a compiler-generated temporary variable, or may be an explicitly declared local variable.
+ *
+ * These will be Amd64Operand structs with an operand_kind == OPERAND_PSEUDO.
+ *
+ * The pseudo registers for a function are tracked by uniquified name. The first time a name is seen,
+ * space is reserved for it. The offset of that reservation is stored in the Amd64Operand record.
+ *
+ * Later, when we need to load from or store to the variable, the offset is used to address the correct stack location.
+ *
+ * @param function The function for which to allocate pseudo registers.
+ * @return The number of stack bytes allocated.
+ */
 static int allocate_pseudo_registers(struct Amd64Function* function) {
+    // Map of {uniquified-name: offset}
     struct set_of_pseudo_register pseudo_registers;
     set_of_pseudo_register_init(&pseudo_registers, 10);
     int bytes_allocated = 0;
     for (int i=0; i<function->instructions.num_items; ++i) {
         struct Amd64Instruction* inst = function->instructions.items[i];
         if (inst->instruction != INST_ALLOC_STACK) {
-            if (inst->binary.operand1.operand_type == OPERAND_PSEUDO) {
+            if (inst->binary.operand1.operand_kind == OPERAND_PSEUDO) {
                 bytes_allocated += fixup_pseudo_register(&pseudo_registers, &inst->binary.operand1, bytes_allocated);
             }
-            if (inst->binary.operand2.operand_type == OPERAND_PSEUDO) {
+            if (inst->binary.operand2.operand_kind == OPERAND_PSEUDO) {
                 bytes_allocated += fixup_pseudo_register(&pseudo_registers, &inst->binary.operand2, bytes_allocated);
             }
         }
@@ -399,19 +418,19 @@ static int allocate_pseudo_registers(struct Amd64Function* function) {
  *      been allocated for this pseudo register.
  */
 static int fixup_pseudo_register(struct set_of_pseudo_register* locations, struct Amd64Operand* operand, int previously_allocated) {
-    int allocated = 0;
-    struct pseudo_register pl = {.name = operand->name};
-    struct pseudo_register* fixup;
-    int was_found = set_of_pseudo_register_find(locations, &pl, &fixup);
-    // If the space for this pseudo hasn't already been allocated, do so now.
+    int allocation = 0;
+    struct pseudo_register pseudo_register_lookup_key = {.name = operand->name};
+    struct pseudo_register pseudo_register_found;
+    int was_found = set_of_pseudo_register_find(locations, pseudo_register_lookup_key, &pseudo_register_found);
+    // If the space for this pseudo hasn't already been allocation, do so now.
     if (!was_found) {
-        allocated = 4; // when we have other sizes of stack variables, this will need to change.
-        pl.offset = -(previously_allocated + allocated);
-        fixup = set_of_pseudo_register_insert(locations, &pl);
+        allocation = 4; // when we have other sizes of stack variables, this will need to change.
+        pseudo_register_lookup_key.offset = -(previously_allocated + allocation);
+        pseudo_register_found = set_of_pseudo_register_insert(locations, pseudo_register_lookup_key);
     }
-    operand->operand_type = OPERAND_STACK;
-    operand->offset = fixup->offset;
-    return allocated;
+    operand->operand_kind = OPERAND_STACK;
+    operand->offset = pseudo_register_found.offset;
+    return allocation;
 }
 
 

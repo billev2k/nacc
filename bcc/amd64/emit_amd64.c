@@ -105,7 +105,7 @@ static int amd64_instruction_print(struct Amd64Instruction *instruction, FILE *o
 }
 
 static int amd64_operand_print(struct Amd64Operand operand, FILE *out) {
-    switch (operand.operand_type) {
+    switch (operand.operand_kind) {
         case OPERAND_IMM_INT:
             fprintf(out, "$%d", operand.int_val);
             break;

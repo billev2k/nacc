@@ -31,7 +31,9 @@ struct IrProgram *ast2ir(const struct CProgram *cProgram) {
     tmp_vars_init();
     struct IrProgram *program = ir_program_new();
     for (int ix = 0; ix < cProgram->functions.num_items; ix++) {
-        program->function = compile_function(cProgram->functions.items[ix]);
+        struct IrFunction* function = compile_function(cProgram->functions.items[ix]);
+        if (!function) continue;
+        ir_program_add_function(program, function);
     }
     return program;
 }
@@ -51,6 +53,9 @@ struct IrFunction *compile_function(const struct CFunction *cFunction) {
     // If only declaration, no body and nothing to compile.
     if (!cFunction->body) return NULL;
     struct IrFunction *function = ir_function_new(cFunction->name);
+    for (int ix = 0; ix < cFunction->params.num_items; ix++) {
+        IrFunction_add_param(function, cFunction->params.items[ix].name);
+    }
     compile_block(&cFunction->body->items, function);
 
     // Add return instruction, in case the source didn't include one.
@@ -307,6 +312,7 @@ struct IrValue compile_expression(struct CExpression *cExpression, struct IrFunc
     struct IrValue src2;
     struct IrValue dst = {};
     struct IrValue tmp;
+    struct IrValue target;
     struct IrValue condition;
     struct IrValue false_label;
     struct IrValue true_label;
@@ -314,6 +320,7 @@ struct IrValue compile_expression(struct CExpression *cExpression, struct IrFunc
     struct IrInstruction *inst;
     enum IR_UNARY_OP unary_op;
     enum IR_BINARY_OP binary_op;
+    struct list_of_IrValue arg_list;
     switch (cExpression->kind) {
         case AST_EXP_CONST:
             switch (cExpression->literal.type) {
@@ -472,6 +479,19 @@ struct IrValue compile_expression(struct CExpression *cExpression, struct IrFunc
         // exit
             inst = ir_instruction_new_label(end_label);
             ir_function_append_instruction(irFunction, inst);
+            break;
+        case AST_EXP_FUNCTION_CALL:
+            dst = make_temporary(irFunction);
+            target = ir_value_new_id(cExpression->function_call.func.name);
+            list_of_IrValue_init(&arg_list, cExpression->function_call.args.num_items);
+            for (int i=0; i<cExpression->function_call.args.num_items; ++i) {
+                struct CExpression *arg = cExpression->function_call.args.items[i];
+                struct IrValue arg_val = compile_expression(arg, irFunction);
+                list_of_IrValue_append(&arg_list, arg_val);
+            }
+            inst = ir_instruction_new_funcall(target, &arg_list, dst);
+            ir_function_append_instruction(irFunction, inst);
+            list_of_IrValue_free(&arg_list);
             break;
     }
     return dst;

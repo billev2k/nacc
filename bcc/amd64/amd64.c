@@ -6,7 +6,7 @@
 #include <string.h>
 #include "amd64.h"
 
-struct Amd64Operand amd64_operand_none = {.operand_type = OPERAND_NONE};
+struct Amd64Operand amd64_operand_none = {.operand_kind = OPERAND_NONE};
 
 enum OPCODE opcode_for_unary_op(enum UNARY_OP op) {
 #pragma clang diagnostic push
@@ -191,42 +191,42 @@ void Amd64Instruction_free(struct Amd64Instruction *instruction) {
 
 struct Amd64Operand amd64_operand_imm_literal(const char* value_str) {
     struct Amd64Operand imm_operand = {
-        .operand_type = OPERAND_IMM_LIT,
+        .operand_kind = OPERAND_IMM_LIT,
         .name = value_str
     };
     return imm_operand;
 }
 struct Amd64Operand amd64_operand_imm_int(int int_val) {
     struct Amd64Operand imm_operand = {
-        .operand_type = OPERAND_IMM_INT,
+        .operand_kind = OPERAND_IMM_INT,
         .int_val = int_val
     };
     return imm_operand;
 }
 struct Amd64Operand amd64_operand_reg(enum REGISTER reg) {
     struct Amd64Operand reg_operand = {
-            .operand_type = OPERAND_REGISTER,
+            .operand_kind = OPERAND_REGISTER,
             .reg = reg
     };
     return reg_operand;
 };
 struct Amd64Operand amd64_operand_pseudo(const char* pseudo_name) {
     struct Amd64Operand pseudo_operand = {
-            .operand_type = OPERAND_PSEUDO,
+            .operand_kind = OPERAND_PSEUDO,
             .name = pseudo_name
     };
     return pseudo_operand;
 };
 struct Amd64Operand amd64_operand_stack(int offset) {
     struct Amd64Operand stack_operand = {
-            .operand_type = OPERAND_STACK,
+            .operand_kind = OPERAND_STACK,
             .offset = offset
     };
     return stack_operand;
 };
 struct Amd64Operand amd64_operand_label(const char* label) {
     struct Amd64Operand pseudo_operand = {
-            .operand_type = OPERAND_LABEL,
+            .operand_kind = OPERAND_LABEL,
             .name = label
     };
     return pseudo_operand;

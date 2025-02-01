@@ -12,6 +12,7 @@ enum IR_OP {
     IR_OP_RET,
     IR_OP_UNARY,
     IR_OP_BINARY,
+    IR_OP_FUNCALL,
     IR_OP_COPY,
     IR_OP_JUMP,
     IR_OP_JUMP_ZERO,
@@ -79,6 +80,12 @@ extern struct IrValue ir_value_new(enum IR_VAL valKind, const char *valText);
 extern struct IrValue ir_value_new_id(const char* id);
 extern struct IrValue ir_value_new_label(const char* label_name);
 extern struct IrValue ir_value_new_int(int int_val);
+
+#define NAME list_of_IrValue
+#define TYPE struct IrValue
+#include "../utils/list_of_item.h"
+#undef NAME
+#undef TYPE
 //endregion VALUE
 
 //region struct IrInstruction
@@ -120,6 +127,11 @@ struct IrInstruction {
         struct {
             const char *text;
         } comment;
+        struct {
+            struct IrValue func_name;
+            struct list_of_IrValue args;
+            struct IrValue dst;
+        } funcall;
     };
 };
 extern struct IrInstruction* ir_instruction_new_var(struct IrValue value);
@@ -133,31 +145,41 @@ ir_instruction_new_jumpeq(struct IrValue value, struct IrValue comparand, struct
 extern struct IrInstruction* ir_instruction_new_jumpz(struct IrValue value, struct IrValue target);
 extern struct IrInstruction* ir_instruction_new_jumpnz(struct IrValue value, struct IrValue target);
 extern struct IrInstruction* ir_instruction_new_label(struct IrValue label);
+extern struct IrInstruction* ir_instruction_new_funcall(struct IrValue func_name, struct list_of_IrValue* args, struct IrValue dst);
 extern struct IrInstruction* ir_instruction_new_comment(const char* text);
 extern void IrInstruction_free(struct IrInstruction *instruction);
-//endregion
 
-//region struct IrFunction
 #define NAME list_of_IrInstruction
 #define TYPE struct IrInstruction*
 #include "../utils/list_of_item.h"
 #undef NAME
 #undef TYPE
+//endregion
 
+//region struct IrFunction
 struct IrFunction {
     const char *name;
+    struct list_of_IrValue params;
     struct list_of_IrInstruction body;
 };
 extern struct IrFunction * ir_function_new(const char *name);
 extern void IrFunction_free(struct IrFunction *function);
+extern void IrFunction_add_param(struct IrFunction* function, const char* param_name);
 extern void ir_function_append_instruction(struct IrFunction *function, struct IrInstruction *instruction);
+
+#define NAME list_of_IrFunction
+#define TYPE struct IrFunction*
+#include "../utils/list_of_item.h"
+#undef NAME
+#undef TYPE
 //endregion
 
 //region struct IrProgram
 struct IrProgram {
-    struct IrFunction *function;
+    struct list_of_IrFunction functions;
 };
 extern struct IrProgram * ir_program_new();
+extern void ir_program_add_function(struct IrProgram* program, struct IrFunction* function);
 extern void IrProgram_free(struct IrProgram *program);
 //endregion
 
