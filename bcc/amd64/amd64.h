@@ -12,14 +12,17 @@
 enum INSTRUCTION {
     INST_ALLOC_STACK,
     INST_BINARY,
+    INST_CALL,
     INST_CDQ,
     INST_CMP,
     INST_COMMENT,
+    INST_DEALLOC_STACK,
     INST_IDIV,
     INST_JMP,
     INST_JMPCC,
     INST_LABEL,
     INST_MOV,
+    INST_PUSH,
     INST_RET,
     INST_SETCC,
     INST_UNARY,
@@ -55,74 +58,87 @@ extern const char* const cond_code_suffix[];
 // Large enough for any opcode + suffix
 #define OPCODE_BUF_SIZE 8
 #define OPCODE_LIST__ \
-    X(MOV,      "mov"),         \
-    X(RET,      "ret"),         \
-    X(NEG,      "neg"),         \
-    X(NOT,      "not"),         \
-    X(ADD,      "add"),         \
-    X(SUB,      "sub"),         \
-    X(MULT,     "imul"),        \
-    X(IDIV,     "idiv"),        \
-    X(CDQ,      "cdq"),         \
-    X(POP,      "pop"),         \
-    X(SAL,      "sal"),         \
-    X(SAR,      "sar"),         \
-    X(AND,      "and"),         \
-    X(OR,       "or"),          \
-    X(XOR,      "xor"),         \
-    X(CMP,      "cmp"),         \
-    X(JMP,      "jmp"),         \
-    X(JE,       "je"),          \
-    X(JNE,      "jne"),         \
-    X(JL,       "jl"),          \
-    X(JLE,      "jle"),         \
-    X(JG,       "jg"),          \
-    X(JGE,      "jge"),         \
-    X(SETE,     "sete"),        \
-    X(SETNE,    "setne"),       \
-    X(SETL,     "setl"),        \
-    X(SETLE,    "setle"),       \
-    X(SETG,     "setg"),        \
-    X(SETGE,    "setge"),       \
-    \
+    X(CALL,     "call",     1),         \
+    X(MOV,      "mov",      2),         \
+    X(RET,      "ret",      0),         \
+    X(NEG,      "neg",      1),         \
+    X(NOT,      "not",      1),         \
+    X(ADD,      "add",      2),         \
+    X(SUB,      "sub",      2),         \
+    X(MULT,     "imul",     2),         \
+    X(IDIV,     "idiv",     1),         \
+    X(CDQ,      "cdq",      1),         \
+    X(PUSH,     "push",     1),         \
+    X(POP,      "pop",      1),         \
+    X(SAL,      "sal",      2),         \
+    X(SAR,      "sar",      2),         \
+    X(AND,      "and",      2),         \
+    X(OR,       "or",       2),         \
+    X(XOR,      "xor",      2),         \
+    X(CMP,      "cmp",      2),         \
+    X(JMP,      "jmp",      1),         \
+    X(JE,       "je",       1),         \
+    X(JNE,      "jne",      1),         \
+    X(JL,       "jl",       1),         \
+    X(JLE,      "jle",      1),         \
+    X(JG,       "jg",       1),         \
+    X(JGE,      "jge",      1),         \
+    X(SETE,     "sete",     1),         \
+    X(SETNE,    "setne",    1),         \
+    X(SETL,     "setl",     1),         \
+    X(SETLE,    "setle",    1),         \
+    X(SETG,     "setg",     1),         \
+    X(SETGE,    "setge",    1),         
 
 enum OPCODE {
-#define X(a,b) OPCODE_##a
+#define X(a,b,c) OPCODE_##a
     OPCODE_LIST__
 #undef X
     OPCODE_NONE,
 };
 extern const char * const opcode_names[];
+extern const unsigned char opcode_num_operands[];
 
 extern const enum OPCODE cond_code_to_jXX[];
 extern const enum OPCODE cond_code_to_setXX[];
 
 enum OPERAND {
     OPERAND_NONE,
-    OPERAND_IMM_LIT,
     OPERAND_IMM_INT,
     OPERAND_REGISTER,
     OPERAND_PSEUDO,
     OPERAND_STACK,
     OPERAND_LABEL,
+    OPERAND_FUNC,
 };
 
+// The registers are all named by their popular names, so "AX", "SP, "R10" are 2, 2, and 8 bytes
+// The names are for 8, 4, 2, and 1 byte sizes, so rax==8 bytes, sil==1 byte
 #define REGISTERS__ \
-    X(AX,  "%eax"),         \
-    X(CL,  "%cl"),          \
-    X(CX,  "%ecx"),         \
-    X(DX,  "%edx"),         \
-    X(R10, "%r10d"),        \
-    X(R11, "%r11d"),        \
-    X(BP,  "%rbp"),         \
-    X(SP,  "%rsp")
+    X(AX,       "%rax",   "%eax",    "%ax",     "%al"),     \
+    X(BX,       "%rbx",   "%ebx",    "%bx",     "%bl"),     \
+    X(CX,       "%rcx",   "%ecx",    "%cx",     "%cl"),     \
+    X(DX,       "%rdx",   "%edx",    "%dx",     "%dl"),     \
+    X(SI,       "%rsi",   "%esi",    "%si",     "%sil"),    \
+    X(DI,       "%rdi",   "%edi",    "%di",     "%dil"),    \
+    X(BP,       "%rbp",   "%ebp",    "%bp",     "%bpl"),    \
+    X(SP,       "%rsp",   "%esp",    "%sp",     "%spl"),    \
+    X(R8,       "%r8",    "%r8d",    "%r8w",    "%r8b"),    \
+    X(R9,       "%r9",    "%r9d",    "%r9w",    "%r9b"),    \
+    X(R10,      "%r10",   "%r10d",   "%r10w",   "%r10b"),   \
+    X(R11,      "%r11",   "%r11d",   "%r11w",   "%r11b"),   \
+    X(R12,      "%r12",   "%r12d",   "%r12w",   "%r12b"),   \
+    X(R13,      "%r13",   "%r13d",   "%r13w",   "%r13b"),   \
+    X(R14,      "%r14",   "%r14d",   "%r14w",   "%r14b"),   \
+    X(R15,      "%r15",   "%r15d",   "%r15w",   "%r15b"),
+
 
 enum REGISTER {
-#define X(r,n) REG_##r
+#define X(n, r8, r4, r2, r1) REG_##n
     REGISTERS__
 #undef X
 };
-extern char const * register_names[];
+extern char const * register_names[16][4];
 
 //region struct Amd64Operand
 struct Amd64Operand {
@@ -134,13 +150,13 @@ struct Amd64Operand {
         int int_val;
     };
 };
-extern struct Amd64Operand amd64_operand_none;
-extern struct Amd64Operand amd64_operand_imm_literal(const char* value_str);
+extern struct Amd64Operand amd64_operand_func(const char* func_name);
 extern struct Amd64Operand amd64_operand_imm_int(int int_val);
-extern struct Amd64Operand amd64_operand_reg(enum REGISTER reg);
-extern struct Amd64Operand amd64_operand_pseudo(const char* pseudo_name);
-extern struct Amd64Operand amd64_operand_stack(int offset);
 extern struct Amd64Operand amd64_operand_label(const char* label);
+extern struct Amd64Operand amd64_operand_none;
+extern struct Amd64Operand amd64_operand_pseudo(const char* pseudo_name);
+extern struct Amd64Operand amd64_operand_reg(enum REGISTER reg);
+extern struct Amd64Operand amd64_operand_stack(int offset);
 //endregion
 
 //region struct Amd64Instruction
@@ -150,60 +166,24 @@ struct Amd64Instruction {
      * the same offset, for use by fixup_stack_accesses. If keeping these
      * members in sync becomes a problem, refactor that function.
      */
-    enum INSTRUCTION instruction;
-    enum OPCODE opcode;
+    enum INSTRUCTION instruction; // BINARY, IDIV, ...
+    enum OPCODE opcode;           // add, sub, idiv, ...
     union {
-        struct {
-            int unused_subcode__;
-            struct Amd64Operand src;
-            struct Amd64Operand dst;
-        } mov;
-        struct {
-            enum UNARY_OP op;
-            struct Amd64Operand operand;
-        } unary;
-        struct {
-            enum BINARY_OP op;
-            struct Amd64Operand operand1;
-            struct Amd64Operand operand2;
-        } binary;
-        struct {
-            int unused_subcode__;
-            struct Amd64Operand operand1;
-            struct Amd64Operand operand2;
-        } cmp;
-        struct {
-            int unused_subcode__;
-            struct Amd64Operand operand;
-        } idiv;
-        struct {
-            int unused_subcode__;
-            struct Amd64Operand identifier;
-        } jmp;
-        struct {
-            enum COND_CODE cc;
-            struct Amd64Operand identifier;
-        } jmpcc;
-        struct {
-            enum COND_CODE cc;
-            struct Amd64Operand operand;
-        } setcc;
-        struct {
-            int unused_subcode__;
-            struct Amd64Operand identifier;
-        } label;
-        struct {
-            int unused_subcode__;
-            int bytes;
-        } stack;
-        struct {
-            int unused_subcode__;
-            const char *text;
-        } comment;
+        enum UNARY_OP unary_op;
+        enum BINARY_OP binary_op;
+        enum COND_CODE cc;
     };
+    union {
+        struct Amd64Operand operand1;
+        const char* text;
+        int bytes;
+    };
+    struct Amd64Operand operand2;
 };
 extern struct Amd64Instruction* amd64_instruction_new_alloc_stack(int bytes);
+extern struct Amd64Instruction* amd64_instruction_new_dealloc_stack(int bytes);
 extern struct Amd64Instruction* amd64_instruction_new_binary(enum BINARY_OP op, struct Amd64Operand operand1, struct Amd64Operand operand2);
+extern struct Amd64Instruction* amd64_instruction_new_call(struct Amd64Operand identifier);
 extern struct Amd64Instruction* amd64_instruction_new_cdq();
 extern struct Amd64Instruction* amd64_instruction_new_cmp(struct Amd64Operand operand1, struct Amd64Operand operand2);
 extern struct Amd64Instruction* amd64_instruction_new_comment(const char *text);
@@ -212,6 +192,7 @@ extern struct Amd64Instruction* amd64_instruction_new_jmp(struct Amd64Operand id
 extern struct Amd64Instruction* amd64_instruction_new_jmpcc(enum COND_CODE cc, struct Amd64Operand identifier);
 extern struct Amd64Instruction* amd64_instruction_new_label(struct Amd64Operand identifier);
 extern struct Amd64Instruction* amd64_instruction_new_mov(struct Amd64Operand src, struct Amd64Operand dst);
+extern struct Amd64Instruction* amd64_instruction_new_push(struct Amd64Operand operand);
 extern struct Amd64Instruction* amd64_instruction_new_ret();
 extern struct Amd64Instruction* amd64_instruction_new_setcc(enum COND_CODE cc, struct Amd64Operand operand);
 extern struct Amd64Instruction* amd64_instruction_new_unary(enum UNARY_OP op, struct Amd64Operand operand);
@@ -236,10 +217,16 @@ extern void amd64_function_free(struct Amd64Function *function);
 //endregion
 
 //region struct Amd64Program
+#define NAME list_of_Amd64Function
+#define TYPE struct Amd64Function*
+#include "../utils/list_of_item.h"
+#undef NAME
+#undef TYPE
 struct Amd64Program {
-    struct Amd64Function *function;
+    struct list_of_Amd64Function functions;
 };
 extern struct Amd64Program* amd64_program_new(void );
+extern void amd64_program_add_function(struct Amd64Program* program, struct Amd64Function* function);
 extern void amd64_program_free(struct Amd64Program *program);
 extern void amd64_program_emit(struct Amd64Program *amd64Program, FILE *out);
 //endregion

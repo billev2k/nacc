@@ -48,14 +48,20 @@ enum OPCODE opcode_for_binary_op(enum BINARY_OP op) {
     exit(1);
 }
 
-char const * register_names[] = {
-#define X(r,n) n
+// TODO: Need all 4 names for every register.
+char const * register_names[16][4] = {
+#define X(n, r8, r4, r2, r1) { r8, r4, r2, r1 }
         REGISTERS__
 #undef X
 };
 
 const char * const opcode_names[] = {
-#define X(a,b) b
+#define X(a,b,c) b
+        OPCODE_LIST__
+#undef X
+};
+const unsigned char opcode_num_operands[] = {
+#define X(a,b,c) c
         OPCODE_LIST__
 #undef X
 };
@@ -85,12 +91,25 @@ struct list_of_Amd64Instruction_helpers list_of_Amd64Instruction_helpers = {
 #undef NAME
 #undef TYPE
 
+#define NAME list_of_Amd64Function
+#define TYPE struct Amd64Function*
+struct list_of_Amd64Function_helpers list_of_Amd64Function_helpers = {
+        .free = amd64_function_free,
+};
+#include "../utils/list_of_item.tmpl"
+#undef NAME
+#undef TYPE
+
 struct Amd64Program* amd64_program_new(void ) {
     struct Amd64Program *result = (struct Amd64Program *)malloc(sizeof(struct Amd64Program));
+    list_of_Amd64Function_init(&result->functions, 10);
     return result;
 }
+void amd64_program_add_function(struct Amd64Program* program, struct Amd64Function* function) {
+    list_of_Amd64Function_append(&program->functions, function);
+}
 void amd64_program_free(struct Amd64Program *program) {
-    if (program->function) amd64_function_free(program->function);
+    list_of_Amd64Function_free(&program->functions);
     free(program);
 }
 
@@ -114,39 +133,44 @@ static struct Amd64Instruction* amd64_instruction_new(enum INSTRUCTION instructi
     inst->opcode = opcode;
     return inst;
 }
+struct Amd64Instruction* amd64_instruction_new_call(struct Amd64Operand identifier) {
+    struct Amd64Instruction* inst = amd64_instruction_new(INST_CALL, OPCODE_CALL);
+    inst->operand1 = identifier;
+    return inst;
+}
 struct Amd64Instruction* amd64_instruction_new_mov(struct Amd64Operand src, struct Amd64Operand dst) {
     struct Amd64Instruction* inst = amd64_instruction_new(INST_MOV, OPCODE_MOV);
-    inst->mov.src = src;
-    inst->mov.dst = dst;
+    inst->operand1 = src;
+    inst->operand2 = dst;
     return inst;
 }
 struct Amd64Instruction* amd64_instruction_new_unary(enum UNARY_OP op, struct Amd64Operand operand) {
     struct Amd64Instruction* inst = amd64_instruction_new(INST_UNARY, opcode_for_unary_op(op));
-    inst->unary.op = op;
-    inst->unary.operand = operand;
+    inst->unary_op = op;
+    inst->operand1 = operand;
     return inst;
 }
 struct Amd64Instruction* amd64_instruction_new_binary(enum BINARY_OP op, struct Amd64Operand operand1, struct Amd64Operand operand2) {
     struct Amd64Instruction* inst = amd64_instruction_new(INST_BINARY, opcode_for_binary_op(op));
-    inst->binary.op = op;
-    inst->binary.operand1 = operand1;
-    inst->binary.operand2 = operand2;
+    inst->binary_op = op;
+    inst->operand1 = operand1;
+    inst->operand2 = operand2;
     return inst;
 }
 struct Amd64Instruction* amd64_instruction_new_cmp(struct Amd64Operand operand1, struct Amd64Operand operand2) {
     struct Amd64Instruction* inst = amd64_instruction_new(INST_CMP, OPCODE_CMP);
-    inst->cmp.operand1 = operand1;
-    inst->cmp.operand2 = operand2;
+    inst->operand1 = operand1;
+    inst->operand2 = operand2;
     return inst;
 }
 struct Amd64Instruction* amd64_instruction_new_comment(const char *text) {
     struct Amd64Instruction* inst = amd64_instruction_new(INST_COMMENT, 0 /* None */);
-    inst->comment.text = text;
+    inst->text = text;
     return inst;
 }
 struct Amd64Instruction* amd64_instruction_new_idiv(struct Amd64Operand operand) {
     struct Amd64Instruction* inst = amd64_instruction_new(INST_IDIV, OPCODE_IDIV);
-    inst->idiv.operand = operand;
+    inst->operand1 = operand;
     return inst;
 }
 struct Amd64Instruction* amd64_instruction_new_cdq() {
@@ -155,29 +179,39 @@ struct Amd64Instruction* amd64_instruction_new_cdq() {
 }
 struct Amd64Instruction* amd64_instruction_new_jmp(struct Amd64Operand identifier) {
     struct Amd64Instruction* inst = amd64_instruction_new(INST_JMP, OPCODE_JMP);
-    inst->jmp.identifier = identifier;
+    inst->operand1 = identifier;
     return inst;
 }
 struct Amd64Instruction* amd64_instruction_new_jmpcc(enum COND_CODE cc, struct Amd64Operand identifier) {
     struct Amd64Instruction* inst = amd64_instruction_new(INST_JMPCC, cond_code_to_jXX[cc]);
-    inst->jmpcc.cc = cc;
-    inst->jmpcc.identifier = identifier;
+    inst->cc = cc;
+    inst->operand1 = identifier;
     return inst;
 }
 struct Amd64Instruction* amd64_instruction_new_setcc(enum COND_CODE cc, struct Amd64Operand operand) {
     struct Amd64Instruction* inst = amd64_instruction_new(INST_SETCC, cond_code_to_setXX[cc]);
-    inst->setcc.cc = cc;
-    inst->setcc.operand = operand;
+    inst->cc = cc;
+    inst->operand1 = operand;
     return inst;
 }
 struct Amd64Instruction* amd64_instruction_new_label(struct Amd64Operand identifier) {
     struct Amd64Instruction* inst = amd64_instruction_new(INST_LABEL, OPCODE_NONE);
-    inst->label.identifier = identifier;
+    inst->operand1 = identifier;
     return inst;
 }
 struct Amd64Instruction* amd64_instruction_new_alloc_stack(int bytes) {
     struct Amd64Instruction* inst = amd64_instruction_new(INST_ALLOC_STACK, OPCODE_NONE);
-    inst->stack.bytes = bytes;
+    inst->bytes = bytes;
+    return inst;
+}
+struct Amd64Instruction* amd64_instruction_new_dealloc_stack(int bytes) {
+    struct Amd64Instruction* inst = amd64_instruction_new(INST_DEALLOC_STACK, OPCODE_NONE);
+    inst->bytes = bytes;
+    return inst;
+}
+struct Amd64Instruction* amd64_instruction_new_push(struct Amd64Operand operand) {
+    struct Amd64Instruction* inst = amd64_instruction_new(INST_PUSH, OPCODE_PUSH);
+    inst->operand1 = operand;
     return inst;
 }
 struct Amd64Instruction* amd64_instruction_new_ret() {
@@ -189,13 +223,6 @@ void Amd64Instruction_free(struct Amd64Instruction *instruction) {
     free(instruction);
 }
 
-struct Amd64Operand amd64_operand_imm_literal(const char* value_str) {
-    struct Amd64Operand imm_operand = {
-        .operand_kind = OPERAND_IMM_LIT,
-        .name = value_str
-    };
-    return imm_operand;
-}
 struct Amd64Operand amd64_operand_imm_int(int int_val) {
     struct Amd64Operand imm_operand = {
         .operand_kind = OPERAND_IMM_INT,
@@ -224,6 +251,13 @@ struct Amd64Operand amd64_operand_stack(int offset) {
     };
     return stack_operand;
 };
+struct Amd64Operand amd64_operand_func(const char* func_name) {
+    struct Amd64Operand func_operand = {
+            .operand_kind = OPERAND_FUNC,
+            .name = func_name
+    };
+    return func_operand;
+}
 struct Amd64Operand amd64_operand_label(const char* label) {
     struct Amd64Operand pseudo_operand = {
             .operand_kind = OPERAND_LABEL,
