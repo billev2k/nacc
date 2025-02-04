@@ -12,6 +12,7 @@ extern int configOptValidate;
 extern int configOptTacky;
 extern int configOptCodegen;
 extern int configOptAsm;
+extern int configOptNoLink;
 
 extern int traceAstMem;
 extern int traceTokens;

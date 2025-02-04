@@ -149,7 +149,7 @@ static void convert_function_call(struct Amd64Function *asmFunction, struct IrIn
     // How many register args, stack args? Pad stack to 16 bytes (per Sys V ABI)
     int num_register_args = (irInstruction->funcall.args.num_items > 6) ? 6 : irInstruction->funcall.args.num_items;
     int num_stack_args = (irInstruction->funcall.args.num_items <= 6) ? 0 : (irInstruction->funcall.args.num_items - 6);
-    int stack_padding = (num_register_args & 1) ? 8 : 0;
+    int stack_padding = (num_stack_args & 1) ? 8 : 0;
     if (stack_padding) {
         struct Amd64Instruction* stack = amd64_instruction_new_alloc_stack(stack_padding);
         amd64_function_append_instruction(asmFunction, stack);

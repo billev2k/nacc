@@ -128,6 +128,8 @@ void compile() {
         FILE *asmf = fopen(asmFname, "w");
         amd64_program_emit(asmProgram, asmf);
         fclose(asmf);
+        amd64_program_free(asmProgram);
+        c_program_free(cProgram);
 
         assembleAndLink();
     }
@@ -139,6 +141,9 @@ void assembleAndLink() {
     int cmdLength = 10 + strlen(asmFname) + strlen(executableFname);
     char *cmd = malloc(cmdLength);
     strcpy(cmd, "gcc ");
+    if (configOptNoLink) {
+        strcat(cmd, "-c ");
+    }
     strcat(cmd, asmFname);
     strcat(cmd, " -o ");
     strcat(cmd, executableFname);

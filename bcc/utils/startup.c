@@ -13,7 +13,8 @@
 #define TACKY_OPT "--ir"
 #define TACKY_OPT2 "--tacky"
 #define CODEGEN_OPT "--codegen"
-#define ASM_OPT "-S"
+#define PP_CC_OPT "-S"
+#define NO_LINK_OPT "-c"
 
 // if 1, run unit tests.
 int configOptTest = 0;
@@ -29,6 +30,8 @@ int configOptTacky = 0;
 int configOptCodegen = 0;
 // if 1, create assembly output; don't assemble or link
 int configOptAsm = 0;
+// if 1, don't invoke the linker
+int configOptNoLink = 0;
 
 int traceAstMem = 0;
 int traceTokens = 1;
@@ -59,7 +62,11 @@ int parseInputFilename(const char *string) {
     // executable file name
     executableFname = strdup(string);
     strcpy((char*)executableFname, inputFname);
-    strcpy((char*)executableFname+nameLen, "");
+    if (configOptNoLink) {
+        strcpy((char *) executableFname + nameLen, ".o");
+    } else {
+        strcpy((char *) executableFname + nameLen, "");
+    }
 
     return 1;
 }
@@ -86,9 +93,11 @@ int parseConfig(int argc, char **argv) {
         } else if (strcasecmp(argv[i], CODEGEN_OPT) == 0) {
             ++configOptsFound;
             configOptCodegen = 1;
-        } else if (strcasecmp(argv[i], ASM_OPT) == 0) {
+        } else if (strcasecmp(argv[i], PP_CC_OPT) == 0) {
             ++configOptsFound;
             configOptAsm = 1;
+        } else if (strcasecmp(argv[i], NO_LINK_OPT) == 0 ) {
+            configOptNoLink = 1;
         } else {
             ok |= parseInputFilename(argv[i]);
         }
