@@ -53,10 +53,27 @@ int main(int argc, char **argv, char **envv) {
         fprintf(stderr, "Error in command line args.");
         return -1;
     }
-    preProcess();
-    compile();
-    //assembleAndLink();
-    //cleanup();
+    // For each file on the command line
+    for (int ix=0; ix<numInputFileNames; ++ix) {
+        parseInputFilename(ix);
+        // If it is a .c file
+        if (inputFileIsC) {
+            // Preprocess to .i file
+            preProcess();
+            // If "compileOpt"
+            if (!configOptPpOnly) {
+                // compile to .s file
+                compile();
+                // remove .i file
+                remove(ppFname);
+            }
+        }
+    }
+
+    if (!(configOptNoAssemble | configOptNoLink)) {
+        //     Gather all the .s, .o, and .c->.s files into one command line invocation to gcc.
+        assembleAndLink();
+    }
 
     return 0;
 }
@@ -80,7 +97,7 @@ void compile() {
 
     lex_openFile(ppFname);
 
-    if (configOptLex) {
+    if (configOptLexOnly) {
         struct Token tk;
         while ((tk = lex_take_token()).token != TK_EOF) {
             printf("Token %d: %s\n", tk.token, tk.text);
@@ -91,12 +108,12 @@ void compile() {
         }
     } else {
         struct CProgram *cProgram = c_program_parse();
-        if (configOptParse) {
+        if (configOptParseOnly) {
             c_program_print(cProgram);
             c_program_free(cProgram);
             return;
         }
-        if (configOptValidate) {
+        if (configOptValidateOnly) {
             c_program_print(cProgram);
             analyze_program(cProgram);
             c_program_print(cProgram);
@@ -105,7 +122,7 @@ void compile() {
         }
         analyze_program(cProgram);
         struct IrProgram *irProgram = ast2ir(cProgram);
-        if (configOptTacky) {
+        if (configOptTackyOnly) {
             c_program_print(cProgram);
             print_ir(irProgram, stdout);
             c_program_free(cProgram);
@@ -113,7 +130,7 @@ void compile() {
             return;
         }
         struct Amd64Program *asmProgram = ir2amd64(irProgram);
-        if (configOptCodegen) {
+        if (configOptCodegenOnly) {
             c_program_print(cProgram);
             print_ir(irProgram, stdout);
             amd64_program_emit(asmProgram, stdout);
@@ -130,28 +147,13 @@ void compile() {
         fclose(asmf);
         amd64_program_free(asmProgram);
         c_program_free(cProgram);
-
-        assembleAndLink();
     }
 
 }
 
 void assembleAndLink() {
     // system("gcc {asmFname} -o {executableFname")
-    int cmdLength = 10 + strlen(asmFname) + strlen(executableFname);
-    char *cmd = malloc(cmdLength);
-    strcpy(cmd, "gcc ");
-    if (configOptNoLink) {
-        strcat(cmd, "-c ");
-    }
-    strcat(cmd, asmFname);
-    strcat(cmd, " -o ");
-    strcat(cmd, executableFname);
-
-    int rc = system(cmd);
-
-    free(cmd);
-
+    int rc = system(assembleAndLinkCommand);
 }
 
 void cleanup() {
