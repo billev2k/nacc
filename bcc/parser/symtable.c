@@ -16,7 +16,7 @@
 #define TYPE struct Symbol
 #include "../utils/list_of_item.h"
 struct list_of_symbol_helpers list_of_symbol_helpers = {
-        .free = symbol_free,
+        .delete = symbol_delete,
         .null = {},
 };
 #include "../utils/list_of_item.tmpl"
@@ -47,7 +47,7 @@ struct Symbol symbol_new_func(struct CIdentifier id, int num_params, enum SYMTAB
     };
     return symbol;
 }
-void symbol_free(struct Symbol symbol) {
+void symbol_delete(struct Symbol symbol) {
     // no-op
 }
 

@@ -62,13 +62,13 @@ void MEMBER(insert)(struct STRUCT* list, TYPE new_item, int atIx) {
     }                                                                                                       
     list->items[atIx] = new_item;                                                                           
 }                                                                                                           
-void MEMBER(free)(struct STRUCT* list) {                                                   
+void MEMBER(delete)(struct STRUCT* list) {
     MEMBER(clear)(list);                                                                           
     free(list->items);                                                                                      
 }                                                                                                           
 extern void MEMBER(clear)(struct STRUCT* list) {                                           
     for (int i=0; i<list->num_items; ++i) {                                                                 
-        list->helpers.free(list->items[i]);                                                                 
+        list->helpers.delete(list->items[i]);
         list->items[i] = list->helpers.null;                                                                
     }                                                                                                       
     list->num_items = 0;                                                                                    

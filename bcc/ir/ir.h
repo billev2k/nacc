@@ -147,7 +147,7 @@ extern struct IrInstruction* ir_instruction_new_jumpnz(struct IrValue value, str
 extern struct IrInstruction* ir_instruction_new_label(struct IrValue label);
 extern struct IrInstruction* ir_instruction_new_funcall(struct IrValue func_name, struct list_of_IrValue* args, struct IrValue dst);
 extern struct IrInstruction* ir_instruction_new_comment(const char* text);
-extern void IrInstruction_free(struct IrInstruction *instruction);
+extern void IrInstruction_delete(struct IrInstruction *instruction);
 
 #define NAME list_of_IrInstruction
 #define TYPE struct IrInstruction*
@@ -163,7 +163,7 @@ struct IrFunction {
     struct list_of_IrInstruction body;
 };
 extern struct IrFunction * ir_function_new(const char *name);
-extern void IrFunction_free(struct IrFunction *function);
+extern void IrFunction_delete(struct IrFunction *function);
 extern void IrFunction_add_param(struct IrFunction* function, const char* param_name);
 extern void ir_function_append_instruction(struct IrFunction *function, struct IrInstruction *instruction);
 
@@ -180,7 +180,7 @@ struct IrProgram {
 };
 extern struct IrProgram * ir_program_new();
 extern void ir_program_add_function(struct IrProgram* program, struct IrFunction* function);
-extern void IrProgram_free(struct IrProgram *program);
+extern void IrProgram_delete(struct IrProgram *program);
 //endregion
 
 #endif //BCC_IR_H

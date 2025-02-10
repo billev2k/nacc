@@ -11,7 +11,7 @@
 
 static void tmp_vars_init(void);
 
-static struct IrFunction *compile_function(const struct CFunction *cFunction);
+static struct IrFunction *compile_function(const struct CFuncDecl *cFunction);
 static void compile_block(const struct list_of_CBlockItem *block, struct IrFunction *irFunction);
 static void compile_vardecl(const struct CVarDecl *vardecl, struct IrFunction *function);
 
@@ -49,7 +49,7 @@ static void compile_block(const struct list_of_CBlockItem *block, struct IrFunct
     }
 }
 
-struct IrFunction *compile_function(const struct CFunction *cFunction) {
+struct IrFunction *compile_function(const struct CFuncDecl *cFunction) {
     // If only declaration, no body and nothing to compile.
     if (!cFunction->body) return NULL;
     struct IrFunction *function = ir_function_new(cFunction->name);
@@ -491,7 +491,7 @@ struct IrValue compile_expression(struct CExpression *cExpression, struct IrFunc
             }
             inst = ir_instruction_new_funcall(target, &arg_list, dst);
             ir_function_append_instruction(irFunction, inst);
-            list_of_IrValue_free(&arg_list);
+            list_of_IrValue_delete(&arg_list);
             break;
     }
     return dst;

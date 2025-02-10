@@ -49,7 +49,13 @@ enum AST_RESULT {
     AST_DUPLICATE,
 };
 
-enum AST_BLOCK_ITEM {
+enum STORAGE_CLASS {
+    NONE,
+    STATIC,
+    EXTERN,
+};
+
+enum AST_BLOCK_ITEM_KIND {
     AST_BI_STATEMENT,
     AST_BI_VAR_DECL,
     AST_BI_FUNC_DECL,
@@ -66,7 +72,7 @@ enum LABEL_KIND {
     LABEL_DEFAULT,      // a "default:" in a switch() statement body.
 };
 
-enum AST_STMT {
+enum AST_STMT_KIND {
     STMT_BREAK,
     STMT_COMPOUND,
     STMT_CONTINUE,
@@ -108,8 +114,9 @@ enum AST_CONST_TYPE {
     AST_CONST_LIST__
 #undef X
 };
-extern const char * const ASM_CONST_TYPE_NAMES[];
+extern const char* const ASM_CONST_TYPE_NAMES[];
 
+//region AST operators and precedence
 // This list also expands to reference items from IR_UNARY_OP_LIST__
 // Every unary operator here must have a corresponding IR unary
 // operator; the converse is not true, IR can support unary ops that
@@ -124,8 +131,9 @@ enum AST_UNARY_OP {
     AST_UNARY_LIST__
 #undef X
 };
-extern const char * const AST_UNARY_NAMES[];
+extern const char* const AST_UNARY_NAMES[];
 extern enum IR_UNARY_OP const AST_TO_IR_UNARY[];
+
 
 // This list also expands to reference items from IR_BINARY_OP_LIST__
 // Every binary operator here must have a corresponding IR binary
@@ -171,9 +179,10 @@ enum AST_BINARY_OP {
     AST_BINARY_LIST__
 #undef X
 };
-extern const char * const AST_BINARY_NAMES[];
+extern const char* const AST_BINARY_NAMES[];
 extern const int AST_BINARY_PRECEDENCE[];
 extern const int AST_TO_IR_BINARY[];
+//endregion
 
 //region struct CIdentifier
 /**
@@ -217,12 +226,12 @@ struct CExpression {
     union {
         struct {
             enum AST_UNARY_OP op;
-            struct CExpression *operand;
+            struct CExpression* operand;
         } unary;
         struct {
             enum AST_BINARY_OP op;
-            struct CExpression *left;
-            struct CExpression *right;
+            struct CExpression* left;
+            struct CExpression* right;
         } binop;
         struct {
             enum AST_CONST_TYPE type;
@@ -260,17 +269,18 @@ extern struct CExpression* c_expression_new_unop(enum AST_UNARY_OP op, struct CE
 extern struct CExpression* c_expression_new_var(const char* name);
 extern void c_expression_function_call_add_arg(struct CExpression* call_expr, struct CExpression* arg);
 extern struct CExpression* c_expression_clone(const struct CExpression* expression);
-extern void c_expression_free(struct CExpression *expression);
+extern void c_expression_delete(struct CExpression* expression);
 //endregion CExpression
 
 //region struct CVarDecl
 struct CVarDecl {
+    enum STORAGE_CLASS storage_class;
     struct CIdentifier var;
     struct CExpression* initializer;
 };
-extern struct CVarDecl* c_vardecl_new(const char* identifier);
-extern struct CVarDecl* c_vardecl_new_init(const char* identifier, struct CExpression* initializer);
-extern void c_vardecl_free(struct CVarDecl* vardecl);
+extern struct CVarDecl* c_vardecl_new(const char* identifier, enum STORAGE_CLASS storage_class);
+extern struct CVarDecl* c_vardecl_new_init(const char* identifier, struct CExpression* initializer, enum STORAGE_CLASS storage_class);
+extern void c_vardecl_delete(struct CVarDecl* vardecl);
 //endregion CVarDecl
 
 //region struct CForInit
@@ -283,23 +293,23 @@ struct CForInit {
 };
 extern struct CForInit* c_for_init_new_vardecl(struct CVarDecl* vardecl);
 extern struct CForInit* c_for_init_new_expression(struct CExpression* expression);
-extern void c_for_init_free(struct CForInit* for_init);
+extern void c_for_init_delete(struct CForInit* for_init);
 //endregion  CForInit
 
 //region struct CBlockItem
 struct CBlockItem {
-    enum AST_BLOCK_ITEM kind;
+    enum AST_BLOCK_ITEM_KIND kind;
     union {
         struct CVarDecl* vardecl;
-        struct CFunction* funcdecl;
+        struct CFuncDecl* funcdecl;
         struct CStatement* statement;
     };
 };
 extern struct CBlockItem* c_block_item_new_var_decl(struct CVarDecl* vardecl);
-extern struct CBlockItem* c_block_item_new_func_decl(struct CFunction* funcdecl);
+extern struct CBlockItem* c_block_item_new_func_decl(struct CFuncDecl* funcdecl);
 extern struct CBlockItem* c_block_item_new_stmt(struct CStatement* statement);
-extern void c_block_item_free(struct CBlockItem* blockItem);
-extern void CBlockItem_free(struct CBlockItem* blockItem);  // actually used in c_blockitem_helpers
+extern void c_block_item_delete(struct CBlockItem* blockItem);
+extern void CBlockItem_delete(struct CBlockItem* blockItem);  // actually used in c_blockitem_helpers
 // Implementation of List<CBlockItem> (?list_of_CBlockItem")
 #define NAME list_of_CBlockItem
 #define TYPE struct CBlockItem*
@@ -315,12 +325,12 @@ struct CBlock {
 };
 extern struct CBlock* c_block_new(int is_function);
 extern void c_block_append_item(struct CBlock* block, struct CBlockItem* item);
-extern void c_block_free(struct CBlock *block);
+extern void c_block_delete(struct CBlock* block);
 //endregion CBlock
 
 //region struct CStatement
 struct CStatement {
-    enum AST_STMT kind;
+    enum AST_STMT_KIND kind;
     union {
         struct CExpression* expression;
         struct {
@@ -365,40 +375,41 @@ extern struct CStatement* c_statement_new_null(void);
 extern struct CStatement* c_statement_new_return(struct CExpression* expression);
 extern struct CStatement* c_statement_new_switch(struct CExpression* expression, struct CStatement* body);
 extern struct CStatement* c_statement_new_while(struct CExpression* condition, struct CStatement* body);
-extern int c_statement_has_labels(const struct CStatement * statement);
-extern void c_statement_add_labels(struct CStatement *pStatement, struct list_of_CLabel labels);
-extern struct CLabel * c_statement_get_labels(const struct CStatement * statement);
-extern int c_statement_num_labels(const struct CStatement * statement);
-extern enum AST_RESULT c_statement_set_flow_id(struct CStatement * statement, int flow_id);
-extern enum AST_RESULT c_statement_set_switch_has_default(struct CStatement *statement);
-extern enum AST_RESULT c_statement_register_switch_case(struct CStatement *statement, int case_value);
-extern void c_statement_free(struct CStatement *statement);
+extern int c_statement_has_labels(const struct CStatement* statement);
+extern void c_statement_add_labels(struct CStatement* pStatement, struct list_of_CLabel labels);
+extern struct CLabel* c_statement_get_labels(const struct CStatement* statement);
+extern int c_statement_num_labels(const struct CStatement* statement);
+extern enum AST_RESULT c_statement_set_flow_id(struct CStatement* statement, int flow_id);
+extern enum AST_RESULT c_statement_set_switch_has_default(struct CStatement* statement);
+extern enum AST_RESULT c_statement_register_switch_case(struct CStatement* statement, int case_value);
+extern void c_statement_delete(struct CStatement* statement);
 //endregion CStatement
 
-//region struct CFunction
-struct CFunction {
-    const char *name;
+//region struct CFuncDecl
+struct CFuncDecl {
+    enum STORAGE_CLASS storage_class;
+    const char* name;
     struct CBlock* body;
     struct list_of_CIdentifier params;
 };
-#define NAME list_of_CFunction
-#define TYPE struct CFunction*
+#define NAME list_of_CFuncDecl
+#define TYPE struct CFuncDecl*
 #include "../utils/list_of_item.h"
 #undef NAME
 #undef TYPE
-extern struct CFunction *c_function_new(const char *name);
-extern enum AST_RESULT c_function_add_param(struct CFunction* function, const char* param_name);
-extern enum AST_RESULT c_function_add_body(struct CFunction* function, struct CBlock* body);
-extern void c_function_free(struct CFunction *function);
-//endregion CFunction
+extern struct CFuncDecl* c_function_new(const char* name, enum STORAGE_CLASS storage_class);
+extern enum AST_RESULT c_function_add_param(struct CFuncDecl* function, const char* param_name);
+extern enum AST_RESULT c_function_add_body(struct CFuncDecl* function, struct CBlock* body);
+extern void c_function_delete(struct CFuncDecl* function);
+//endregion CFuncDecl
 
 //region struct CProgram
 struct CProgram {
-    struct list_of_CFunction functions;
+    struct list_of_CFuncDecl functions;
 };
 extern struct CProgram* c_program_new(void);
-extern enum AST_RESULT c_program_add_func(struct CProgram* program, struct CFunction* function);
-extern void c_program_free(struct CProgram *program);
+extern enum AST_RESULT c_program_add_func(struct CProgram* program, struct CFuncDecl* function);
+extern void c_program_delete(struct CProgram* program);
 //endregion CProgram
 
 #endif //BCC_AST_H

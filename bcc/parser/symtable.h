@@ -49,7 +49,7 @@ struct Symbol {
 };
 extern struct Symbol symbol_new_var(struct CIdentifier id, enum SYMTAB_FLAGS flags);
 extern struct Symbol symbol_new_func(struct CIdentifier id, int num_params, enum SYMTAB_FLAGS flags);
-extern void symbol_free(struct Symbol symbol);
+extern void symbol_delete(struct Symbol symbol);
 
 extern enum SYMTAB_RESULT add_symbol(struct Symbol symbol);
 extern enum SYMTAB_RESULT find_symbol(struct CIdentifier id, struct Symbol* found);

@@ -16,9 +16,9 @@
 
 //region list and set definitions
 //region struct CIdentifier
-void c_variable_free(struct CIdentifier var) {}
+void c_variable_delete(struct CIdentifier var) {}
 struct list_of_CIdentifier_helpers list_of_CIdentifier_helpers = {
-        .free = c_variable_free,
+        .delete = c_variable_delete,
         .null = {0},
 };
 #define NAME list_of_CIdentifier
@@ -28,9 +28,9 @@ struct list_of_CIdentifier_helpers list_of_CIdentifier_helpers = {
 #undef TYPE
 //endregion struct CIdentifier
 
-void c_label_free(struct CLabel var) {}
+void c_label_delete(struct CLabel var) {}
 struct list_of_CLabel_helpers list_of_CLabel_helpers = {
-        .free = c_label_free,
+        .delete = c_label_delete,
         .null = {0},
 };
 #define NAME list_of_CLabel
@@ -39,23 +39,23 @@ struct list_of_CLabel_helpers list_of_CLabel_helpers = {
 #undef NAME
 #undef TYPE
 
-struct list_of_CExpression_helpers list_of_CExpression_helpers = { .free = c_expression_free };
+struct list_of_CExpression_helpers list_of_CExpression_helpers = { .delete = c_expression_delete };
 #define NAME list_of_CExpression
 #define TYPE struct CExpression*
 #include "../utils/list_of_item.tmpl"
 #undef NAME
 #undef TYPE
 
-struct list_of_CBlockItem_helpers list_of_CBlockItem_helpers = { .free = c_block_item_free };
+struct list_of_CBlockItem_helpers list_of_CBlockItem_helpers = { .delete = c_block_item_delete };
 #define NAME list_of_CBlockItem
 #define TYPE struct CBlockItem*
 #include "../utils/list_of_item.tmpl"
 #undef NAME
 #undef TYPE
 
-struct list_of_CFunction_helpers list_of_CFunction_helpers = { .free = c_function_free };
-#define NAME list_of_CFunction
-#define TYPE struct CFunction*
+struct list_of_CFuncDecl_helpers list_of_CFuncDecl_helpers = { .delete = c_function_delete };
+#define NAME list_of_CFuncDecl
+#define TYPE struct CFuncDecl*
 #include "../utils/list_of_item.tmpl"
 #undef NAME
 #undef TYPE
@@ -202,36 +202,36 @@ struct CExpression* c_expression_clone(const struct CExpression* expression) {
     }
     return clone;
 }
-void c_expression_free(struct CExpression *expression) {
+void c_expression_delete(struct CExpression *expression) {
     if (!expression) return;
     if (traceAstMem) printf("Free expression @ %p\n", expression);
     switch (expression->kind) {
         case AST_EXP_BINOP:
-            if (expression->binop.left) c_expression_free(expression->binop.left);
-            if (expression->binop.right) c_expression_free(expression->binop.right);
+            if (expression->binop.left) c_expression_delete(expression->binop.left);
+            if (expression->binop.right) c_expression_delete(expression->binop.right);
             break;
         case AST_EXP_CONST:
             // Nothing to do; strings owned by global string table.
             break;
         case AST_EXP_UNOP:
-            if (expression->unary.operand) c_expression_free(expression->unary.operand);
+            if (expression->unary.operand) c_expression_delete(expression->unary.operand);
             break;
         case AST_EXP_VAR:
             break;
         case AST_EXP_ASSIGNMENT:
-            if (expression->assign.src) c_expression_free(expression->assign.src);
-            if (expression->assign.dst) c_expression_free(expression->assign.dst);
+            if (expression->assign.src) c_expression_delete(expression->assign.src);
+            if (expression->assign.dst) c_expression_delete(expression->assign.dst);
             break;
         case AST_EXP_INCREMENT:
-            c_expression_free(expression->increment.operand);
+            c_expression_delete(expression->increment.operand);
             break;
         case AST_EXP_CONDITIONAL:
-            c_expression_free(expression->conditional.left_exp);
-            c_expression_free(expression->conditional.middle_exp);
-            c_expression_free(expression->conditional.right_exp);
+            c_expression_delete(expression->conditional.left_exp);
+            c_expression_delete(expression->conditional.middle_exp);
+            c_expression_delete(expression->conditional.right_exp);
             break;
         case AST_EXP_FUNCTION_CALL:
-            list_of_CExpression_free(&expression->function_call.args);
+            list_of_CExpression_delete(&expression->function_call.args);
             break;
     }
     free(expression);
@@ -248,14 +248,14 @@ struct CBlock* c_block_new(int is_function) {
 void c_block_append_item(struct CBlock* block, struct CBlockItem* item) {
     list_of_CBlockItem_append(&block->items, item);
 }
-void c_block_free(struct CBlock *block) {
-    list_of_CBlockItem_free(&block->items);
+void c_block_delete(struct CBlock *block) {
+    list_of_CBlockItem_delete(&block->items);
     free(block);
 }
 //endregion
 
 //region CStatement
-static struct CStatement* c_statement_new(enum AST_STMT kind) {
+static struct CStatement* c_statement_new(enum AST_STMT_KIND kind) {
     struct CStatement* statement = malloc(sizeof(struct CStatement));
     statement->kind = kind;
     return statement;
@@ -370,63 +370,63 @@ enum AST_RESULT c_statement_register_switch_case(struct CStatement *statement, i
     return AST_OK;
 }
 
-void c_statement_free(struct CStatement *statement) {
+void c_statement_delete(struct CStatement *statement) {
     if (!statement) return;
     switch (statement->kind) {
         case STMT_BREAK:
             // Nothing to free.
             break;
         case STMT_COMPOUND:
-            list_of_CBlockItem_free(&statement->compound->items);
+            list_of_CBlockItem_delete(&statement->compound->items);
             break;
         case STMT_CONTINUE:
             // Nothing to free.
             break;
         case STMT_DOWHILE:
-            c_expression_free(statement->while_or_do_statement.condition);
-            c_statement_free(statement->while_or_do_statement.body);
+            c_expression_delete(statement->while_or_do_statement.condition);
+            c_statement_delete(statement->while_or_do_statement.body);
             break;
         case STMT_EXP:
-            c_expression_free(statement->expression);
+            c_expression_delete(statement->expression);
             break;
         case STMT_FOR:
-            c_for_init_free(statement->for_statement.init);
-            c_expression_free(statement->for_statement.condition);
-            c_expression_free(statement->for_statement.post);
-            c_statement_free(statement->for_statement.body);
+            c_for_init_delete(statement->for_statement.init);
+            c_expression_delete(statement->for_statement.condition);
+            c_expression_delete(statement->for_statement.post);
+            c_statement_delete(statement->for_statement.body);
             break;
         case STMT_GOTO:
-            c_expression_free(statement->goto_statement.label);
+            c_expression_delete(statement->goto_statement.label);
             break;
         case STMT_IF:
-            c_expression_free(statement->if_statement.condition);
-            c_statement_free(statement->if_statement.then_statement);
+            c_expression_delete(statement->if_statement.condition);
+            c_statement_delete(statement->if_statement.then_statement);
             if (statement->if_statement.else_statement) {
-                c_statement_free(statement->if_statement.else_statement);
+                c_statement_delete(statement->if_statement.else_statement);
             }
             break;
         case STMT_NULL:
             // No-op
             break;
         case STMT_SWITCH:
-            c_expression_free(statement->switch_statement.expression);
-            c_statement_free(statement->switch_statement.body);
+            c_expression_delete(statement->switch_statement.expression);
+            c_statement_delete(statement->switch_statement.body);
             if (statement->switch_statement.case_labels) {
-                list_of_int_free(statement->switch_statement.case_labels);
+                list_of_int_delete(statement->switch_statement.case_labels);
                 free(statement->switch_statement.case_labels);
             }
             break;
         case STMT_WHILE:
-            c_expression_free(statement->while_or_do_statement.condition);
-            c_statement_free(statement->while_or_do_statement.body);
+            c_expression_delete(statement->while_or_do_statement.condition);
+            c_statement_delete(statement->while_or_do_statement.body);
             break;
         case STMT_RETURN:
         case STMT_AUTO_RETURN:
-            c_expression_free(statement->expression);
+            c_expression_delete(statement->expression);
             break;
     }
     if (statement->labels) {
-        list_of_CLabel_free(statement->labels);
+        list_of_CLabel_delete(statement->labels);
         free(statement->labels);
     }
     free(statement);
@@ -434,21 +434,22 @@ void c_statement_free(struct CStatement *statement) {
 //endregion CStatement
 
 //region struct CVarDecl
-struct CVarDecl* c_vardecl_new(const char* identifier) {
+struct CVarDecl *c_vardecl_new(const char *identifier, enum STORAGE_CLASS storage_class) {
     struct CVarDecl* result = malloc(sizeof(struct CVarDecl));
     result->var.name = identifier;
     result->var.source_name = identifier;
     return result;
 }
-struct CVarDecl* c_vardecl_new_init(const char* identifier, struct CExpression* initializer) {
-    struct CVarDecl* result = c_vardecl_new(identifier);
+struct CVarDecl *
+c_vardecl_new_init(const char *identifier, struct CExpression *initializer, enum STORAGE_CLASS storage_class) {
+    struct CVarDecl* result = c_vardecl_new(identifier, storage_class);
     result->initializer = initializer;
     return result;
 }
-void c_vardecl_free(struct CVarDecl* vardecl) {
+void c_vardecl_delete(struct CVarDecl* vardecl) {
     if (!vardecl) return;
     if (vardecl->initializer) {
-        c_expression_free(vardecl->initializer);
+        c_expression_delete(vardecl->initializer);
     }
 }
 //endregion struct CVarDecl
@@ -469,12 +470,12 @@ struct CForInit* c_for_init_new_expression(struct CExpression* expression)  {
     result->expression = expression;
     return result;
 }
-void c_for_init_free(struct CForInit* for_init)  {
+void c_for_init_delete(struct CForInit* for_init)  {
     if (!for_init) return;
     if (for_init->kind == FOR_INIT_DECL) {
-        c_vardecl_free(for_init->vardecl);
+        c_vardecl_delete(for_init->vardecl);
     } else if (for_init->kind == FOR_INIT_EXPR) {
-        c_expression_free(for_init->expression);
+        c_expression_delete(for_init->expression);
     }
 }
 //endregion
@@ -486,7 +487,7 @@ struct CBlockItem* c_block_item_new_var_decl(struct CVarDecl* vardecl) {
     result->vardecl = vardecl;
     return result;
 }
-struct CBlockItem* c_block_item_new_func_decl(struct CFunction* funcdecl) {
+struct CBlockItem* c_block_item_new_func_decl(struct CFuncDecl* funcdecl) {
     struct CBlockItem* result = malloc(sizeof(struct CBlockItem));
     result->kind = AST_BI_FUNC_DECL;
     result->funcdecl = funcdecl;
@@ -498,32 +499,33 @@ struct CBlockItem* c_block_item_new_stmt(struct CStatement* statement) {
     result->statement = statement;
     return result;
 }
-void c_block_item_free(struct CBlockItem* blockItem) {
+void c_block_item_delete(struct CBlockItem* blockItem) {
     if (blockItem == NULL) return;
     switch (blockItem->kind) {
         case AST_BI_STATEMENT:
-            c_statement_free(blockItem->statement);
+            c_statement_delete(blockItem->statement);
             break;
         case AST_BI_VAR_DECL:
-            c_vardecl_free(blockItem->vardecl);
+            c_vardecl_delete(blockItem->vardecl);
             break;
         case AST_BI_FUNC_DECL:
-            c_function_free(blockItem->funcdecl);
+            c_function_delete(blockItem->funcdecl);
             break;
     }
     free(blockItem);
 }
 //endregion CBlockItem
 
-//region struct CFunction
-struct CFunction *c_function_new(const char *name) {
-    struct CFunction* result = malloc(sizeof(struct CFunction));
+//region struct CFuncDecl
+struct CFuncDecl* c_function_new(const char *name, enum STORAGE_CLASS storage_class) {
+    struct CFuncDecl* result = malloc(sizeof(struct CFuncDecl));
+    result->storage_class = storage_class;
     result->name = name;
     result->body = NULL;
     list_of_CIdentifier_init(&result->params, 7);
     return result;
 }
-enum AST_RESULT c_function_add_param(struct CFunction* function, const char* param_name) {
+enum AST_RESULT c_function_add_param(struct CFuncDecl* function, const char* param_name) {
     struct CIdentifier* params = function->params.items;
     for (int i = 0; i < function->params.num_items; i++) {
         if (strcmp(params[i].name, param_name) == 0) {
@@ -534,35 +536,35 @@ enum AST_RESULT c_function_add_param(struct CFunction* function, const char* par
     list_of_CIdentifier_append(&function->params, param);
     return AST_OK;
 }
-enum AST_RESULT c_function_add_body(struct CFunction* function, struct CBlock* body) {
+enum AST_RESULT c_function_add_body(struct CFuncDecl* function, struct CBlock* body) {
     if (function->body) return AST_DUPLICATE;
     function->body = body;
     return AST_OK;
 }
-void c_function_free(struct CFunction *function) {
+void c_function_delete(struct CFuncDecl *function) {
     if (!function) return;
     // Don't free 'name'; owned by global name table.
     if (function->body) {
-        c_block_free(function->body);
+        c_block_delete(function->body);
     }
-    list_of_CIdentifier_free(&function->params);
+    list_of_CIdentifier_delete(&function->params);
     free(function);
 }
-//endregion CFunction
+//endregion CFuncDecl
 
 //region CProgram
 struct CProgram* c_program_new(void) {
     struct CProgram* result = malloc(sizeof(struct CProgram));
-    list_of_CFunction_init(&result->functions, 3);
+    list_of_CFuncDecl_init(&result->functions, 3);
     return result;
 }
-enum AST_RESULT c_program_add_func(struct CProgram* program, struct CFunction* function) {
-    list_of_CFunction_append(&program->functions, function);
+enum AST_RESULT c_program_add_func(struct CProgram* program, struct CFuncDecl* function) {
+    list_of_CFuncDecl_append(&program->functions, function);
     return AST_OK;
 }
-void c_program_free(struct CProgram *program) {
+void c_program_delete(struct CProgram *program) {
     if (!program) return;
-    list_of_CFunction_free(&program->functions);
+    list_of_CFuncDecl_delete(&program->functions);
     free(program);
 }
 //endregion CProgram

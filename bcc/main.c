@@ -84,14 +84,14 @@ void compile() {
         struct CProgram *cProgram = c_program_parse();
         if (configOptParseOnly) {
             c_program_print(cProgram);
-            c_program_free(cProgram);
+            c_program_delete(cProgram);
             return;
         }
         if (configOptValidateOnly) {
             c_program_print(cProgram);
             analyze_program(cProgram);
             c_program_print(cProgram);
-            c_program_free(cProgram);
+            c_program_delete(cProgram);
             return;
         }
         analyze_program(cProgram);
@@ -99,8 +99,8 @@ void compile() {
         if (configOptTackyOnly) {
             c_program_print(cProgram);
             print_ir(irProgram, stdout);
-            c_program_free(cProgram);
-            IrProgram_free(irProgram);
+            c_program_delete(cProgram);
+            IrProgram_delete(irProgram);
             return;
         }
         struct Amd64Program *asmProgram = ir2amd64(irProgram);
@@ -108,8 +108,8 @@ void compile() {
             c_program_print(cProgram);
             print_ir(irProgram, stdout);
             amd64_program_emit(asmProgram, stdout);
-            amd64_program_free(asmProgram);
-            c_program_free(cProgram);
+            amd64_program_delete(asmProgram);
+            c_program_delete(cProgram);
             return;
         }
         c_program_print(cProgram);
@@ -119,8 +119,8 @@ void compile() {
         FILE *asmf = fopen(asmFname, "w");
         amd64_program_emit(asmProgram, asmf);
         fclose(asmf);
-        amd64_program_free(asmProgram);
-        c_program_free(cProgram);
+        amd64_program_delete(asmProgram);
+        c_program_delete(cProgram);
     }
 
 }

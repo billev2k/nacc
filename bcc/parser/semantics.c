@@ -21,17 +21,17 @@ struct LoopLabelContext {
 };
 
 
-static void analyze_function(struct CFunction *function);
+static void analyze_function(struct CFuncDecl *function);
 static void resolve_block(const struct CBlock *block);
 static void resolve_statement(const struct CStatement *statement);
 static void resolve_goto(const struct CStatement *statement);
 static void resolve_vardecl(struct CVarDecl *vardecl);
-static void resolve_funcdecl(struct CFunction *function, int isExtern);
+static void resolve_funcdecl(struct CFuncDecl *function, int isExtern);
 static void label_block_loops(const struct CBlock *block, struct LoopLabelContext context);
 static void label_statement_loops(struct CStatement *statement, struct LoopLabelContext context);
 
 static void typecheck_program(const struct CProgram *program);
-static void typecheck_function(struct CFunction *function);
+static void typecheck_function(struct CFuncDecl *function);
 static void typecheck_block(struct CBlock* block);
 static void typecheck_statement(const struct CStatement *statement);
 static void typecheck_vardecl(struct CVarDecl *vardecl);
@@ -39,14 +39,14 @@ static void typecheck_expression(struct CExpression *exp);
 
 void semantic_analysis(const struct CProgram *program) {
     symtab_init();
-    struct CFunction** functions = program->functions.items;
+    struct CFuncDecl** functions = program->functions.items;
     for (int ix=0; ix<program->functions.num_items; ix++) {
         analyze_function(program->functions.items[ix]);
     }
     typecheck_program(program);
 }
 
-static void analyze_function(struct CFunction *function) {
+static void analyze_function(struct CFuncDecl *function) {
     if (!function) return;
     resolve_funcdecl(function, 1);
     if (function->body) {
@@ -177,7 +177,7 @@ static void uniquify_label(struct CIdentifier *var) {
     uniquify_thing(var, IDENTIFIER_LABEL, 0);
 }
 
-static void resolve_funcdecl(struct CFunction *function, int isExtern) {
+static void resolve_funcdecl(struct CFuncDecl *function, int isExtern) {
     // Doesn't decorate, just makes sure it doesn't collide with a non-extern.
     struct CIdentifier function_id = {function->name, function->name};
     uniquify_thing(&function_id, IDENTIFIER_ID, 1);
@@ -501,7 +501,7 @@ void typecheck_forinit(struct CForInit *for_init) {
             break;
     }
 }
-void typecheck_function(struct CFunction *function) {
+void typecheck_function(struct CFuncDecl *function) {
     if (!function) return;
     int num_params = function->params.num_items;
     int has_body = function->body != NULL;

@@ -37,7 +37,7 @@
 #define MEMBER(m) W_SUFFIX(NAME,m)
 
 struct HELPERS {                                                                           
-    void (*free)(TYPE item);                                                                                
+    void (*delete)(TYPE item);
     TYPE null;                                                                                              
 };                                                                                                          
 struct STRUCT {                                                                                     
@@ -50,7 +50,7 @@ extern void MEMBER(init)(struct STRUCT *list, int init_size);
 extern void MEMBER(append)(struct STRUCT* list, TYPE new_item);                            
 extern void MEMBER(insert)(struct STRUCT* list, TYPE new_item, int atIx);                  
 extern void MEMBER(clear)(struct STRUCT* list);                                            
-extern void MEMBER(free)(struct STRUCT* list);                                             
+extern void MEMBER(delete)(struct STRUCT* list);
 extern int MEMBER(is_empty)(struct STRUCT* list);                                          
 
 //#endif //BCC_LIST_OF_ITEM_H

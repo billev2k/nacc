@@ -20,9 +20,9 @@ const char * const IR_BINARY_NAMES[] = {
 
 #define NAME list_of_IrValue
 #define TYPE struct IrValue
-static void IrValue_free(struct IrValue val) {}
+static void IrValue_delete(struct IrValue val) {}
 struct list_of_IrValue_helpers list_of_IrValue_helpers = {
-        .free = IrValue_free,
+        .delete = IrValue_delete,
         .null = {0},
 };
 #include "../utils/list_of_item.tmpl"
@@ -32,7 +32,7 @@ struct list_of_IrValue_helpers list_of_IrValue_helpers = {
 #define NAME list_of_IrInstruction
 #define TYPE struct IrInstruction*
 struct list_of_IrInstruction_helpers list_of_IrInstruction_helpers = {
-        .free = IrInstruction_free
+        .delete = IrInstruction_delete
 };
 #include "../utils/list_of_item.tmpl"
 #undef NAME
@@ -41,7 +41,7 @@ struct list_of_IrInstruction_helpers list_of_IrInstruction_helpers = {
 #define NAME list_of_IrFunction
 #define TYPE struct IrFunction*
 struct list_of_IrFunction_helpers list_of_IrFunction_helpers = {
-        .free = IrFunction_free,
+        .delete = IrFunction_delete,
         .null = NULL,
 };
 #include "../utils/list_of_item.tmpl"
@@ -62,9 +62,9 @@ void ir_program_add_function(struct IrProgram* program, struct IrFunction* funct
  * Releases the memory associated with an IrProgram.
  * @param program the IrProgram to be freed.
  */
-void IrProgram_free(struct IrProgram *program) {
+void IrProgram_delete(struct IrProgram *program) {
     if (!program) return;
-    list_of_IrFunction_free(&program->functions);
+    list_of_IrFunction_delete(&program->functions);
     free(program);
 }
 
@@ -80,8 +80,8 @@ struct IrFunction * ir_function_new(const char *name) {
  * Releases the memory associated with an IrFunction.
  * @param function the IrFunction to be freed.
  */
-void IrFunction_free(struct IrFunction *function) {
-    list_of_IrInstruction_free(&function->body);
+void IrFunction_delete(struct IrFunction *function) {
+    list_of_IrInstruction_delete(&function->body);
     free(function);
 }
 void IrFunction_add_param(struct IrFunction* function, const char* param_name) {
@@ -182,10 +182,10 @@ struct IrInstruction* ir_instruction_new_comment(const char *text) {
  * Releases the memory associated with an IrInstruction.
  * @param instruction the IrInstruction to be freed.
  */
-void IrInstruction_free(struct IrInstruction *instruction) {
+void IrInstruction_delete(struct IrInstruction *instruction) {
     switch (instruction->inst) {
         case IR_OP_FUNCALL:
-            list_of_IrValue_free(&instruction->funcall.args);
+            list_of_IrValue_delete(&instruction->funcall.args);
             break;
         default:
             break;

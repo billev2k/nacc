@@ -26,7 +26,7 @@
 void no_op(const char * x) {}
 #pragma clang diagnostic pop
 struct list_of_pstr_helpers list_of_pstr_helpers = {
-        .free = no_op,
+        .delete = no_op,
         .null = NULL,
 };
 #define NAME list_of_pstr
@@ -36,7 +36,7 @@ struct list_of_pstr_helpers list_of_pstr_helpers = {
 #undef TYPE
 
 static struct CProgram * parse_program(void);
-static struct CFunction * parse_function(void);
+static struct CFuncDecl * parse_function(void);
 static struct CBlock* parse_block(int is_function);
 static struct CBlockItem* parse_block_item(void);
 static struct CVarDecl* parse_vardecl(void);
@@ -60,7 +60,7 @@ struct CProgram *parse_program() {
     struct Token token = lex_peek_token();
     struct CProgram *program = c_program_new();
     while (token.token != TK_EOF) {
-        struct CFunction *func = parse_function();
+        struct CFuncDecl *func = parse_function();
         c_program_add_func(program, func);
         token = lex_peek_token();
     }
@@ -68,12 +68,12 @@ struct CProgram *parse_program() {
     return program;
 }
 
-struct CFunction *parse_function(void) {
+struct CFuncDecl *parse_function(void) {
     expect(TK_INT);
     expect(TK_ID);
     const char *name = current_token.text;
     expect(TK_L_PAREN);
-    struct CFunction *function = c_function_new(name);
+    struct CFuncDecl* function = c_function_new(name, NONE);
 
     struct Token token = lex_peek_token();
     if (token.token == TK_VOID && lex_peek_ahead(1).token == TK_VOID && lex_peek_ahead(2).token == TK_R_PAREN) {
@@ -132,7 +132,7 @@ struct CBlockItem* parse_block_item() {
     struct Token token = lex_peek_token();
     if (token.token == TK_INT) {
         if (lex_peek_ahead(2).token == TK_ID && lex_peek_ahead(3).token == TK_L_PAREN) {
-            struct CFunction *func = parse_function();
+            struct CFuncDecl *func = parse_function();
             return c_block_item_new_func_decl(func);
         } else {
             struct CVarDecl *decl = parse_vardecl();
@@ -157,9 +157,9 @@ struct CVarDecl* parse_vardecl() {
     if (init.token == TK_ASSIGN) {
         lex_take_token();
         struct CExpression* initializer = parse_expression(0);
-        result = c_vardecl_new_init(id.text, initializer);
+        result = c_vardecl_new_init(id.text, initializer, NONE);
     } else {
-        result = c_vardecl_new(id.text);
+        result = c_vardecl_new(id.text, NONE);
     }
     expect(TK_SEMI);
     return result;
@@ -332,7 +332,7 @@ struct CStatement *parse_statement() {
     // Apply labels from above.
     if (have_labels) {
         c_statement_add_labels(result, labels);
-        list_of_CLabel_free(&labels);
+        list_of_CLabel_delete(&labels);
     }
 
     // Don't do this; any production that expects a ';' should itself code for it.

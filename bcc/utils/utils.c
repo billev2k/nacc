@@ -59,7 +59,7 @@ struct set_of_str_helpers set_of_str_helpers = {
         .hash = hash_str,
         .cmp = strcmp,
         .dup =(const char *(*)(const char *)) strdup,
-        .free = (void (*)(const char *)) free,
+        .delete = (void (*)(const char *)) free,
         .is_null = set_of_str_is_null,
 };
 
@@ -75,12 +75,12 @@ struct set_of_str_helpers set_of_str_helpers = {
 #undef TYPE
 
 int intcmp(int l, int r) { return r - l; }
-void no_free(int x) {;}
+void no_delete(int x) {;}
 struct set_of_int_helpers set_of_int_helpers = {
         .hash = (unsigned long (*)(int)) identity,
         .cmp = intcmp,
         .dup = (int (*)(int)) identity,
-        .free = no_free,
+        .delete = no_delete,
         .null = 0,
         .is_null = (int (*)(int)) long_is_zero,
 };
@@ -88,7 +88,7 @@ struct set_of_int_helpers set_of_int_helpers = {
 #define NAME list_of_int
 #define TYPE int
 struct list_of_int_helpers list_of_int_helpers = {
-        .free = no_free,
+        .delete = no_delete,
         .null = 0,
 };
 #include "./list_of_item.tmpl"

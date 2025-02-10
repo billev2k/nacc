@@ -31,13 +31,13 @@ struct set_of_str_helpers set_of_str_helpers = {
 #include "utils/set_of_item.h"
 unsigned long set_of_int_hash(int i) { return i; }
 int set_of_int_cmp(int l, int r) { return r - l; }
-void set_of_int_no_free(__attribute__((unused)) int x) {}
+void set_of_int_no_delete(__attribute__((unused)) int x) {}
 int set_of_int_is_null(int x) { return x == 0; }
 struct set_of_int_helpers set_of_int_helpers = {
         .hash = set_of_int_hash,
         .cmp = set_of_int_cmp,
         .dup = set_of_int_no_dup,
-        .free = set_of_int_no_free,
+        .free = set_of_int_no_delete,
         .is_null = set_of_int_is_null,
         .null = 0,
 };

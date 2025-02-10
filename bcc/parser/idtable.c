@@ -29,7 +29,7 @@ int identifier_item_cmp(struct identifier_item l, struct identifier_item r) {
 }
 #pragma clang diagnostic push
 #pragma ide diagnostic ignored "UnusedParameter"
-void identifier_item_free(struct identifier_item item) {
+void identifier_item_delete(struct identifier_item item) {
 #pragma clang diagnostic pop
     // Don't do anything because the struct doesn't own the strings.
 }
@@ -45,7 +45,7 @@ struct set_of_identifier_item_helpers set_of_identifier_item_helpers = {
         .hash = identifier_item_hash,
         .cmp = identifier_item_cmp,
         .dup = identifier_item_dup,
-        .free = identifier_item_free,
+        .delete = identifier_item_delete,
         .null = {},
         .is_null = identifier_item_is_null
 };
@@ -63,8 +63,8 @@ struct identifier_table* symbol_table_new(struct identifier_table* prev) {
     set_of_identifier_item_init(&table->ids, 5);
     return table;
 }
-void identifier_table_free(struct identifier_table* table) {
-    set_of_identifier_item_free(&table->ids);
+void identifier_table_delete(struct identifier_table* table) {
+    set_of_identifier_item_delete(&table->ids);
     free(table);
 }
 
@@ -181,7 +181,7 @@ void pop_id_context(void) {
     printf("pop_id_context\n");
     struct identifier_table* old = identifier_table;
     identifier_table = old->prev;
-    identifier_table_free(old);
+    identifier_table_delete(old);
     if (old == function_identifier_table) {
         function_identifier_table = NULL;
     }

@@ -25,7 +25,7 @@ int pseudo_register_cmp(struct pseudo_register l, struct pseudo_register r) {
 struct pseudo_register pseudo_register_dup(struct pseudo_register pl) {
     return pl;
 }
-void pseudo_register_free(struct pseudo_register pl) {
+void pseudo_register_delete(struct pseudo_register pl) {
     ; // no-op
 }
 int pseudo_register_is_null(struct pseudo_register pl) {
@@ -35,7 +35,7 @@ struct set_of_pseudo_register_helpers set_of_pseudo_register_helpers = {
         .hash=pseudo_register_hash,
         .cmp=pseudo_register_cmp,
         .dup=pseudo_register_dup,
-        .free=pseudo_register_free,
+        .delete=pseudo_register_delete,
         .is_null=pseudo_register_is_null,
         .null={0}
 };
@@ -472,7 +472,7 @@ static int allocate_pseudo_registers(struct Amd64Function* function) {
             }
         }
     }
-    set_of_pseudo_register_free(&pseudo_registers);
+    set_of_pseudo_register_delete(&pseudo_registers);
     return bytes_allocated;
 }
 

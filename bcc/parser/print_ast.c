@@ -11,7 +11,7 @@
 #include "print_ast.h"
 
 static void print_ast_block(const struct CBlock *block, int depth);
-static void print_ast_funcdecl(const struct CFunction *function);
+static void print_ast_funcdecl(const struct CFuncDecl *function);
 static void print_ast_vardecl(struct CVarDecl *vardecl, int depth);
 static void print_ast_statement(struct CStatement *statement, int depth);
 static void print_ast_expression(const struct CExpression *expression, int depth);
@@ -22,7 +22,7 @@ void c_program_print(const struct CProgram *program) {
         print_ast_funcdecl(program->functions.items[ix]);
     }
 }
-static void print_ast_funcdecl(const struct CFunction *function) {
+static void print_ast_funcdecl(const struct CFuncDecl *function) {
     printf("int %s(", function->name);
     if (function->params.num_items == 0) {
         printf("void");

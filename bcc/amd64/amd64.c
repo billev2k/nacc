@@ -83,7 +83,7 @@ const enum OPCODE cond_code_to_setXX[] = {
 };
 
 struct list_of_Amd64Instruction_helpers list_of_Amd64Instruction_helpers = {
-    .free = Amd64Instruction_free
+    .delete = Amd64Instruction_delete
 };
 #define NAME list_of_Amd64Instruction
 #define TYPE struct Amd64Instruction*
@@ -94,7 +94,7 @@ struct list_of_Amd64Instruction_helpers list_of_Amd64Instruction_helpers = {
 #define NAME list_of_Amd64Function
 #define TYPE struct Amd64Function*
 struct list_of_Amd64Function_helpers list_of_Amd64Function_helpers = {
-        .free = amd64_function_free,
+        .delete = amd64_function_delete,
 };
 #include "../utils/list_of_item.tmpl"
 #undef NAME
@@ -108,8 +108,8 @@ struct Amd64Program* amd64_program_new(void ) {
 void amd64_program_add_function(struct Amd64Program* program, struct Amd64Function* function) {
     list_of_Amd64Function_append(&program->functions, function);
 }
-void amd64_program_free(struct Amd64Program *program) {
-    list_of_Amd64Function_free(&program->functions);
+void amd64_program_delete(struct Amd64Program *program) {
+    list_of_Amd64Function_delete(&program->functions);
     free(program);
 }
 
@@ -122,8 +122,8 @@ struct Amd64Function* amd64_function_new(const char* name) {
 void amd64_function_append_instruction(struct Amd64Function *function, struct Amd64Instruction *instruction) {
     list_of_Amd64Instruction_append(&function->instructions, instruction);
 }
-void amd64_function_free(struct Amd64Function *function) {
-    list_of_Amd64Instruction_free(&function->instructions);
+void amd64_function_delete(struct Amd64Function *function) {
+    list_of_Amd64Instruction_delete(&function->instructions);
     free(function);
 }
 
@@ -219,7 +219,7 @@ struct Amd64Instruction* amd64_instruction_new_ret() {
     return inst;
 }
 
-void Amd64Instruction_free(struct Amd64Instruction *instruction) {
+void Amd64Instruction_delete(struct Amd64Instruction *instruction) {
     free(instruction);
 }
 

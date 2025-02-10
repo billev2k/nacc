@@ -27,7 +27,7 @@ struct HELPERS {
     unsigned long (*hash)(TYPE item);
     int (*cmp)(TYPE left, TYPE right);
     TYPE (*dup)(TYPE);
-    void (*free)(TYPE);
+    void (*delete)(TYPE);
     int (*is_null)(TYPE item);
     TYPE null;
 };
@@ -46,6 +46,6 @@ extern void MEMBER(init)(struct STRUCT *set, int init_size);
 extern TYPE MEMBER(insert)(struct STRUCT *set, TYPE newItem);
 extern void MEMBER(remove)(struct STRUCT *set, TYPE oldItem);
 extern int MEMBER(find)(struct STRUCT *set, TYPE item, TYPE* found_item);
-extern void MEMBER(free)(struct STRUCT *set);
+extern void MEMBER(delete)(struct STRUCT *set);
 
 //#endif //BCC_SET_OF_DECL_H
