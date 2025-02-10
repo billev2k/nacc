@@ -29,6 +29,7 @@ extern enum TOKEN_FLAGS TOKEN_FLAGS[];
 #define TK_IS_ASSIGNMENT(tk) (TOKEN_FLAGS[tk] & TF_ASSIGNMENT)
 
 // token ID, print value, corresponding AST UNOP or BINOP (or both, eg, '-' is negate unop and subtract binop)
+// Token id, text representation, token flags correlating with unary and binary operators.
 #define TOKENS__ \
     X(TK_UNKNOWN,       "!! unknown !!",    0),                                      \
     X(TK_ELSE,          "else",             0),                                      \
@@ -37,6 +38,8 @@ extern enum TOKEN_FLAGS TOKEN_FLAGS[];
     X(TK_INT,           "int",              0),                                      \
     X(TK_RETURN,        "return",           0),                                      \
     X(TK_VOID,          "void",             0),                                      \
+    X(TK_STATIC,        "static",           0),                                      \
+    X(TK_EXTERN,        "extern",           0),                                      \
     X(TK_WHILE,         "while",            0),                                      \
     X(TK_DO,            "do",               0),                                      \
     X(TK_FOR,           "for",              0),                                      \

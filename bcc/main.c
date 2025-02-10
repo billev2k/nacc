@@ -10,9 +10,7 @@
 #include "parser/ast2ir.h"
 #include "ir/print_ir.h"
 
-#include "SetOfItemTest.h"
 #include "parser/print_ast.h"
-#include "parser/semantics.h"
 
 void preProcess();
 
@@ -22,33 +20,7 @@ void assembleAndLink();
 
 void cleanup();
 
-//int dumbtest() {
-//    // allocate locals
-//    asm("subq $12,%rsp");
-//    // test code
-//    asm("movl    $0,%r11d");
-//    asm("cmpl    $2,%r11d");
-//    asm("movl    $0,-4(%rbp)");
-//    asm("setle   -4(%rbp)");
-//    asm("movl    $0,%r11d");
-//    asm("cmpl    $0,%r11d");
-//    asm("movl    $0,-8(%rbp)");
-//    asm("setle   -8(%rbp)");
-//    asm("movl    -4(%rbp),%r10d");
-//    asm("movl    %r10d,-12(%rbp)");
-//    asm("movl    -8(%rbp),%r10d");
-//    asm("addl    %r10d,-12(%rbp)");
-//    asm("movl    -12(%rbp),%eax");
-//    // epilog
-//    asm("movq    %rbp, %rsp");
-//    asm("popq %rbp");
-//    asm("retq");
-//    // not reached, makes the compiler happy.
-//    return 0;
-//}
-
 int main(int argc, char **argv, char **envv) {
-//    int x = dumbtest();
     if (!parseConfig(argc, argv)) {
         fprintf(stderr, "Error in command line args.");
         return -1;
@@ -72,7 +44,9 @@ int main(int argc, char **argv, char **envv) {
 
     if (!(configOptNoAssemble | configOptNoLink)) {
         //     Gather all the .s, .o, and .c->.s files into one command line invocation to gcc.
-        assembleAndLink();
+        if (buildAssembleAndLinkCommand()) {
+            assembleAndLink();
+        }
     }
 
     return 0;

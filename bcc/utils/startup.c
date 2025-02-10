@@ -205,7 +205,6 @@ const char * buildAssembleAndLinkCommand() {
 int parseConfig(int argc, char **argv) {
     int ok = parseArgs(argc, argv);
     ok = ok && validateArgs();
-    if (ok) buildAssembleAndLinkCommand();
     if (!ok) {
         exit(-1);
     }
