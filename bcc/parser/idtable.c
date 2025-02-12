@@ -116,7 +116,7 @@ const char *add_identifier(enum IDENTIFIER_KIND kind, const char *source_name, e
             // Duplicate declaration of extern symbol is OK.
             return found.mapped_name;
         }
-        // Was found; duplicate vardecl.
+        // Was found; duplicate declaration.
         fprintf(stderr, "Duplicate %s: \"%s\"\n", tag, source_name);
         exit(1);
     }

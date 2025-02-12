@@ -39,9 +39,16 @@ static void typecheck_expression(struct CExpression *exp);
 
 void semantic_analysis(const struct CProgram *program) {
     symtab_init();
-    struct CFuncDecl** functions = program->functions.items;
-    for (int ix=0; ix<program->functions.num_items; ix++) {
-        analyze_function(program->functions.items[ix]);
+    for (int ix=0; ix<program->declarations.num_items; ix++) {
+        struct CDeclaration *decl = program->declarations.items[ix];
+        switch (decl->decl_kind) {
+            case FUNC_DECL:
+                analyze_function(decl->func);
+                break;
+            case VAR_DECL:
+                // TODO: analyze_global_var(decl->var);
+                break;
+        }
     }
     typecheck_program(program);
 }
@@ -61,14 +68,18 @@ static void resolve_block(const struct CBlock *block) {
             case AST_BI_STATEMENT:
                 resolve_statement(bi->statement);
                 break;
-            case AST_BI_VAR_DECL:
-                resolve_vardecl(bi->vardecl);
-                break;
-            case AST_BI_FUNC_DECL:
-                if (bi->funcdecl->body) {
-                    failf("Nested function definitions are not supported: %s\n", bi->funcdecl->name);
+            case AST_BI_DECLARATION:
+                switch (bi->declaration->decl_kind) {
+                    case FUNC_DECL:
+                        if (bi->declaration->func->body) {
+                            failf("Nested function definitions are not supported: %s\n", bi->declaration->func->name);
+                        }
+                        resolve_funcdecl(bi->declaration->func, 1);
+                        break;
+                    case VAR_DECL:
+                        resolve_vardecl(bi->declaration->var);
+                        break;
                 }
-                resolve_funcdecl(bi->funcdecl, 1);
                 break;
         }
     }
@@ -205,7 +216,8 @@ static void resolve_vardecl(struct CVarDecl *vardecl) {
 static void resolve_forinit(struct CForInit *for_init) {
     if (!for_init) return;
     if (for_init->kind == FOR_INIT_DECL) {
-        resolve_vardecl(for_init->vardecl);
+        assert(for_init->declaration->decl_kind == VAR_DECL);
+        resolve_vardecl(for_init->declaration->var);
     } else {
         resolve_expression(for_init->expression);
     }
@@ -418,8 +430,17 @@ static void label_statement_loops(struct CStatement *statement, struct LoopLabel
 }
 
 void typecheck_program(const struct CProgram *program) {
-    for (int ix=0; ix<program->functions.num_items; ix++) {
-        typecheck_function(program->functions.items[ix]);
+    for (int ix=0; ix<program->declarations.num_items; ix++) {
+        struct CDeclaration *decl = program->declarations.items[ix];
+        switch (decl->decl_kind) {
+            case FUNC_DECL:
+                typecheck_function(decl->func);
+                break;
+            case VAR_DECL:
+                typecheck_vardecl(decl->var);
+                break;
+        }
+
     }
 }
 void typecheck_block(struct CBlock* block) {
@@ -429,11 +450,15 @@ void typecheck_block(struct CBlock* block) {
             case AST_BI_STATEMENT:
                 typecheck_statement(bi->statement);
                 break;
-            case AST_BI_VAR_DECL:
-                typecheck_vardecl(bi->vardecl);
-                break;
-            case AST_BI_FUNC_DECL:
-                typecheck_function(bi->funcdecl);
+            case AST_BI_DECLARATION:
+                switch (bi->declaration->decl_kind) {
+                    case FUNC_DECL:
+                        typecheck_function(bi->declaration->func);
+                        break;
+                    case VAR_DECL:
+                        typecheck_vardecl(bi->declaration->var);
+                        break;
+                }
                 break;
         }
     }
@@ -495,7 +520,7 @@ void typecheck_forinit(struct CForInit *for_init) {
     if (!for_init) return;
     switch (for_init->kind) {
         case FOR_INIT_DECL:
-            typecheck_vardecl(for_init->vardecl);
+            typecheck_vardecl(for_init->declaration->var);
         case FOR_INIT_EXPR:
             typecheck_expression(for_init->expression);
             break;

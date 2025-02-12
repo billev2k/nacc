@@ -10,63 +10,46 @@
 
 #include "ast.h"
 
-#include <assert.h>
-
 #include "../utils/startup.h"
 
 //region list and set definitions
 //region struct CIdentifier
+#pragma clang diagnostic push
+#pragma ide diagnostic ignored "UnusedParameter"
 void c_variable_delete(struct CIdentifier var) {}
-struct list_of_CIdentifier_helpers list_of_CIdentifier_helpers = {
-        .delete = c_variable_delete,
-        .null = {0},
-};
+#pragma clang diagnostic pop
+struct list_of_CIdentifier_helpers list_of_CIdentifier_helpers = { .delete = c_variable_delete, .null = {0} };
 #define NAME list_of_CIdentifier
 #define TYPE struct CIdentifier
 #include "../utils/list_of_item.tmpl"
-#undef NAME
-#undef TYPE
 //endregion struct CIdentifier
 
 void c_label_delete(struct CLabel var) {}
-struct list_of_CLabel_helpers list_of_CLabel_helpers = {
-        .delete = c_label_delete,
-        .null = {0},
-};
+struct list_of_CLabel_helpers list_of_CLabel_helpers = { .delete = c_label_delete, .null = {0} };
 #define NAME list_of_CLabel
 #define TYPE struct CLabel
 #include "../utils/list_of_item.tmpl"
-#undef NAME
-#undef TYPE
 
 struct list_of_CExpression_helpers list_of_CExpression_helpers = { .delete = c_expression_delete };
 #define NAME list_of_CExpression
 #define TYPE struct CExpression*
 #include "../utils/list_of_item.tmpl"
-#undef NAME
-#undef TYPE
 
 struct list_of_CBlockItem_helpers list_of_CBlockItem_helpers = { .delete = c_block_item_delete };
 #define NAME list_of_CBlockItem
 #define TYPE struct CBlockItem*
 #include "../utils/list_of_item.tmpl"
-#undef NAME
-#undef TYPE
 
 struct list_of_CFuncDecl_helpers list_of_CFuncDecl_helpers = { .delete = c_function_delete };
 #define NAME list_of_CFuncDecl
 #define TYPE struct CFuncDecl*
 #include "../utils/list_of_item.tmpl"
-#undef NAME
-#undef TYPE
 //endregion list and set definitions
 
-//region global data definitions (kind names, precedence tables, etc.)
-const char * const ASM_CONST_TYPE_NAMES[] = {
-#define X(a,b) b 
-    AST_CONST_LIST__
-#undef X
-};
+struct list_of_CDeclaration_helpers list_of_CDeclaration_helpers = { .delete = c_declaration_delete };
+#define TYPE struct CDeclaration*
+#define NAME list_of_CDeclaration
+#include "../utils/list_of_item.tmpl"
 
 const char * const AST_BINARY_NAMES[] = {
 #define X(a,b,c,d) b
@@ -237,6 +220,30 @@ void c_expression_delete(struct CExpression *expression) {
     free(expression);
 }
 //endregion CExpression
+
+struct CDeclaration* c_declaration_new_var(struct CVarDecl* vardecl) {
+    struct CDeclaration* declaration = malloc(sizeof(struct CDeclaration));
+    declaration->decl_kind = VAR_DECL;
+    declaration->var = vardecl;
+    return declaration;
+}
+struct CDeclaration* c_declaration_new_func(struct CFuncDecl* funcdecl) {
+    struct CDeclaration* declaration = malloc(sizeof(struct CDeclaration));
+    declaration->decl_kind = FUNC_DECL;
+    declaration->func = funcdecl;
+    return declaration;
+}
+void c_declaration_delete(struct CDeclaration* declaration) {
+    switch (declaration->decl_kind) {
+        case FUNC_DECL:
+            c_function_delete(declaration->func);
+            break;
+        case VAR_DECL:
+            c_vardecl_delete(declaration->var);
+            break;
+    }
+    free(declaration);
+}
 
 //region CBlock
 struct CBlock* c_block_new(int is_function) {
@@ -438,6 +445,7 @@ struct CVarDecl *c_vardecl_new(const char *identifier, enum STORAGE_CLASS storag
     struct CVarDecl* result = malloc(sizeof(struct CVarDecl));
     result->var.name = identifier;
     result->var.source_name = identifier;
+    result->storage_class = storage_class;
     return result;
 }
 struct CVarDecl *
@@ -460,9 +468,9 @@ struct CForInit* c_for_init_new(enum FOR_INIT_KIND kind) {
     result->kind = kind;
     return result;
 }
-struct CForInit* c_for_init_new_vardecl(struct CVarDecl* vardecl)  {
+struct CForInit* c_for_init_new_vardecl(struct CDeclaration *declaration)  {
     struct CForInit* result = c_for_init_new(FOR_INIT_DECL);
-    result->vardecl = vardecl;
+    result->declaration = declaration;
     return result;
 }
 struct CForInit* c_for_init_new_expression(struct CExpression* expression)  {
@@ -473,7 +481,7 @@ struct CForInit* c_for_init_new_expression(struct CExpression* expression)  {
 void c_for_init_delete(struct CForInit* for_init)  {
     if (!for_init) return;
     if (for_init->kind == FOR_INIT_DECL) {
-        c_vardecl_delete(for_init->vardecl);
+        c_declaration_delete(for_init->declaration);
     } else if (for_init->kind == FOR_INIT_EXPR) {
         c_expression_delete(for_init->expression);
     }
@@ -481,18 +489,13 @@ void c_for_init_delete(struct CForInit* for_init)  {
 //endregion
 
 //region struct CBlockItem
-struct CBlockItem* c_block_item_new_var_decl(struct CVarDecl* vardecl) {
+extern struct CBlockItem* c_block_item_new_decl(struct CDeclaration* declaration) {
     struct CBlockItem* result = malloc(sizeof(struct CBlockItem));
-    result->kind = AST_BI_VAR_DECL;
-    result->vardecl = vardecl;
+    result->kind = AST_BI_DECLARATION;
+    result->declaration = declaration;
     return result;
 }
-struct CBlockItem* c_block_item_new_func_decl(struct CFuncDecl* funcdecl) {
-    struct CBlockItem* result = malloc(sizeof(struct CBlockItem));
-    result->kind = AST_BI_FUNC_DECL;
-    result->funcdecl = funcdecl;
-    return result;
-}
+
 struct CBlockItem* c_block_item_new_stmt(struct CStatement* statement) {
     struct CBlockItem* result = malloc(sizeof(struct CBlockItem));
     result->kind = AST_BI_STATEMENT;
@@ -505,11 +508,8 @@ void c_block_item_delete(struct CBlockItem* blockItem) {
         case AST_BI_STATEMENT:
             c_statement_delete(blockItem->statement);
             break;
-        case AST_BI_VAR_DECL:
-            c_vardecl_delete(blockItem->vardecl);
-            break;
-        case AST_BI_FUNC_DECL:
-            c_function_delete(blockItem->funcdecl);
+        case AST_BI_DECLARATION:
+            c_declaration_delete(blockItem->declaration);
             break;
     }
     free(blockItem);
@@ -555,16 +555,17 @@ void c_function_delete(struct CFuncDecl *function) {
 //region CProgram
 struct CProgram* c_program_new(void) {
     struct CProgram* result = malloc(sizeof(struct CProgram));
-    list_of_CFuncDecl_init(&result->functions, 3);
+    list_of_CDeclaration_init(&result->declarations, 57);
     return result;
 }
-enum AST_RESULT c_program_add_func(struct CProgram* program, struct CFuncDecl* function) {
-    list_of_CFuncDecl_append(&program->functions, function);
+extern enum AST_RESULT c_program_add_decl(struct CProgram *program, struct CDeclaration *declaration) {
+    list_of_CDeclaration_append(&program->declarations, declaration);
     return AST_OK;
 }
+
 void c_program_delete(struct CProgram *program) {
     if (!program) return;
-    list_of_CFuncDecl_delete(&program->functions);
+    list_of_CDeclaration_delete(&program->declarations);
     free(program);
 }
 //endregion CProgram

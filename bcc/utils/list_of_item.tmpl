@@ -75,4 +75,7 @@ extern void MEMBER(clear)(struct STRUCT* list) {
 }                                                                                                           
 int MEMBER(is_empty)(struct STRUCT* list) {                                                
     return (list->num_items == 0);                                                                          
-}                                                                                                           
+}
+
+#undef NAME
+#undef TYPE

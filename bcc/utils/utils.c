@@ -92,5 +92,3 @@ struct list_of_int_helpers list_of_int_helpers = {
         .null = 0,
 };
 #include "./list_of_item.tmpl"
-#undef NAME
-#undef TYPE

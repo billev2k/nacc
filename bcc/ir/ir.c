@@ -26,8 +26,6 @@ struct list_of_IrValue_helpers list_of_IrValue_helpers = {
         .null = {0},
 };
 #include "../utils/list_of_item.tmpl"
-#undef NAME
-#undef TYPE
 
 #define NAME list_of_IrInstruction
 #define TYPE struct IrInstruction*
@@ -35,8 +33,6 @@ struct list_of_IrInstruction_helpers list_of_IrInstruction_helpers = {
         .delete = IrInstruction_delete
 };
 #include "../utils/list_of_item.tmpl"
-#undef NAME
-#undef TYPE
 
 #define NAME list_of_IrFunction
 #define TYPE struct IrFunction*
@@ -45,8 +41,6 @@ struct list_of_IrFunction_helpers list_of_IrFunction_helpers = {
         .null = NULL,
 };
 #include "../utils/list_of_item.tmpl"
-#undef NAME
-#undef TYPE
 
 struct IrProgram * ir_program_new() {
     struct IrProgram * program = (struct IrProgram*)malloc(sizeof(struct IrProgram));

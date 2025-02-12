@@ -203,8 +203,6 @@ extern void Amd64Instruction_delete(struct Amd64Instruction *instruction);
 #define NAME list_of_Amd64Instruction
 #define TYPE struct Amd64Instruction*
 #include "../utils/list_of_item.h"
-#undef NAME
-#undef TYPE
 
 struct Amd64Function {
     const char *name;
@@ -220,8 +218,6 @@ extern void amd64_function_delete(struct Amd64Function *function);
 #define NAME list_of_Amd64Function
 #define TYPE struct Amd64Function*
 #include "../utils/list_of_item.h"
-#undef NAME
-#undef TYPE
 struct Amd64Program {
     struct list_of_Amd64Function functions;
 };

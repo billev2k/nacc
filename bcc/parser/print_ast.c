@@ -17,9 +17,17 @@ static void print_ast_statement(struct CStatement *statement, int depth);
 static void print_ast_expression(const struct CExpression *expression, int depth);
 void c_program_print(const struct CProgram *program) {
     printf("\n\nAST:\nProgram(\n");
-    for (int ix=0; ix<program->functions.num_items; ix++) {
+    for (int ix=0; ix<program->declarations.num_items; ix++) {
         if (ix > 0) printf("\n");
-        print_ast_funcdecl(program->functions.items[ix]);
+        struct CDeclaration* decl = program->declarations.items[ix];
+        switch (decl->decl_kind) {
+            case FUNC_DECL:
+                print_ast_funcdecl(decl->func);
+                break;
+            case VAR_DECL:
+                print_ast_vardecl(decl->var, 0);
+                break;
+        }
     }
 }
 static void print_ast_funcdecl(const struct CFuncDecl *function) {
@@ -59,7 +67,7 @@ void print_ast_forinit(struct CForInit * init) {
     if (!init) return;
     switch (init->kind) {
         case FOR_INIT_DECL:
-            print_ast_vardecl(init->vardecl, -1);
+            print_ast_vardecl(init->declaration->var, -1);
             break;
         case FOR_INIT_EXPR:
             print_ast_expression(init->expression, 0);
@@ -76,14 +84,17 @@ static void print_ast_block(const struct CBlock *block, int depth) {
             case AST_BI_STATEMENT:
                 print_ast_statement(bi->statement, depth);
                 break;
-            case AST_BI_VAR_DECL:
+            case AST_BI_DECLARATION:
                 indent4(depth);
-                print_ast_vardecl(bi->vardecl, depth);
-                printf(";\n");
-                break;
-            case AST_BI_FUNC_DECL:
-                indent4(depth);
-                print_ast_funcdecl(bi->funcdecl);
+                switch (bi->declaration->decl_kind) {
+                    case FUNC_DECL:
+                        print_ast_funcdecl(bi->declaration->func);
+                        break;
+                    case VAR_DECL:
+                        print_ast_vardecl(bi->declaration->var, depth);
+                        printf(";\n");
+                        break;
+                }
                 break;
         }
     }

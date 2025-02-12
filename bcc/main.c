@@ -73,9 +73,9 @@ void compile() {
 
     if (configOptLexOnly) {
         struct Token tk;
-        while ((tk = lex_take_token()).token != TK_EOF) {
-            printf("Token %d: %s\n", tk.token, tk.text);
-            if (tk.token == TK_UNKNOWN) {
+        while ((tk = lex_take_token()).tk != TK_EOF) {
+            printf("Token %d: %s\n", tk.tk, tk.text);
+            if (tk.tk == TK_UNKNOWN) {
                 printf("Unknown token_text!\n");
                 exit(1);
             }

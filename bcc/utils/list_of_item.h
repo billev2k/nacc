@@ -53,4 +53,7 @@ extern void MEMBER(clear)(struct STRUCT* list);
 extern void MEMBER(delete)(struct STRUCT* list);
 extern int MEMBER(is_empty)(struct STRUCT* list);                                          
 
+#undef NAME
+#undef TYPE
+
 //#endif //BCC_LIST_OF_ITEM_H

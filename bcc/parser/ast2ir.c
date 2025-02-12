@@ -13,7 +13,7 @@ static void tmp_vars_init(void);
 
 static struct IrFunction *compile_function(const struct CFuncDecl *cFunction);
 static void compile_block(const struct list_of_CBlockItem *block, struct IrFunction *irFunction);
-static void compile_vardecl(const struct CVarDecl *vardecl, struct IrFunction *function);
+static void compile_vardecl(const struct CDeclaration *declaration, struct IrFunction *function);
 
 static void compile_statement(const struct CStatement *statement, struct IrFunction *function);
 
@@ -30,10 +30,19 @@ static void make_default_label(const struct IrFunction *function, int flow_id, s
 struct IrProgram *ast2ir(const struct CProgram *cProgram) {
     tmp_vars_init();
     struct IrProgram *program = ir_program_new();
-    for (int ix = 0; ix < cProgram->functions.num_items; ix++) {
-        struct IrFunction* function = compile_function(cProgram->functions.items[ix]);
-        if (!function) continue;
-        ir_program_add_function(program, function);
+    struct IrFunction* function;
+    for (int ix = 0; ix < cProgram->declarations.num_items; ix++) {
+        struct CDeclaration* decl = cProgram->declarations.items[ix];
+        switch (decl->decl_kind) {
+            case FUNC_DECL:
+                function = compile_function(decl->func);
+                if (!function) continue;
+                ir_program_add_function(program, function);
+                break;
+            case VAR_DECL:
+                // TODO: Compile variable declaration (initializer, if any)
+                break;
+        }
     }
     return program;
 }
@@ -41,10 +50,20 @@ struct IrProgram *ast2ir(const struct CProgram *cProgram) {
 static void compile_block(const struct list_of_CBlockItem *block, struct IrFunction *irFunction) {
     for (int ix = 0; ix < block->num_items; ix++) {
         struct CBlockItem *bi = block->items[ix];
-        if (bi->kind == AST_BI_STATEMENT) {
-            compile_statement(bi->statement, irFunction);
-        } else {
-            compile_vardecl(bi->vardecl, irFunction);
+        switch (bi->kind) {
+            case AST_BI_STATEMENT:
+                compile_statement(bi->statement, irFunction);
+                break;
+            case AST_BI_DECLARATION:
+                switch (bi->declaration->decl_kind) {
+                    case FUNC_DECL:
+                        compile_function(bi->declaration->func);
+                        break;
+                    case VAR_DECL:
+                        compile_vardecl(bi->declaration, irFunction);
+                        break;
+                }
+                break;
         }
     }
 }
@@ -66,7 +85,11 @@ struct IrFunction *compile_function(const struct CFuncDecl *cFunction) {
     return function;
 }
 
-static void compile_vardecl(const struct CVarDecl *vardecl, struct IrFunction *function) {
+void compile_vardecl(const struct CDeclaration *declaration, struct IrFunction *function) {
+    if (declaration->decl_kind != VAR_DECL) {
+        failf("Expected a variable declaration, got a function declaration instead.");
+    }
+    struct CVarDecl *vardecl = (struct CVarDecl *)declaration->var;
     struct IrValue var = ir_value_new_id(vardecl->var.name);
     struct IrInstruction *inst = ir_instruction_new_var(var);
     ir_function_append_instruction(function, inst);
@@ -133,7 +156,7 @@ static void compile_for(const struct CStatement *for_statement, struct IrFunctio
         if (for_statement->for_statement.init->kind == FOR_INIT_EXPR) {
             compile_expression(for_statement->for_statement.init->expression, function);
         } else if (for_statement->for_statement.init->kind == FOR_INIT_DECL) {
-            compile_vardecl(for_statement->for_statement.init->vardecl, function);
+            compile_vardecl(for_statement->for_statement.init->declaration, function);
         } else {
             assert("Unknown kind in 'for init'" && 0);
         }

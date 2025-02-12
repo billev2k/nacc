@@ -19,9 +19,9 @@ struct list_of_symbol_helpers list_of_symbol_helpers = {
         .delete = symbol_delete,
         .null = {},
 };
+#define NAME list_of_symbol
+#define TYPE struct Symbol
 #include "../utils/list_of_item.tmpl"
-#undef NAME
-#undef TYPE
 
 
 struct list_of_symbol symbol_table;

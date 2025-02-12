@@ -12,6 +12,18 @@
 #include "../parser/ast.h"
 #include "../utils/startup.h"
 
+void token_delete(struct Token token) {
+    // no-op
+}
+struct list_of_token_helpers list_of_token_helpers = {
+        .delete = token_delete,
+        .null = {},
+};
+#define TYPE struct Token
+#define NAME list_of_token
+#include "../utils/list_of_item.tmpl"
+
+
 // This is a pretty long line, but generated code can be longer.
 #define INITIAL_LINE_BUFFER_SIZE 512
 
@@ -142,11 +154,11 @@ struct Token lex_take_token(void) {
             readahead_list[i] = readahead_list[i+1];
         }
         --readahead_count;
-        if (traceTokens) printf("Take ra token (%d) %s\n", current_token.token, current_token.text);
+        if (traceTokens) printf("Take ra token (%d) %s\n", current_token.tk, current_token.text);
         return current_token;
     }
     current_token = internal_take_token();
-    if (traceTokens) printf("Take token (%d) %s\n", current_token.token, current_token.text);
+    if (traceTokens) printf("Take token (%d) %s\n", current_token.tk, current_token.text);
     return current_token;
 }
 
@@ -157,7 +169,7 @@ struct Token lex_take_token(void) {
  */
 static struct Token internal_take_token(void) {
     enum TK tk = tokenizer();
-    struct Token token = {.token = tk};
+    struct Token token = {.tk = tk};
     if (tk == TK_ID || tk == TK_LITERAL) {
         char saved = *token_end;
         *(char *) token_end = '\0';  // const_cast<char*>()

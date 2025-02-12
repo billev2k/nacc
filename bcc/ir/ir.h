@@ -84,8 +84,6 @@ extern struct IrValue ir_value_new_int(int int_val);
 #define NAME list_of_IrValue
 #define TYPE struct IrValue
 #include "../utils/list_of_item.h"
-#undef NAME
-#undef TYPE
 //endregion VALUE
 
 //region struct IrInstruction
@@ -152,8 +150,6 @@ extern void IrInstruction_delete(struct IrInstruction *instruction);
 #define NAME list_of_IrInstruction
 #define TYPE struct IrInstruction*
 #include "../utils/list_of_item.h"
-#undef NAME
-#undef TYPE
 //endregion
 
 //region struct IrFunction
@@ -170,8 +166,6 @@ extern void ir_function_append_instruction(struct IrFunction *function, struct I
 #define NAME list_of_IrFunction
 #define TYPE struct IrFunction*
 #include "../utils/list_of_item.h"
-#undef NAME
-#undef TYPE
 //endregion
 
 //region struct IrProgram

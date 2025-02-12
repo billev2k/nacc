@@ -10,10 +10,10 @@
 /*
  *  Current AST:
     program = Program(function_vardecl*)
-    vardecl = FunDecl(function_vardecl) | VarDecl(variable_vardecl)
+    declaration = FunDecl(function_vardecl) | VarDecl(variable_vardecl)
     variable_vardecl = (identifier name, exp? init)
     function_vardecl = (identifier name, identifier* params, body? body)
-    block_item = S(statement) | D(vardecl)
+    block_item = S(statement) | D(declaration)
     body = Block(block_item*)
     for_init = InitDecl(variable_vardecl) | InitExp(exp?)
     statement = Return(exp)
@@ -50,15 +50,20 @@ enum AST_RESULT {
 };
 
 enum STORAGE_CLASS {
-    NONE,
-    STATIC,
-    EXTERN,
+    SC_NONE         = 0x00,
+    SC_STATIC       = 0x01,
+    SC_EXTERN       = 0x02,
+    // SC_THREAD       = 0x04,
+};
+
+enum DECL_KIND {
+    FUNC_DECL,
+    VAR_DECL,
 };
 
 enum AST_BLOCK_ITEM_KIND {
     AST_BI_STATEMENT,
-    AST_BI_VAR_DECL,
-    AST_BI_FUNC_DECL,
+    AST_BI_DECLARATION,
 };
 
 enum FOR_INIT_KIND {
@@ -114,7 +119,6 @@ enum AST_CONST_TYPE {
     AST_CONST_LIST__
 #undef X
 };
-extern const char* const ASM_CONST_TYPE_NAMES[];
 
 //region AST operators and precedence
 // This list also expands to reference items from IR_UNARY_OP_LIST__
@@ -161,17 +165,17 @@ extern enum IR_UNARY_OP const AST_TO_IR_UNARY[];
     X(QUESTION,         "?",     3,	    0),                     \
     X(ASSIGN,           "=",     2,	    0),                     \
 
-#define COMPOUND_ASSIGN_LIST_ = \
-    X(ASSIGN_PLUS,      "+=",    2),      \
-    X(ASSIGN_MINUS,     "-=",    2),      \
-    X(ASSIGN_MULT,      "*=",    2),      \
-    X(ASSIGN_DIV,       "/=",    2),      \
-    X(ASSIGN_MOD,       "%=",    2),      \
-    X(ASSIGN_AND,       "&=",    2),      \
-    X(ASSIGN_OR,        "|=",    2),      \
-    X(ASSIGN_XOR,       "^=",    2),      \
-    X(ASSIGN_LSHIFT,    "<<=",   2),      \
-    X(ASSIGN_RSHIFT,    ">>=",   2),      \
+//#define COMPOUND_ASSIGN_LIST_ = \
+//    X(ASSIGN_PLUS,      "+=",    2),      \
+//    X(ASSIGN_MINUS,     "-=",    2),      \
+//    X(ASSIGN_MULT,      "*=",    2),      \
+//    X(ASSIGN_DIV,       "/=",    2),      \
+//    X(ASSIGN_MOD,       "%=",    2),      \
+//    X(ASSIGN_AND,       "&=",    2),      \
+//    X(ASSIGN_OR,        "|=",    2),      \
+//    X(ASSIGN_XOR,       "^=",    2),      \
+//    X(ASSIGN_LSHIFT,    "<<=",   2),      \
+//    X(ASSIGN_RSHIFT,    ">>=",   2),      \
 
 
 enum AST_BINARY_OP {
@@ -195,8 +199,6 @@ struct CIdentifier {
 #define NAME list_of_CIdentifier
 #define TYPE struct CIdentifier
 #include "../utils/list_of_item.h"
-#undef NAME
-#undef TYPE
 //endregion CIdentifier
    
 //region struct CLabel
@@ -210,8 +212,6 @@ struct CLabel {
 #define NAME list_of_CLabel
 #define TYPE struct CLabel
 #include "../utils/list_of_item.h"
-#undef NAME
-#undef TYPE
 //endregion struct CLabel
 
 //region struct CExpression
@@ -219,8 +219,6 @@ struct CExpression;
 #define NAME list_of_CExpression
 #define TYPE struct CExpression*
 #include "../utils/list_of_item.h"
-#undef NAME
-#undef TYPE
 struct CExpression {
     enum AST_EXP_KIND kind;
     union {
@@ -272,6 +270,22 @@ extern struct CExpression* c_expression_clone(const struct CExpression* expressi
 extern void c_expression_delete(struct CExpression* expression);
 //endregion CExpression
 
+//region struct CDeclaration
+struct CDeclaration {
+    enum DECL_KIND decl_kind;
+    union {
+        struct CVarDecl* var;
+        struct CFuncDecl* func;
+    };
+};
+extern struct CDeclaration* c_declaration_new_var(struct CVarDecl* vardecl);
+extern struct CDeclaration* c_declaration_new_func(struct CFuncDecl* funcdecl);
+extern void c_declaration_delete(struct CDeclaration* declaration);
+#define TYPE struct CDeclaration*
+#define NAME list_of_CDeclaration
+#include "../utils/list_of_item.h"
+//endregion CDeclaration
+
 //region struct CVarDecl
 struct CVarDecl {
     enum STORAGE_CLASS storage_class;
@@ -287,11 +301,11 @@ extern void c_vardecl_delete(struct CVarDecl* vardecl);
 struct CForInit {
     enum FOR_INIT_KIND kind;
     union {
-        struct CVarDecl* vardecl;
+        struct CDeclaration* declaration;
         struct CExpression* expression;
     };
 };
-extern struct CForInit* c_for_init_new_vardecl(struct CVarDecl* vardecl);
+extern struct CForInit* c_for_init_new_vardecl(struct CDeclaration *declaration);
 extern struct CForInit* c_for_init_new_expression(struct CExpression* expression);
 extern void c_for_init_delete(struct CForInit* for_init);
 //endregion  CForInit
@@ -300,13 +314,12 @@ extern void c_for_init_delete(struct CForInit* for_init);
 struct CBlockItem {
     enum AST_BLOCK_ITEM_KIND kind;
     union {
-        struct CVarDecl* vardecl;
-        struct CFuncDecl* funcdecl;
         struct CStatement* statement;
+        struct CDeclaration *declaration;
     };
 };
-extern struct CBlockItem* c_block_item_new_var_decl(struct CVarDecl* vardecl);
-extern struct CBlockItem* c_block_item_new_func_decl(struct CFuncDecl* funcdecl);
+extern struct CBlockItem* c_block_item_new_decl(struct CDeclaration* declaration);
+
 extern struct CBlockItem* c_block_item_new_stmt(struct CStatement* statement);
 extern void c_block_item_delete(struct CBlockItem* blockItem);
 extern void CBlockItem_delete(struct CBlockItem* blockItem);  // actually used in c_blockitem_helpers
@@ -314,8 +327,6 @@ extern void CBlockItem_delete(struct CBlockItem* blockItem);  // actually used i
 #define NAME list_of_CBlockItem
 #define TYPE struct CBlockItem*
 #include "../utils/list_of_item.h"
-#undef NAME
-#undef TYPE
 //endregion CBlockItem
 
 //region struct CBlock
@@ -395,8 +406,6 @@ struct CFuncDecl {
 #define NAME list_of_CFuncDecl
 #define TYPE struct CFuncDecl*
 #include "../utils/list_of_item.h"
-#undef NAME
-#undef TYPE
 extern struct CFuncDecl* c_function_new(const char* name, enum STORAGE_CLASS storage_class);
 extern enum AST_RESULT c_function_add_param(struct CFuncDecl* function, const char* param_name);
 extern enum AST_RESULT c_function_add_body(struct CFuncDecl* function, struct CBlock* body);
@@ -405,10 +414,11 @@ extern void c_function_delete(struct CFuncDecl* function);
 
 //region struct CProgram
 struct CProgram {
-    struct list_of_CFuncDecl functions;
+    struct list_of_CDeclaration declarations;
 };
 extern struct CProgram* c_program_new(void);
-extern enum AST_RESULT c_program_add_func(struct CProgram* program, struct CFuncDecl* function);
+extern enum AST_RESULT c_program_add_decl(struct CProgram *program, struct CDeclaration *declaration);
+
 extern void c_program_delete(struct CProgram* program);
 //endregion CProgram
 

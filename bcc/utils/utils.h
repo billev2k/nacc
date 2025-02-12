@@ -30,7 +30,5 @@ extern int next_uniquifier(void);
 #define NAME list_of_int
 #define TYPE int
 #include "list_of_item.h"
-#undef NAME
-#undef TYPE
 
 #endif //BCC_UTILS_H

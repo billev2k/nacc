@@ -88,8 +88,6 @@ struct list_of_Amd64Instruction_helpers list_of_Amd64Instruction_helpers = {
 #define NAME list_of_Amd64Instruction
 #define TYPE struct Amd64Instruction*
 #include "../utils/list_of_item.tmpl"
-#undef NAME
-#undef TYPE
 
 #define NAME list_of_Amd64Function
 #define TYPE struct Amd64Function*
@@ -97,8 +95,6 @@ struct list_of_Amd64Function_helpers list_of_Amd64Function_helpers = {
         .delete = amd64_function_delete,
 };
 #include "../utils/list_of_item.tmpl"
-#undef NAME
-#undef TYPE
 
 struct Amd64Program* amd64_program_new(void ) {
     struct Amd64Program *result = (struct Amd64Program *)malloc(sizeof(struct Amd64Program));
