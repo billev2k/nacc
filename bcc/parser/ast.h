@@ -257,6 +257,7 @@ struct CExpression {
         } function_call;
     };
 };
+extern int c_expression_is_const(struct CExpression *exp);
 extern struct CExpression* c_expression_new_assign(struct CExpression* src, struct CExpression* dst);
 extern struct CExpression* c_expression_new_binop(enum AST_BINARY_OP op, struct CExpression* left, struct CExpression* right);
 extern struct CExpression* c_expression_new_conditional(struct CExpression* left_exp, struct CExpression* middle_exp, struct CExpression* right_exp);

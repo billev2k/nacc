@@ -22,19 +22,24 @@ struct LoopLabelContext {
 
 
 static void analyze_function(struct CFuncDecl *function);
+static void resolve_file_scope_vardecl(struct CDeclaration *decl);
+static void resolve_expression(struct CExpression *exp);
+static void resolve_forinit(struct CForInit *for_init);
+
 static void resolve_block(const struct CBlock *block);
 static void resolve_statement(const struct CStatement *statement);
 static void resolve_goto(const struct CStatement *statement);
 static void resolve_vardecl(struct CVarDecl *vardecl);
-static void resolve_funcdecl(struct CFuncDecl *function, int isExtern);
+static void resolve_funcdecl(struct CFuncDecl *function);
 static void label_block_loops(const struct CBlock *block, struct LoopLabelContext context);
 static void label_statement_loops(struct CStatement *statement, struct LoopLabelContext context);
 
 static void typecheck_program(const struct CProgram *program);
 static void typecheck_function(struct CFuncDecl *function);
+static void typecheck_file_scope_vardecl(struct CVarDecl *vardecl);
 static void typecheck_block(struct CBlock* block);
 static void typecheck_statement(const struct CStatement *statement);
-static void typecheck_vardecl(struct CVarDecl *vardecl);
+static void typecheck_block_scope_vardecl(struct CVarDecl *vardecl);
 static void typecheck_expression(struct CExpression *exp);
 
 void semantic_analysis(const struct CProgram *program) {
@@ -46,16 +51,26 @@ void semantic_analysis(const struct CProgram *program) {
                 analyze_function(decl->func);
                 break;
             case VAR_DECL:
-                // TODO: analyze_global_var(decl->var);
+                resolve_file_scope_vardecl(decl);
                 break;
         }
     }
     typecheck_program(program);
 }
 
+static void resolve_file_scope_vardecl(struct CDeclaration *decl) {
+    if (!decl) return;
+    struct CVarDecl *vardecl = decl->var;
+    vardecl->var.name =  add_identifier(IDENTIFIER_ID, vardecl->var.source_name, 1 /*has_linkage*/);
+    // File scope variables can only have constant initializers, so we don't need to resolve any initializer.
+    //if (vardecl->initializer) {
+    //    resolve_expression(vardecl->initializer);
+    //}
+}
+
 static void analyze_function(struct CFuncDecl *function) {
     if (!function) return;
-    resolve_funcdecl(function, 1);
+    resolve_funcdecl(function);
     if (function->body) {
         label_block_loops(function->body, (struct LoopLabelContext) {0});
     }
@@ -74,7 +89,10 @@ static void resolve_block(const struct CBlock *block) {
                         if (bi->declaration->func->body) {
                             failf("Nested function definitions are not supported: %s\n", bi->declaration->func->name);
                         }
-                        resolve_funcdecl(bi->declaration->func, 1);
+                        resolve_funcdecl(bi->declaration->func);
+                        if (bi->declaration->func->storage_class == SC_STATIC) {
+                            failf("Block-scope static functions are not supported: %s\n", bi->declaration->func->name);
+                        }
                         break;
                     case VAR_DECL:
                         resolve_vardecl(bi->declaration->var);
@@ -175,29 +193,16 @@ static void resolve_expression(struct CExpression *exp) {
     }
 }
 
-static void uniquify_thing(struct CIdentifier *var, enum IDENTIFIER_KIND kind, int isExtern) {
-    const char *uniquified = add_identifier(kind, var->source_name, isExtern?SYMTAB_EXTERN:SYMTAB_NONE);
-    var->name = uniquified;
-}
-
-static void uniquify_variable(struct CIdentifier *var) {
-    uniquify_thing(var, IDENTIFIER_ID, 0);
-}
-
-static void uniquify_label(struct CIdentifier *var) {
-    uniquify_thing(var, IDENTIFIER_LABEL, 0);
-}
-
-static void resolve_funcdecl(struct CFuncDecl *function, int isExtern) {
+static void resolve_funcdecl(struct CFuncDecl *function) {
     // Doesn't decorate, just makes sure it doesn't collide with a non-extern.
-    struct CIdentifier function_id = {function->name, function->name};
-    uniquify_thing(&function_id, IDENTIFIER_ID, 1);
+    add_identifier(IDENTIFIER_ID, function->name, 1 /*has_linkage*/);
 
     if (function->body) {
         // Any parameters are in the same scope as function block declarations.
         push_id_context(1);
         for (int ix = 0; ix < function->params.num_items; ix++) {
-            uniquify_variable(&function->params.items[ix]);
+            struct CIdentifier *var = &function->params.items[ix];
+            var->name =  add_identifier(IDENTIFIER_ID, var->source_name, 0 /*has_linkage*/);
         }
         resolve_block(function->body);
         pop_id_context();
@@ -206,7 +211,14 @@ static void resolve_funcdecl(struct CFuncDecl *function, int isExtern) {
 
 static void resolve_vardecl(struct CVarDecl *vardecl) {
     if (!vardecl) return;
-    uniquify_variable(&vardecl->var);
+    bool has_linkage = false;
+    bool current_scope = false;
+    if (lookup_identifier(IDENTIFIER_ID, vardecl->var.source_name, &has_linkage, &current_scope) != NULL) {
+        if (current_scope && !(has_linkage && vardecl->storage_class==SC_EXTERN)) {
+            failf("Error: variable \"%s\" has conflicting local declarations.", vardecl->var.source_name);
+        }
+    }
+    vardecl->var.name =  add_identifier(IDENTIFIER_ID, vardecl->var.source_name, vardecl->storage_class==SC_EXTERN);
     // Update the initializer, if there is one.
     if (vardecl->initializer) {
         resolve_expression(vardecl->initializer);
@@ -218,6 +230,9 @@ static void resolve_forinit(struct CForInit *for_init) {
     if (for_init->kind == FOR_INIT_DECL) {
         assert(for_init->declaration->decl_kind == VAR_DECL);
         resolve_vardecl(for_init->declaration->var);
+        if (for_init->declaration->var->storage_class != SC_NONE) {
+            failf("Error: unexpected storage class for for-init declaration: %s", for_init->declaration->var->var.name);
+        }
     } else {
         resolve_expression(for_init->expression);
     }
@@ -230,7 +245,8 @@ static void resolve_statement(const struct CStatement *statement) {
         struct CLabel *labels = c_statement_get_labels(statement);
         for (int i=0; i<num_labels; ++i) {
             if (labels[i].kind == LABEL_DECL) {
-                uniquify_label(&labels[i].label);
+                struct CIdentifier *var = &labels[i].label;
+                var->name =  add_identifier(IDENTIFIER_LABEL, var->source_name, 0 /*has_linkage*/);
             }
         }
     }
@@ -437,7 +453,7 @@ void typecheck_program(const struct CProgram *program) {
                 typecheck_function(decl->func);
                 break;
             case VAR_DECL:
-                typecheck_vardecl(decl->var);
+                typecheck_file_scope_vardecl(decl->var);
                 break;
         }
 
@@ -456,7 +472,7 @@ void typecheck_block(struct CBlock* block) {
                         typecheck_function(bi->declaration->func);
                         break;
                     case VAR_DECL:
-                        typecheck_vardecl(bi->declaration->var);
+                        typecheck_block_scope_vardecl(bi->declaration->var);
                         break;
                 }
                 break;
@@ -469,7 +485,7 @@ void typecheck_expression(struct CExpression *exp) {
     switch (exp->kind) {
         case AST_EXP_FUNCTION_CALL:
             if (find_symbol(exp->var, &symbol) == SYMTAB_OK) {
-                if (!(symbol.flags & SYMTAB_FUNC)) {
+                if (!(symbol.attrs & SYMBOL_FUNC)) {
                     failf("Non function used as function: %s", exp->var.name);
                 }
                 if (symbol.num_params != exp->function_call.args.num_items) {
@@ -485,7 +501,7 @@ void typecheck_expression(struct CExpression *exp) {
             break;
         case AST_EXP_VAR:
             if (find_symbol(exp->var, &symbol) == SYMTAB_OK) {
-                if (!(symbol.flags & SYMTAB_VAR)) {
+                if (!SYMBOL_ATTR_IS_VAR(symbol.attrs)) {
                     failf("Non variable used as variable: %s", exp->var.name);
                 }
             } else {
@@ -520,7 +536,8 @@ void typecheck_forinit(struct CForInit *for_init) {
     if (!for_init) return;
     switch (for_init->kind) {
         case FOR_INIT_DECL:
-            typecheck_vardecl(for_init->declaration->var);
+            typecheck_block_scope_vardecl(for_init->declaration->var);
+            break;
         case FOR_INIT_EXPR:
             typecheck_expression(for_init->expression);
             break;
@@ -531,40 +548,89 @@ void typecheck_function(struct CFuncDecl *function) {
     int num_params = function->params.num_items;
     int has_body = function->body != NULL;
     int func_defined = 0;
+    int global = function->storage_class != SC_STATIC;
 
     struct CIdentifier function_id = {function->name, function->name};
     struct Symbol symbol;
     if (find_symbol(function_id, &symbol) == SYMTAB_OK) {
-        if (symbol.flags & SYMTAB_VAR) {
+        if (SYMBOL_ATTR_IS_VAR(symbol.attrs)) {
             failf("Incompatible function/var declarations: %s", function->name);
         }
-        func_defined = symbol.flags & SYMTAB_FUNC_DEFINED ? 1 : 0;
+        func_defined = SYMBOL_IS_DEFINED(symbol.attrs);
         if (func_defined && has_body) {
             failf("Function %s already defined", function->name);
         }
         if (num_params != symbol.num_params) {
             failf("Incompatible function declarations for %s; %d vs %d params", function->name, num_params, symbol.num_params);
         }
+        if (SYMBOL_IS_GLOBAL(symbol.attrs) && function->storage_class == SC_STATIC) {
+            failf("Static function declaration follows non-static: %s", function->name);
+        }
+        global = SYMBOL_IS_GLOBAL(symbol.attrs);
     }
-    symbol = (struct Symbol) {
-        // We don't yet support "static", so all functions are "extern"
-        .flags = SYMTAB_FUNC | SYMTAB_EXTERN | ((func_defined || has_body) ? SYMTAB_FUNC_DEFINED : 0),
-        .identifier = function_id,
-        .num_params = function->params.num_items,
-    };
+    enum SYMBOL_ATTRS func_attrs = SYMBOL_GLOBAL_IF(global) |
+                                   SYMBOL_DEFINED_IF(func_defined || has_body);
+    symbol = symbol_new_func(function_id, function->params.num_items, func_attrs);
     upsert_symbol(symbol);
     if (has_body) {
         // Add decorated param names to symbol table. They've been uniquified, so no collisions.
         for (int ix = 0; ix < function->params.num_items; ix++) {
-            symbol = (struct Symbol) {
-                .flags = SYMTAB_VAR,
-                .identifier = function->params.items[ix],
-            };
+            symbol = symbol_new_local_var(function->params.items[ix]);
             add_symbol(symbol);
         }
         typecheck_block(function->body);
     }
 }
+void typecheck_file_scope_vardecl(struct CVarDecl *vardecl) {
+    if (!vardecl) return;
+    // File scope variables have static lifetime. Any initial_value must be a constant expression.
+    enum SYMBOL_ATTRS initializer_attrs = SYMBOL_NONE;
+    int has_initializer = vardecl->initializer != NULL;
+    int initial_value = 0;
+    if (has_initializer) {
+        if (c_expression_is_const(vardecl->initializer)) {
+            initial_value = vardecl->initializer->literal.int_val;
+            initializer_attrs = SYMBOL_STATIC_INITIALIZED;
+        } else {
+            failf("Initializer for file scope variable %s is not a constant expression", vardecl->var.name);
+        }
+    } else if (vardecl->storage_class == SC_EXTERN) {
+        initializer_attrs = SYMBOL_STATIC_NO_INIT;
+    } else {
+        initializer_attrs = SYMBOL_STATIC_TENTATIVE;
+    }
+    int global = vardecl->storage_class != SC_STATIC;
+
+    struct Symbol symbol;
+    if (find_symbol(vardecl->var, &symbol) == SYMTAB_OK) {
+        if (!SYMBOL_ATTR_IS_VAR(symbol.attrs)) {
+            failf("Function redeclared as a variable: %s", vardecl->var.name);
+        }
+
+        if (vardecl->storage_class == SC_EXTERN) {
+            // If now declared extern, use prior linkage.
+            global = SYMBOL_IS_GLOBAL(symbol.attrs);
+        } else if (SYMBOL_IS_GLOBAL(symbol.attrs) != global) {
+            // was-global == is-global ?
+            failf("Incompatible variable linkage for %s", vardecl->var.name);
+        }
+
+        if (symbol.attrs & SYMBOL_STATIC_INITIALIZED) {
+            if (initializer_attrs == SYMBOL_STATIC_INITIALIZED) {
+                failf("Conflicting file scope variable definitions for %s", vardecl->var.name);
+            } else {
+                initializer_attrs = SYMBOL_STATIC_INITIALIZED;
+                initial_value = symbol.int_val;
+            }
+        } else if (initializer_attrs != SYMBOL_STATIC_INITIALIZED && symbol.attrs & SYMBOL_STATIC_TENTATIVE) {
+            initializer_attrs = SYMBOL_STATIC_TENTATIVE;
+        }
+    }
+    enum SYMBOL_ATTRS attrs = SYMBOL_GLOBAL_IF(global) | initializer_attrs;
+    symbol = symbol_new_static_var(vardecl->var, attrs, initial_value);
+    upsert_symbol(symbol);
+}
+
 void typecheck_statement(const struct CStatement *statement) {
     if (!statement) return;
     switch (statement->kind) {
@@ -605,14 +671,38 @@ void typecheck_statement(const struct CStatement *statement) {
             break;
     }
 }
-void typecheck_vardecl(struct CVarDecl *vardecl) {
-    struct Symbol symbol = {
-            .flags = SYMTAB_VAR,
-            .identifier = vardecl->var,
-    };
-    add_symbol(symbol);
-    if (vardecl->initializer) {
-        typecheck_expression(vardecl->initializer);
+void typecheck_block_scope_vardecl(struct CVarDecl *vardecl) {
+    if (!vardecl) return;
+    struct Symbol symbol;
+    if (vardecl->storage_class == SC_EXTERN) {
+        if (vardecl->initializer) {
+            failf("Initializer on local extern variable deckaration: %s", vardecl->var.name);
+        }
+        if (find_symbol(vardecl->var, &symbol) == SYMTAB_OK) {
+            if (!SYMBOL_ATTR_IS_VAR(symbol.attrs)) {
+                failf("Function redeclared as a variable: %s", vardecl->var.name);
+            }
+        } else {
+            symbol = symbol_new_static_var(vardecl->var, SYMBOL_STATIC_NO_INIT|SYMBOL_GLOBAL, 0);
+            add_symbol(symbol);
+        }
+
+    } else if (vardecl->storage_class == SC_STATIC) {
+        int initial_value = 0;
+        if (c_expression_is_const(vardecl->initializer)) {
+            initial_value = vardecl->initializer->literal.int_val;
+        } else if (vardecl->initializer) {
+            failf("Initializer for static variable %s is not a constant expression", vardecl->var.name);
+        }
+        symbol = symbol_new_static_var(vardecl->var, SYMBOL_STATIC_INITIALIZED, initial_value);
+        add_symbol(symbol);
+
+    } else {
+        symbol = symbol_new_local_var(vardecl->var);
+        add_symbol(symbol);
+        if (vardecl->initializer) {
+            typecheck_expression(vardecl->initializer);
+        }
     }
 }
 

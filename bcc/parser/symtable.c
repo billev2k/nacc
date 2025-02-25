@@ -32,17 +32,29 @@ void symtab_init() {
 }
 
 
-struct Symbol symbol_new_var(struct CIdentifier id, enum SYMTAB_FLAGS flags) {
+struct Symbol symbol_new_static_var(struct CIdentifier id, enum SYMBOL_ATTRS attrs, int int_val) {
+    // No symbol flags other than static flags and global flag
+    assert((attrs & ~(SYMBOL_STATIC_MASK | SYMBOL_GLOBAL)) == 0);
     struct Symbol symbol = {
             .identifier = id,
-            .flags = flags,
+            .attrs = attrs,
+            .int_val = int_val,
     };
     return symbol;
 }
-struct Symbol symbol_new_func(struct CIdentifier id, int num_params, enum SYMTAB_FLAGS flags) {
+struct Symbol symbol_new_local_var(struct CIdentifier id) {
     struct Symbol symbol = {
             .identifier = id,
-            .flags = flags,
+            .attrs = SYMBOL_LOCAL_VAR,
+    };
+    return symbol;
+}
+struct Symbol symbol_new_func(struct CIdentifier id, int num_params, enum SYMBOL_ATTRS attrs) {
+    // Only FUNC, GLOBAL, and/or DEFINED allowed.
+    assert((attrs & ~(SYMBOL_FUNC|SYMBOL_GLOBAL|SYMBOL_DEFINED)) == 0);
+    struct Symbol symbol = {
+            .identifier = id,
+            .attrs = attrs | SYMBOL_FUNC,
             .num_params = num_params,
     };
     return symbol;

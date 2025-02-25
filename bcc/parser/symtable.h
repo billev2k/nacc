@@ -4,6 +4,8 @@
 
 #ifndef BCC_SYMTABLE_H
 #define BCC_SYMTABLE_H
+
+#include <stdbool.h>
 #include "ast.h"
 
 enum SYMTAB_RESULT {
@@ -12,43 +14,44 @@ enum SYMTAB_RESULT {
     SYMTAB_NOTFOUND,
 };
 
-enum SYMTAB_FLAGS {
-    SYMTAB_NONE      = 0x00,            // No flags
-    SYMTAB_EXTERN    = 0x01,            // Symbol has external linkage
+enum SYMBOL_ATTRS {
+    SYMBOL_NONE                 = 0x00,             // No attrs
+    SYMBOL_FUNC                 = 0x01,
+    SYMBOL_LOCAL_VAR            = 0x02,
+    SYMBOL_STATIC_TENTATIVE     = 0x04,
+    SYMBOL_STATIC_INITIALIZED   = 0x08,
+    SYMBOL_STATIC_NO_INIT       = 0x10,
 
-    SYMTAB_VAR       = 0x10,            // A variable
-    SYMTAB_FUNC      = 0x20,            // A function
-    SYMTAB_FUNC_DEFINED = 0x40,         // A function with a body
+    SYMBOL_STATIC_MASK          = SYMBOL_STATIC_TENTATIVE|SYMBOL_STATIC_INITIALIZED|SYMBOL_STATIC_NO_INIT,
+    SYMBOL_VAR_MASK             = SYMBOL_LOCAL_VAR|SYMBOL_STATIC_MASK,
 
-    // intrinsic types
-//    SYMTAB_CHAR      = 0x20,
-//    SYMTAB_UCHAR     = 0x21,
-//    SYMTAB_SCHAR     = 0x22,
-//    SYMTAB_SHORT     = 0x23,
-//    SYMTAB_USHORT    = 0x24,
-    SYMTAB_INT       = 0x25,
-//    SYMTAB_UINT      = 0x26,
-//    SYMTAB_LONG      = 0x27,
-//    SYMTAB_ULONG     = 0x28,
-//    SYMTAB_LLONG     = 0x29,
-//    SYMTAB_ULLONG    = 0x2A,
-//
-//    SYMTAB_FLOAT     = 0x2B,
-//    SYMTAB_DOUBLE    = 0x2C,
-//    SYMTAB_LDOUBLE   = 0x2D,
+    SYMBOL_GLOBAL               = 0x20,
+    SYMBOL_DEFINED              = 0x40,
 };
+
+#define SYMBOL_ATTR_IS_VAR(attr) ((attr & SYMBOL_VAR_MASK) != 0)
+#define SYMBOL_IS_GLOBAL(attr) ((attr & SYMBOL_GLOBAL) == SYMBOL_GLOBAL)
+#define SYMBOL_IS_DEFINED(attr) ((attr & SYMBOL_DEFINED) == SYMBOL_DEFINED)
+
+#define VAL_IF_PRED(val,pred) ((pred)?(val):0)
+#define SYMBOL_GLOBAL_IF(pred) VAL_IF_PRED(SYMBOL_GLOBAL,pred)
+#define SYMBOL_DEFINED_IF(pred) VAL_IF_PRED(SYMBOL_DEFINED,pred)
 
 struct Symbol {
     struct CIdentifier identifier;
-    enum SYMTAB_FLAGS flags;
+    enum SYMBOL_ATTRS attrs;
     union {
+        int int_val;
         struct {
             int num_params;
+            // param types
         };
     };
 };
-extern struct Symbol symbol_new_var(struct CIdentifier id, enum SYMTAB_FLAGS flags);
-extern struct Symbol symbol_new_func(struct CIdentifier id, int num_params, enum SYMTAB_FLAGS flags);
+
+extern struct Symbol symbol_new_static_var(struct CIdentifier id, enum SYMBOL_ATTRS attrs, int int_val);
+extern struct Symbol symbol_new_local_var(struct CIdentifier id);
+extern struct Symbol symbol_new_func(struct CIdentifier id, int num_params, enum SYMBOL_ATTRS attrs);
 extern void symbol_delete(struct Symbol symbol);
 
 extern enum SYMTAB_RESULT add_symbol(struct Symbol symbol);

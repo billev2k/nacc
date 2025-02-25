@@ -26,11 +26,22 @@ void c_program_print(const struct CProgram *program) {
                 break;
             case VAR_DECL:
                 print_ast_vardecl(decl->var, 0);
+                printf(";");
                 break;
         }
     }
 }
 static void print_ast_funcdecl(const struct CFuncDecl *function) {
+    switch (function->storage_class) {
+        case SC_NONE:
+            break;
+        case SC_STATIC:
+            printf("static ");
+            break;
+        case SC_EXTERN:
+            printf("extern ");
+            break;
+    }
     printf("int %s(", function->name);
     if (function->params.num_items == 0) {
         printf("void");
@@ -55,12 +66,22 @@ static void indent4(int n) {
 static void print_ast_vardecl(struct CVarDecl *vardecl, int depth) {
     if (!vardecl) return;
 //    indent4(depth);
+    switch (vardecl->storage_class) {
+        case SC_NONE:
+            break;
+        case SC_STATIC:
+            printf("static ");
+            break;
+        case SC_EXTERN:
+            printf("extern ");
+            break;
+    }
     printf("int %s", vardecl->var.source_name);
     if (vardecl->initializer) {
         printf(" = ");
         print_ast_expression(vardecl->initializer, depth);
     }
-//    printf(";\n");
+//    printf(";");
 }
 
 void print_ast_forinit(struct CForInit * init) {

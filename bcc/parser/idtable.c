@@ -11,11 +11,9 @@
 #include "../utils/utils.h"
 #include "../utils/startup.h"
 
-
-
 struct identifier_item {
     enum IDENTIFIER_KIND kind;
-    enum SYMTAB_FLAGS flags;
+    bool has_linkage;
     const char* source_name;
     const char* mapped_name;
 };
@@ -100,19 +98,19 @@ static struct set_of_identifier_item* symtab_for(enum IDENTIFIER_KIND kind) {
         assert("Unknown symbol kind" && 0);
 }
 
-const char *add_identifier(enum IDENTIFIER_KIND kind, const char *source_name, enum SYMTAB_FLAGS flags) {
+const char *add_identifier(enum IDENTIFIER_KIND kind, const char *source_name, bool has_linkage) {
     const char* tag = tag_for(kind);
     struct set_of_identifier_item* table = symtab_for(kind);
     // The key for find()
     struct identifier_item item = {
             .kind = kind,
-            .flags = flags,
+            .has_linkage = (bool)has_linkage,
             .source_name = source_name,
     };
     struct identifier_item found = {0};
     int was_found = set_of_identifier_item_find(table, item, &found);
     if (was_found) {
-        if ((flags & SYMTAB_EXTERN) && (found.flags & SYMTAB_EXTERN)) {
+        if (has_linkage && found.has_linkage) {
             // Duplicate declaration of extern symbol is OK.
             return found.mapped_name;
         }
@@ -120,12 +118,12 @@ const char *add_identifier(enum IDENTIFIER_KIND kind, const char *source_name, e
         fprintf(stderr, "Duplicate %s: \"%s\"\n", tag, source_name);
         exit(1);
     }
-    // name_buf points to a shared buffer after this call.
     const char* name_buf;
-    if (flags & SYMTAB_EXTERN) {
-        // Don't decorate externs
+    if (has_linkage) {
+        // Don't decorate externs; they're named the same everywhere.
         name_buf = source_name;
     } else {
+        // name_buf points to a shared buffer after this call.
         name_buf = uniquify_name("%.100s.%d", source_name);
         // Add to global string pool. Returns the long-lifetime copy.
         name_buf = set_of_str_insert(&mapped_vars, name_buf);
@@ -139,8 +137,7 @@ const char *add_identifier(enum IDENTIFIER_KIND kind, const char *source_name, e
     // return the uniquified name
     return name_buf;
 }
-const char *resolve_identifier(enum IDENTIFIER_KIND kind, const char *source_name, enum SYMTAB_FLAGS *pFlags) {
-//    const char* tag = tag_for(kind);
+const char *lookup_identifier(enum IDENTIFIER_KIND kind, const char *source_name, bool *pHas_linkage, bool *pCurrent_scope) {
     struct identifier_table* table = identifier_table;
     struct set_of_identifier_item* symbols = symtab_for(kind);
     // The key for find()
@@ -155,8 +152,11 @@ const char *resolve_identifier(enum IDENTIFIER_KIND kind, const char *source_nam
         int was_found = set_of_identifier_item_find(symbols, item, &found);
         if (was_found) {
             // Found it; return mapped name.
-            if (pFlags) {
-                *pFlags = found.flags;
+            if (pHas_linkage) {
+                *pHas_linkage = (int)found.has_linkage;
+            }
+            if (pCurrent_scope) {
+                *pCurrent_scope = table == identifier_table;
             }
             return found.mapped_name;
         }
@@ -167,6 +167,10 @@ const char *resolve_identifier(enum IDENTIFIER_KIND kind, const char *source_nam
         }
     } while (table != NULL);
     return NULL;
+
+}
+const char *resolve_identifier(enum IDENTIFIER_KIND kind, const char *source_name, bool *pHas_linkage) {
+    return lookup_identifier(kind, source_name, pHas_linkage, NULL);
 }
 
 void push_id_context(int is_function_context) {

@@ -85,6 +85,12 @@ static struct CExpression* c_expression_new(enum AST_EXP_KIND kind) {
     expression->kind = kind;
     return expression;
 }
+int c_expression_is_const(struct CExpression *exp) {
+    // TODO: If the exp is a valid expression on only constant operands, it is const.
+    // TODO: Need a way to get the constant value.
+    if (!exp) return 0;
+    return exp->kind == AST_EXP_CONST;
+}
 struct CExpression* c_expression_new_assign(struct CExpression* src, struct CExpression* dst) {
     struct CExpression* expression = c_expression_new(AST_EXP_ASSIGNMENT);
     expression->assign.dst = dst;
