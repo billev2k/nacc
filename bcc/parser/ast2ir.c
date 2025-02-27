@@ -11,6 +11,7 @@
 
 static void tmp_vars_init(void);
 
+static void convert_symbols_to_ir(struct IrProgram *program);
 static struct IrFunction *compile_function(const struct CFuncDecl *cFunction);
 static void compile_block(const struct list_of_CBlockItem *block, struct IrFunction *irFunction);
 static void compile_vardecl(const struct CDeclaration *declaration, struct IrFunction *function);
@@ -40,11 +41,39 @@ struct IrProgram *ast2ir(const struct CProgram *cProgram) {
                 ir_program_add_function(program, function);
                 break;
             case VAR_DECL:
-                // TODO: Compile variable declaration (initializer, if any)
+                // static & extern (both top-level & block) vars are compiled from the
+                // symbol table.
                 break;
         }
     }
+    convert_symbols_to_ir(program);
     return program;
+}
+
+void convert_symbols_to_ir(struct IrProgram *program) {
+    struct Symbol *pSymbol;
+    for (int ix=0; ix<get_num_symbols(); ix++) {
+        pSymbol = get_symbol(ix);
+        if (SYMBOL_IS_STATIC_VAR(pSymbol->attrs)) {
+            struct IrConstant init_value = {.kind = CONST_INT, .int_val = 0};
+            struct IrStaticVar *irStaticVar;
+            switch (pSymbol->attrs & SYMBOL_STATIC_MASK) {
+                case SYMBOL_STATIC_INITIALIZED:
+                    init_value.int_val = pSymbol->int_val;
+                    irStaticVar = ir_static_var_new(pSymbol->identifier.name,SYMBOL_IS_GLOBAL(pSymbol->attrs), init_value);
+                    ir_program_add_static_var(program, irStaticVar);
+                    break;
+                case SYMBOL_STATIC_TENTATIVE:
+                    init_value.int_val = 0;
+                    irStaticVar = ir_static_var_new(pSymbol->identifier.name,SYMBOL_IS_GLOBAL(pSymbol->attrs), init_value);
+                    ir_program_add_static_var(program, irStaticVar);
+                    break;
+                case SYMBOL_STATIC_NO_INIT:
+                    break;
+            }
+        }
+    }
+
 }
 
 static void compile_block(const struct list_of_CBlockItem *block, struct IrFunction *irFunction) {
@@ -71,7 +100,13 @@ static void compile_block(const struct list_of_CBlockItem *block, struct IrFunct
 struct IrFunction *compile_function(const struct CFuncDecl *cFunction) {
     // If only declaration, no body and nothing to compile.
     if (!cFunction->body) return NULL;
-    struct IrFunction *function = ir_function_new(cFunction->name);
+    bool global = false;
+    struct Symbol symbol;
+    if (find_symbol_by_name(cFunction->name, &symbol) != SYMTAB_OK) {
+        failf("Function '%s' is not defined.", cFunction->name);
+    }
+    global = SYMBOL_IS_GLOBAL(symbol.attrs);
+    struct IrFunction *function = ir_function_new(cFunction->name, global);
     for (int ix = 0; ix < cFunction->params.num_items; ix++) {
         IrFunction_add_param(function, cFunction->params.items[ix].name);
     }
@@ -90,6 +125,9 @@ void compile_vardecl(const struct CDeclaration *declaration, struct IrFunction *
         failf("Expected a variable declaration, got a function declaration instead.");
     }
     struct CVarDecl *vardecl = (struct CVarDecl *)declaration->var;
+    if (vardecl->storage_class == SC_EXTERN || vardecl->storage_class == SC_STATIC) {
+        return; // extern and static handled later.
+    }
     struct IrValue var = ir_value_new_id(vardecl->var.name);
     struct IrInstruction *inst = ir_instruction_new_var(var);
     ir_function_append_instruction(function, inst);
@@ -442,8 +480,8 @@ struct IrValue compile_expression(struct CExpression *cExpression, struct IrFunc
             break;
         case AST_EXP_VAR:
             src = ir_value_new_id(cExpression->var.name);
-            inst = ir_instruction_new_var(src);
-            ir_function_append_instruction(irFunction, inst);
+//            inst = ir_instruction_new_var(src);
+//            ir_function_append_instruction(irFunction, inst);
             dst = src;
             break;
         case AST_EXP_ASSIGNMENT:

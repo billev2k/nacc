@@ -31,6 +31,17 @@ void symtab_init() {
     idtable_init();
 }
 
+struct Symbol* get_symbol(int ix) {
+    if (ix < 0 || ix >= symbol_table.num_items) {
+        return NULL;
+    }
+    return &symbol_table.items[ix];
+}
+int get_num_symbols() {
+    return symbol_table.num_items;
+}
+
+
 
 struct Symbol symbol_new_static_var(struct CIdentifier id, enum SYMBOL_ATTRS attrs, int int_val) {
     // No symbol flags other than static flags and global flag
@@ -83,6 +94,11 @@ enum SYMTAB_RESULT add_symbol(struct Symbol symbol) {
 }
 enum SYMTAB_RESULT find_symbol(struct CIdentifier id, struct Symbol* pResult) {
     struct Symbol* found = find_internal(id.name);
+    if (found) *pResult = *found;
+    return found ? SYMTAB_OK : SYMTAB_NOTFOUND;
+}
+enum SYMTAB_RESULT find_symbol_by_name(const char *name, struct Symbol* pResult) {
+    struct Symbol* found = find_internal(name);
     if (found) *pResult = *found;
     return found ? SYMTAB_OK : SYMTAB_NOTFOUND;
 }

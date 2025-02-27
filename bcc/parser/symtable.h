@@ -29,9 +29,10 @@ enum SYMBOL_ATTRS {
     SYMBOL_DEFINED              = 0x40,
 };
 
-#define SYMBOL_ATTR_IS_VAR(attr) ((attr & SYMBOL_VAR_MASK) != 0)
-#define SYMBOL_IS_GLOBAL(attr) ((attr & SYMBOL_GLOBAL) == SYMBOL_GLOBAL)
-#define SYMBOL_IS_DEFINED(attr) ((attr & SYMBOL_DEFINED) == SYMBOL_DEFINED)
+#define SYMBOL_ATTR_IS_VAR(attr) (((attr) & SYMBOL_VAR_MASK) != 0)
+#define SYMBOL_IS_STATIC_VAR(attr) (((attr) & SYMBOL_STATIC_MASK) != 0)
+#define SYMBOL_IS_GLOBAL(attr) (((attr) & SYMBOL_GLOBAL) == SYMBOL_GLOBAL)
+#define SYMBOL_IS_DEFINED(attr) (((attr) & SYMBOL_DEFINED) == SYMBOL_DEFINED)
 
 #define VAL_IF_PRED(val,pred) ((pred)?(val):0)
 #define SYMBOL_GLOBAL_IF(pred) VAL_IF_PRED(SYMBOL_GLOBAL,pred)
@@ -49,6 +50,9 @@ struct Symbol {
     };
 };
 
+extern struct Symbol* get_symbol(int ix);
+extern int get_num_symbols();
+
 extern struct Symbol symbol_new_static_var(struct CIdentifier id, enum SYMBOL_ATTRS attrs, int int_val);
 extern struct Symbol symbol_new_local_var(struct CIdentifier id);
 extern struct Symbol symbol_new_func(struct CIdentifier id, int num_params, enum SYMBOL_ATTRS attrs);
@@ -56,6 +60,7 @@ extern void symbol_delete(struct Symbol symbol);
 
 extern enum SYMTAB_RESULT add_symbol(struct Symbol symbol);
 extern enum SYMTAB_RESULT find_symbol(struct CIdentifier id, struct Symbol* found);
+extern enum SYMTAB_RESULT find_symbol_by_name(const char *name, struct Symbol* found);
 extern enum SYMTAB_RESULT upsert_symbol(struct Symbol symbol);
 
 extern void symtab_init(void);

@@ -34,22 +34,29 @@ struct list_of_IrInstruction_helpers list_of_IrInstruction_helpers = {
 };
 #include "../utils/list_of_item.tmpl"
 
-#define NAME list_of_IrFunction
-#define TYPE struct IrFunction*
-struct list_of_IrFunction_helpers list_of_IrFunction_helpers = {
-        .delete = IrFunction_delete,
-        .null = NULL,
+#define NAME list_of_top_level
+#define TYPE struct IrTopLevel*
+struct list_of_top_level_helpers list_of_top_level_helpers = {
+        .delete = ir_top_level_delete,
+        .null = {},
 };
 #include "../utils/list_of_item.tmpl"
 
+
 struct IrProgram * ir_program_new() {
     struct IrProgram * program = (struct IrProgram*)malloc(sizeof(struct IrProgram));
-    list_of_IrFunction_init(&program->functions, 10);
+    list_of_top_level_init(&program->top_level, 10);
     return program;
 }
 
 void ir_program_add_function(struct IrProgram* program, struct IrFunction* function) {
-    list_of_IrFunction_append(&program->functions, function);
+    struct IrTopLevel *top_level = ir_top_level_new_function(function);
+    list_of_top_level_append(&program->top_level, top_level);
+}
+
+void ir_program_add_static_var(struct IrProgram* program, struct IrStaticVar* static_var) {
+    struct IrTopLevel *top_level = ir_top_level_new_static_var(static_var);
+    list_of_top_level_append(&program->top_level, top_level);
 }
 
 /**
@@ -58,13 +65,14 @@ void ir_program_add_function(struct IrProgram* program, struct IrFunction* funct
  */
 void IrProgram_delete(struct IrProgram *program) {
     if (!program) return;
-    list_of_IrFunction_delete(&program->functions);
+    list_of_top_level_delete(&program->top_level);
     free(program);
 }
 
-struct IrFunction * ir_function_new(const char *name) {
+struct IrFunction *ir_function_new(const char *name, bool global) {
     struct IrFunction *function = (struct IrFunction*)malloc(sizeof(struct IrFunction));
     function->name = name;
+    function->global = global;
     list_of_IrValue_init(&function->params, 10);
     list_of_IrInstruction_init(&function->body, 10);
     return function;
@@ -84,6 +92,46 @@ void IrFunction_add_param(struct IrFunction* function, const char* param_name) {
 void ir_function_append_instruction(struct IrFunction *function, struct IrInstruction *instruction) {
     list_of_IrInstruction_append(&function->body, instruction);
 }
+
+//region IrStaticVar
+struct IrStaticVar *ir_static_var_new(const char *name, bool global, struct IrConstant init_val) {
+    struct IrStaticVar *static_var = (struct IrStaticVar*)malloc(sizeof(struct IrStaticVar));
+    static_var->name = name;
+    static_var->global = global;
+    static_var->init_val = init_val;
+    return static_var;
+}
+void ir_static_var_delete(struct IrStaticVar *static_var) {
+    if (!static_var) return;
+    free(static_var);
+}
+//endregion
+
+//region IrTopLevel
+struct IrTopLevel* ir_top_level_new_function(struct IrFunction *function) {
+    struct IrTopLevel *top_level = (struct IrTopLevel*)malloc(sizeof(struct IrTopLevel));
+    top_level->kind = IR_FUNCTION;
+    top_level->function = function;
+    return top_level;
+}
+struct IrTopLevel* ir_top_level_new_static_var(struct IrStaticVar *static_var) {
+    struct IrTopLevel *top_level = (struct IrTopLevel*)malloc(sizeof(struct IrTopLevel));
+    top_level->kind = IR_STATIC_VAR;
+    top_level->static_var = static_var;
+    return top_level;
+}
+void ir_top_level_delete(struct IrTopLevel *top_level) {
+    switch (top_level->kind) {
+        case IR_FUNCTION:
+            IrFunction_delete(top_level->function);
+            break;
+        case IR_STATIC_VAR:
+            ir_static_var_delete(top_level->static_var);
+            break;
+    }
+    free(top_level);
+}
+//endregion
 
 static struct IrInstruction* ir_instruction_new(enum IR_OP inst) {
     struct IrInstruction *instruction = (struct IrInstruction*)malloc(sizeof(struct IrInstruction));

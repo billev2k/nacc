@@ -6,19 +6,42 @@
 
 #define inst_fmt "    %-8s"
 
+static void print_ir_top_level(const struct IrTopLevel *top_level, FILE *file);
 static void print_ir_function(const struct IrFunction *function, FILE *file);
+static void print_ir_static_var(const struct IrStaticVar *static_var, FILE *file);
 static void print_ir_instruction(const struct IrInstruction *instruction, FILE *file);
 static void print_ir_value(struct IrValue value, FILE *file);
 
 void print_ir(const struct IrProgram *program, FILE *file) {
     fprintf(file, "\n\nIR program\n");
-    for (int i=0; i<program->functions.num_items; ++i) {
-        print_ir_function(program->functions.items[i], file);
+    for (int i=0; i<program->top_level.num_items; ++i) {
+        print_ir_top_level(program->top_level.items[i], file);
     }
 }
 
+void print_ir_top_level(const struct IrTopLevel *top_level, FILE *file) {
+    switch (top_level->kind) {
+        case IR_FUNCTION:
+            print_ir_function(top_level->function, file);
+            break;
+        case IR_STATIC_VAR:
+            print_ir_static_var(top_level->static_var, file);
+            break;
+    }
+}
+
+void print_ir_static_var(const struct IrStaticVar *static_var, FILE *file) {
+    fprintf(file, "Var %s", static_var->name);
+    if (static_var->global) fprintf(file, " (global)");
+//    if (static_var->has_init_val)
+        fprintf(file, " = %d", static_var->init_val.int_val);
+    fputc('\n', file);
+}
+
 void print_ir_function(const struct IrFunction *function, FILE *file) {
-    fprintf(file, "Function %s\n", function->name);
+    fprintf(file, "Function %s", function->name);
+    if (function->global) fprintf(file, " (global)");
+    fputc('\n', file);
     for (int i=0; i<function->body.num_items; ++i) {
         print_ir_instruction(function->body.items[i], file);
     }

@@ -63,9 +63,18 @@ struct Amd64Operand one = {
 
 struct Amd64Program *ir2amd64(struct IrProgram* irProgram) {
     struct Amd64Program *program = amd64_program_new();
-    for (int ix=0; ix<irProgram->functions.num_items; ix++) {
-        struct Amd64Function* function = convert_function(irProgram->functions.items[ix]);
-        amd64_program_add_function(program, function);
+    for (int ix=0; ix<irProgram->top_level.num_items; ix++) {
+        struct IrTopLevel *top_level = irProgram->top_level.items[ix];
+        switch (top_level->kind) {
+            case IR_FUNCTION:
+                ;
+                struct Amd64Function* function = convert_function(top_level->function);
+                amd64_program_add_function(program, function);
+                break;
+            case IR_STATIC_VAR:
+                // TODO: convert_static_var
+                break;
+        }
     }
     return program;
 }

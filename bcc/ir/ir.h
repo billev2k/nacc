@@ -5,6 +5,8 @@
 #ifndef BCC_IR_H
 #define BCC_IR_H
 
+#include <limits.h>
+#include <stdbool.h>
 #include "../utils/utils.h"
 
 enum IR_OP {
@@ -61,6 +63,19 @@ enum IR_BINARY_OP {
 #undef X
 };
 extern const char * const IR_BINARY_NAMES[];
+
+enum IR_CONSTANT {
+    CONST_INT,
+    // CONST_LONG, CONST_LONG_DOUBLE, ...
+};
+struct IrConstant {
+    enum IR_CONSTANT kind;
+    union {
+        int int_val;
+        // long i64_val, long double ld_val, ...
+    };
+};
+
 
 //region struct IrValue
 enum IR_VAL {
@@ -152,28 +167,56 @@ extern void IrInstruction_delete(struct IrInstruction *instruction);
 #include "../utils/list_of_item.h"
 //endregion
 
+//region struct IrStaticVar
+struct IrStaticVar {
+    const char *name;
+    bool global;
+    struct IrConstant init_val;
+};
+extern struct IrStaticVar *ir_static_var_new(const char *name, bool global, struct IrConstant init_val);
+extern void ir_static_var_delete(struct IrStaticVar *static_var);
+//endregion
+
 //region struct IrFunction
 struct IrFunction {
     const char *name;
+    bool global;
     struct list_of_IrValue params;
     struct list_of_IrInstruction body;
 };
-extern struct IrFunction * ir_function_new(const char *name);
+extern struct IrFunction *ir_function_new(const char *name, bool global);
 extern void IrFunction_delete(struct IrFunction *function);
 extern void IrFunction_add_param(struct IrFunction* function, const char* param_name);
 extern void ir_function_append_instruction(struct IrFunction *function, struct IrInstruction *instruction);
+//endregion
 
-#define NAME list_of_IrFunction
-#define TYPE struct IrFunction*
+//region struct IrTopLevel
+enum IR_TOP_LEVEL {
+    IR_FUNCTION,
+    IR_STATIC_VAR,
+};
+struct IrTopLevel {
+    enum IR_TOP_LEVEL kind;
+    union {
+        struct IrFunction *function;
+        struct IrStaticVar *static_var;
+    };
+};
+extern struct IrTopLevel* ir_top_level_new_function(struct IrFunction *function);
+extern struct IrTopLevel* ir_top_level_new_static_var(struct IrStaticVar *static_var);
+extern void ir_top_level_delete(struct IrTopLevel *top_level);
+#define NAME list_of_top_level
+#define TYPE struct IrTopLevel*
 #include "../utils/list_of_item.h"
 //endregion
 
 //region struct IrProgram
 struct IrProgram {
-    struct list_of_IrFunction functions;
+    struct list_of_top_level top_level;
 };
 extern struct IrProgram * ir_program_new();
 extern void ir_program_add_function(struct IrProgram* program, struct IrFunction* function);
+extern void ir_program_add_static_var(struct IrProgram *program, struct IrStaticVar *static_var);
 extern void IrProgram_delete(struct IrProgram *program);
 //endregion
 
