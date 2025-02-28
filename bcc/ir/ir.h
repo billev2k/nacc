@@ -191,12 +191,12 @@ extern void ir_function_append_instruction(struct IrFunction *function, struct I
 //endregion
 
 //region struct IrTopLevel
-enum IR_TOP_LEVEL {
+enum IR_TOP_LEVEL_KIND {
     IR_FUNCTION,
     IR_STATIC_VAR,
 };
 struct IrTopLevel {
-    enum IR_TOP_LEVEL kind;
+    enum IR_TOP_LEVEL_KIND kind;
     union {
         struct IrFunction *function;
         struct IrStaticVar *static_var;

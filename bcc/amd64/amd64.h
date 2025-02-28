@@ -110,7 +110,10 @@ enum OPERAND {
     OPERAND_STACK,
     OPERAND_LABEL,
     OPERAND_FUNC,
+    OPERAND_DATA,
 };
+
+#define OPERAND_IS_MEMORY(op) (((op)==OPERAND_STACK) || ((op)==OPERAND_DATA))
 
 // The registers are all named by their popular names, so "AX", "SP, "R10" are 2, 2, and 8 bytes
 // The names are for 8, 4, 2, and 1 byte sizes, so rax==8 bytes, sil==1 byte
@@ -206,23 +209,52 @@ extern void Amd64Instruction_delete(struct Amd64Instruction *instruction);
 
 struct Amd64Function {
     const char *name;
+    bool global;
     int stack_allocations;
     struct list_of_Amd64Instruction instructions;
 };
-extern struct Amd64Function* amd64_function_new(const char *name);
+extern struct Amd64Function* amd64_function_new(const char *name, bool global);
 extern void amd64_function_append_instruction(struct Amd64Function *function, struct Amd64Instruction *instruction);
 extern void amd64_function_delete(struct Amd64Function *function);
 //endregion
 
+//region struct Amd64StaticVar
+struct Amd64StaticVar {
+    const char *name;
+    bool global;
+    struct IrConstant init_val;
+};
+extern struct Amd64StaticVar *amd64_static_var_new(const char *name, bool global, struct IrConstant init_val);
+extern void amd64_static_var_delete(struct Amd64StaticVar *static_var);
+//endregion
+
+//region struct Amd64TopLevel
+enum AMD64_TOP_LEVEL_KIND {
+    AMD64_FUNCTION,
+    AMD64_STATIC_VAR,
+};
+struct Amd64TopLevel {
+    enum AMD64_TOP_LEVEL_KIND kind;
+    union {
+        struct Amd64Function *function;
+        struct Amd64StaticVar *static_var;
+    };
+};
+extern struct Amd64TopLevel* amd64_top_level_new_function(struct Amd64Function *function);
+extern struct Amd64TopLevel* amd64_top_level_new_static_var(struct Amd64StaticVar *static_var);
+extern void amd64_top_level_delete(struct Amd64TopLevel *top_level);
+//endregion
+
 //region struct Amd64Program
-#define NAME list_of_Amd64Function
-#define TYPE struct Amd64Function*
+#define NAME list_of_amd64_top_level
+#define TYPE struct Amd64TopLevel*
 #include "../utils/list_of_item.h"
 struct Amd64Program {
-    struct list_of_Amd64Function functions;
+    struct list_of_amd64_top_level top_level;
 };
 extern struct Amd64Program* amd64_program_new(void );
 extern void amd64_program_add_function(struct Amd64Program* program, struct Amd64Function* function);
+extern void amd64_program_add_static_var(struct Amd64Program* program, struct Amd64StaticVar* static_var);
 extern void amd64_program_delete(struct Amd64Program *program);
 extern void amd64_program_emit(struct Amd64Program *amd64Program, FILE *out);
 //endregion

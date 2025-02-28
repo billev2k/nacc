@@ -72,7 +72,8 @@ enum FOR_INIT_KIND {
 };
 
 enum LABEL_KIND {
-    LABEL_DECL,         // "label:" before a statement.
+    LABEL_NONE,
+    LABEL_DECL,         // "identifier:" before a statement.
     LABEL_CASE,         // a "case X:" in a switch() statement body.
     LABEL_DEFAULT,      // a "default:" in a switch() statement body.
 };
@@ -204,10 +205,16 @@ struct CIdentifier {
 //region struct CLabel
 struct CLabel {
     enum LABEL_KIND kind;
-    struct CIdentifier label;
-    const char* case_value;
+    struct CIdentifier identifier;
+    struct CExpression *expr;
     int switch_flow_id;
 };
+
+struct CExpression;
+extern struct CLabel c_label_new_label(struct CIdentifier identifier);
+extern struct CLabel c_label_new_switch_default();
+extern struct CLabel c_label_new_switch_case(struct CExpression *expr);
+extern void c_label_delete(struct CLabel label);
 
 #define NAME list_of_CLabel
 #define TYPE struct CLabel
@@ -258,6 +265,7 @@ struct CExpression {
     };
 };
 extern int c_expression_is_const(struct CExpression *exp);
+extern int c_expression_get_const_value(struct CExpression *exp);
 extern struct CExpression* c_expression_new_assign(struct CExpression* src, struct CExpression* dst);
 extern struct CExpression* c_expression_new_binop(enum AST_BINARY_OP op, struct CExpression* left, struct CExpression* right);
 extern struct CExpression* c_expression_new_conditional(struct CExpression* left_exp, struct CExpression* middle_exp, struct CExpression* right_exp);

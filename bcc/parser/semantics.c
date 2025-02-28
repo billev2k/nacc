@@ -245,7 +245,7 @@ static void resolve_statement(const struct CStatement *statement) {
         struct CLabel *labels = c_statement_get_labels(statement);
         for (int i=0; i<num_labels; ++i) {
             if (labels[i].kind == LABEL_DECL) {
-                struct CIdentifier *var = &labels[i].label;
+                struct CIdentifier *var = &labels[i].identifier;
                 var->name =  add_identifier(IDENTIFIER_LABEL, var->source_name, 0 /*has_linkage*/);
             }
         }
@@ -296,6 +296,10 @@ static void resolve_statement(const struct CStatement *statement) {
     }
 }
 
+/**
+ * Matches "goto" statements with target labels. Labels are identified in "label_*_loops".
+ * @param statement A statement which may BE a goto, or may CONTAIN a goto.
+ */
 static void resolve_goto(const struct CStatement *statement) {
     const char *mapped_name;
     switch (statement->kind) {
@@ -315,12 +319,12 @@ static void resolve_goto(const struct CStatement *statement) {
         case STMT_GOTO:
             mapped_name = resolve_label(statement->goto_statement.label->var.source_name);
             if (!mapped_name) {
-                printf("Error: label \"%s\" has not been declared\n", statement->goto_statement.label->var.source_name);
+                printf("Error: identifier \"%s\" has not been declared\n", statement->goto_statement.label->var.source_name);
                 exit(1);
             }
             statement->goto_statement.label->var.name = mapped_name;
             if (traceResolution) {
-                printf("Resolving label \"%s\" as \"%s\"\n", statement->goto_statement.label->var.source_name,
+                printf("Resolving identifier \"%s\" as \"%s\"\n", statement->goto_statement.label->var.source_name,
                        mapped_name);
             }
             break;
@@ -420,22 +424,22 @@ static void label_statement_loops(struct CStatement *statement, struct LoopLabel
         for (int i=0; i<num_labels; ++i) {
             if (labels[i].kind == LABEL_DEFAULT) {
                 if (!context.enclosing_switch) {
-                    printf("Error: 'default:' label outside of switch\n");
-                    exit(1);
+                    failf("Error: 'default:' identifier outside of switch\n");
                 }
                 if (c_statement_set_switch_has_default(context.enclosing_switch) == AST_DUPLICATE) {
-                    printf("Error: 'default:' label already used in switch\n");
-                    exit(1);
+                    failf("Error: 'default:' identifier already used in switch\n");
                 }
                 labels[i].switch_flow_id = context.enclosing_switch->flow_id;
             } else if (labels[i].kind == LABEL_CASE) {
                 if (!context.enclosing_switch) {
-                    printf("Error: 'case X:' label outside of switch\n");
-                    exit(1);
+                    failf("Error: 'case X:' identifier outside of switch\n");
                 }
-                if (c_statement_register_switch_case(context.enclosing_switch, atoi(labels[i].case_value)) == AST_DUPLICATE) {
-                    printf("Error: 'case X:' label '%s' already used in switch\n", labels[i].case_value);
-                    exit(1);
+                if (!c_expression_is_const(labels[i].expr)) {
+                    failf("Error: 'case X:' identifier must be a constant expression\n");
+                }
+                int case_value = c_expression_get_const_value(labels[i].expr);
+                if (c_statement_register_switch_case(context.enclosing_switch, case_value) == AST_DUPLICATE) {
+                    failf("Error: 'case X:' value '%d' already used in switch\n", case_value);
                 }
                 labels[i].switch_flow_id = context.enclosing_switch->flow_id;
             } else if (labels[i].kind == LABEL_DECL) {

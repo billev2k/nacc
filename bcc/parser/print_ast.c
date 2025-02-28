@@ -130,11 +130,14 @@ static void print_ast_statement(struct CStatement *statement, int depth) {
         for (int i=0; i<c_statement_num_labels(statement); ++i) {
             indent4(depth-1);
             if (labels[i].kind == LABEL_DECL)
-                printf("%s:\n", labels[i].label.source_name);
+                printf("%s:\n", labels[i].identifier.source_name);
             else if (labels[i].kind == LABEL_DEFAULT)
                 printf("default:\n");
-            else if (labels[i].kind == LABEL_CASE)
-                printf("case %s:\n", labels[i].case_value);
+            else if (labels[i].kind == LABEL_CASE) {
+                printf("case ");
+                print_ast_expression(labels[i].expr, 0);
+                printf(":\n");
+            }
         }
     }
     switch (statement->kind) {

@@ -269,11 +269,12 @@ static void compile_labels(const struct CStatement *statement, struct IrFunction
             inst = ir_instruction_new_label(label);
             ir_function_append_instruction(function, inst);
         } else if (labels[i].kind == LABEL_CASE) {
-            make_case_label(function, labels[i].switch_flow_id, atoi(labels[i].case_value), &label);
+            int case_value = c_expression_get_const_value(labels[i].expr);
+            make_case_label(function, labels[i].switch_flow_id, case_value, &label);
             inst = ir_instruction_new_label(label);
             ir_function_append_instruction(function, inst);
         } else if (labels[i].kind == LABEL_DECL) {
-            label = ir_value_new_label(labels[i].label.name);
+            label = ir_value_new_label(labels[i].identifier.name);
             inst = ir_instruction_new_label(label);
             ir_function_append_instruction(function, inst);
         }

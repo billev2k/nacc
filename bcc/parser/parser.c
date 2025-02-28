@@ -289,15 +289,15 @@ struct CStatement *parse_statement() {
         struct CLabel label;
         if (next_token.tk == TK_CASE) {
             // TODO: support constant expressions
-            lex_take_token();   // case
-            next_token = lex_take_token();   // get value
-            label = (struct CLabel){.kind = LABEL_CASE, .case_value = next_token.text};
+            lex_take_token();   // "case"
+            struct CExpression* expr = parse_expression(0);
+            label = c_label_new_switch_case(expr);
         } else if (next_token.tk == TK_DEFAULT) {
-            lex_take_token();   // default
-            label = (struct CLabel){.kind = LABEL_DEFAULT};
+            lex_take_token();   // "default"
+            label = c_label_new_switch_default();
         } else {
-            lex_take_token();   // label name (TK_ID)
-            label = (struct CLabel){.kind = LABEL_DECL, .label = {.name = next_token.text, .source_name = next_token.text}};
+            lex_take_token();   // identifier name (TK_ID)
+            label = c_label_new_label((struct CIdentifier){.name = next_token.text, .source_name = next_token.text});
         }
         expect(TK_COLON);
         if (!have_labels) {

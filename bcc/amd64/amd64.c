@@ -89,29 +89,35 @@ struct list_of_Amd64Instruction_helpers list_of_Amd64Instruction_helpers = {
 #define TYPE struct Amd64Instruction*
 #include "../utils/list_of_item.tmpl"
 
-#define NAME list_of_Amd64Function
-#define TYPE struct Amd64Function*
-struct list_of_Amd64Function_helpers list_of_Amd64Function_helpers = {
-        .delete = amd64_function_delete,
+#define NAME list_of_amd64_top_level
+#define TYPE struct Amd64TopLevel*
+struct list_of_amd64_top_level_helpers list_of_amd64_top_level_helpers = {
+        .delete = amd64_top_level_delete,
 };
 #include "../utils/list_of_item.tmpl"
 
 struct Amd64Program* amd64_program_new(void ) {
     struct Amd64Program *result = (struct Amd64Program *)malloc(sizeof(struct Amd64Program));
-    list_of_Amd64Function_init(&result->functions, 10);
+    list_of_amd64_top_level_init(&result->top_level, 10);
     return result;
 }
 void amd64_program_add_function(struct Amd64Program* program, struct Amd64Function* function) {
-    list_of_Amd64Function_append(&program->functions, function);
+    struct Amd64TopLevel *top_level = amd64_top_level_new_function(function);
+    list_of_amd64_top_level_append(&program->top_level, top_level);
+}
+void amd64_program_add_static_var(struct Amd64Program* program, struct Amd64StaticVar* static_var) {
+    struct Amd64TopLevel *top_level = amd64_top_level_new_static_var(static_var);
+    list_of_amd64_top_level_append(&program->top_level, top_level);
 }
 void amd64_program_delete(struct Amd64Program *program) {
-    list_of_Amd64Function_delete(&program->functions);
+    list_of_amd64_top_level_delete(&program->top_level);
     free(program);
 }
 
-struct Amd64Function* amd64_function_new(const char* name) {
+struct Amd64Function* amd64_function_new(const char* name, bool global) {
     struct Amd64Function* result = (struct Amd64Function*)malloc(sizeof(struct Amd64Function));
     result->name = name;
+    result->global = global;
     list_of_Amd64Instruction_init(&result->instructions, 101);
     return result;
 }
@@ -122,6 +128,44 @@ void amd64_function_delete(struct Amd64Function *function) {
     list_of_Amd64Instruction_delete(&function->instructions);
     free(function);
 }
+
+struct Amd64StaticVar *amd64_static_var_new(const char *name, bool global, struct IrConstant init_val) {
+    struct Amd64StaticVar *result = (struct Amd64StaticVar *)malloc(sizeof(struct Amd64StaticVar));
+    result->name = name;
+    result->global = global;
+    result->init_val = init_val;
+    return result;
+}
+void amd64_static_var_delete(struct Amd64StaticVar *static_var) {
+    if (!static_var) return;
+    free(static_var);
+}
+
+struct Amd64TopLevel* amd64_top_level_new_function(struct Amd64Function *function) {
+    struct Amd64TopLevel* top_level = (struct Amd64TopLevel*)malloc(sizeof(struct Amd64TopLevel));
+    top_level->kind = AMD64_FUNCTION;
+    top_level->function = function;
+    return top_level;
+}
+struct Amd64TopLevel* amd64_top_level_new_static_var(struct Amd64StaticVar *static_var) {
+    struct Amd64TopLevel* top_level = (struct Amd64TopLevel*)malloc(sizeof(struct Amd64TopLevel));
+    top_level->kind = AMD64_STATIC_VAR;
+    top_level->static_var = static_var;
+    return top_level;
+}
+void amd64_top_level_delete(struct Amd64TopLevel *top_level) {
+    if (!top_level) return;
+    switch (top_level->kind) {
+        case AMD64_FUNCTION:
+            amd64_function_delete(top_level->function);
+            break;
+        case AMD64_STATIC_VAR:
+            amd64_static_var_delete(top_level->static_var);
+            break;
+    }
+    free(top_level);
+}
+
 
 static struct Amd64Instruction* amd64_instruction_new(enum INSTRUCTION instruction, enum OPCODE opcode) {
     struct Amd64Instruction* inst = (struct Amd64Instruction *)malloc(sizeof(struct Amd64Instruction));

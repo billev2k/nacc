@@ -42,7 +42,7 @@ int main(int argc, char **argv, char **envv) {
         }
     }
 
-    if (!(configOptNoAssemble | configOptNoLink)) {
+    if (!configOptNoAssemble) {
         //     Gather all the .s, .o, and .c->.s files into one command line invocation to gcc.
         if (buildAssembleAndLinkCommand()) {
             assembleAndLink();

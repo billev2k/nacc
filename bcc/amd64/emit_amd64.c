@@ -7,11 +7,13 @@
 
 #include "amd64.h"
 
+static int amd64_top_level_print(struct Amd64TopLevel *pAmd64TopLevel, FILE *out);
 static int amd64_function_print(struct Amd64Function *amd64Function, FILE *out);
+static int amd64_static_var_print(struct Amd64StaticVar *amd64StaticVar, FILE *out);
 void amd64_program_emit(struct Amd64Program *amd64Program, FILE *out) {
-    for (int ix=0; ix < amd64Program->functions.num_items; ++ix) {
-        struct Amd64Function *amd64Function = amd64Program->functions.items[ix];
-        amd64_function_print(amd64Function, out);
+    for (int ix=0; ix < amd64Program->top_level.num_items; ++ix) {
+        struct Amd64TopLevel *pAmd64TopLevel = amd64Program->top_level.items[ix];
+        amd64_top_level_print(pAmd64TopLevel, out);
     }
 }
 
@@ -27,9 +29,34 @@ static char * inst_op_fmt(enum OPCODE opcode, int nbytes) {
     return buf;
 }
 
+int amd64_top_level_print(struct Amd64TopLevel *pAmd64TopLevel, FILE *out) {
+    switch(pAmd64TopLevel->kind) {
+        case AMD64_FUNCTION:
+            return amd64_function_print(pAmd64TopLevel->function, out);
+        case AMD64_STATIC_VAR:
+            return amd64_static_var_print(pAmd64TopLevel->static_var, out);
+    }
+}
+
+int amd64_static_var_print(struct Amd64StaticVar *amd64StaticVar, FILE *out) {
+    int nBytes = 4;
+    if (amd64StaticVar->global) fprintf(out, "      .globl _%s\n", amd64StaticVar->name);
+    fprintf(out, "       %s\n", amd64StaticVar->init_val.int_val?".data":".bss");
+    fprintf(out, "       .balign %d\n", nBytes);
+    fprintf(out, "_%s:\n", amd64StaticVar->name);
+    if (amd64StaticVar->init_val.int_val) {
+        fprintf(out, "       .long %d\n", amd64StaticVar->init_val.int_val);
+    } else {
+        fprintf(out, "       .zero %d\n", nBytes);
+    }
+    return 1;
+}
+
 static int amd64_instruction_print(struct Amd64Instruction *instruction, FILE *out);
 static int amd64_function_print(struct Amd64Function *amd64Function, FILE *out) {
-    fprintf(out, "\n       .globl _%s\n", amd64Function->name);
+    fprintf(out, "\n");
+    if (amd64Function->global) fprintf(out, "       .globl _%s\n", amd64Function->name);
+    fprintf(out, "       .text\n");
     fprintf(out, "_%s:\n", amd64Function->name);
     fprintf(out, inst_fmt "%%rbp\n", "pushq");
     fprintf(out, inst_fmt "%%rsp, %%rbp\n", "movq");
@@ -158,6 +185,8 @@ static char* operand_fmt(char* buf, enum OPCODE op, struct Amd64Operand operand,
             break;
         case OPERAND_FUNC:
             break;
+        case OPERAND_DATA:
+            sprintf(buf, "_%s(%%rip)", operand.name);
     }
 
     return buf;

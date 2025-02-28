@@ -7,6 +7,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <printf.h>
+#include <assert.h>
 
 #include "ast.h"
 
@@ -24,7 +25,6 @@ struct list_of_CIdentifier_helpers list_of_CIdentifier_helpers = { .delete = c_v
 #include "../utils/list_of_item.tmpl"
 //endregion struct CIdentifier
 
-void c_label_delete(struct CLabel var) {}
 struct list_of_CLabel_helpers list_of_CLabel_helpers = { .delete = c_label_delete, .null = {0} };
 #define NAME list_of_CLabel
 #define TYPE struct CLabel
@@ -79,6 +79,34 @@ enum IR_UNARY_OP const AST_TO_IR_UNARY[] = {
 };
 //endregion global data
 
+//region CLabel
+struct CLabel c_label_new_label(struct CIdentifier identifier) {
+    struct CLabel label = { .kind = LABEL_DECL };
+    label.identifier = identifier;
+    return label;
+}
+struct CLabel c_label_new_switch_default() {
+    struct CLabel label = { .kind = LABEL_DEFAULT };
+    return label;
+}
+struct CLabel c_label_new_switch_case(struct CExpression *expr) {
+    struct CLabel label = { .kind = LABEL_CASE };
+    label.expr = expr;
+    return label;
+}
+void c_label_delete(struct CLabel label) {
+    switch (label.kind) {
+        case LABEL_CASE:
+            if (label.expr) c_expression_delete(label.expr);
+            break;
+        case LABEL_DECL:
+        case LABEL_DEFAULT:
+        case LABEL_NONE:
+            break;
+    }
+}
+//endregion
+
 //region CExpression
 static struct CExpression* c_expression_new(enum AST_EXP_KIND kind) {
     struct CExpression* expression = malloc(sizeof(struct CExpression));
@@ -90,6 +118,10 @@ int c_expression_is_const(struct CExpression *exp) {
     // TODO: Need a way to get the constant value.
     if (!exp) return 0;
     return exp->kind == AST_EXP_CONST;
+}
+int c_expression_get_const_value(struct CExpression *exp) {
+    assert(c_expression_is_const(exp));
+    return exp->literal.int_val;
 }
 struct CExpression* c_expression_new_assign(struct CExpression* src, struct CExpression* dst) {
     struct CExpression* expression = c_expression_new(AST_EXP_ASSIGNMENT);
@@ -350,6 +382,7 @@ void c_statement_add_labels(struct CStatement *statement, struct list_of_CLabel 
     }
     for (int i = 0; i < newLabels.num_items; i++) {
         list_of_CLabel_append(statement->labels, newLabels.items[i]);
+        newLabels.items[i] = (struct CLabel) {.kind = LABEL_NONE};
     }
 }
 int c_statement_num_labels(const struct CStatement* statement) {

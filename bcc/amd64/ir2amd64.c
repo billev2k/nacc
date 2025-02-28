@@ -8,6 +8,7 @@
 #include <string.h>
 #include "amd64.h"
 #include "ir2amd64.h"
+#include "../parser/symtable.h"
 
 struct pseudo_register {
     const char *name;
@@ -16,6 +17,8 @@ struct pseudo_register {
 #define NAME set_of_pseudo_register
 #define TYPE struct pseudo_register
 #include "../utils/set_of_item.h"
+#undef NAME
+#undef TYPE
 unsigned long pseudo_register_hash(struct pseudo_register pl) {
     return hash_str(pl.name);
 }
@@ -39,7 +42,10 @@ struct set_of_pseudo_register_helpers set_of_pseudo_register_helpers = {
         .is_null=pseudo_register_is_null,
         .null={0}
 };
+#define NAME set_of_pseudo_register
+#define TYPE struct pseudo_register
 #include "../utils/set_of_item.tmpl"
+
 #undef NAME
 #undef TYPE
 
@@ -72,7 +78,9 @@ struct Amd64Program *ir2amd64(struct IrProgram* irProgram) {
                 amd64_program_add_function(program, function);
                 break;
             case IR_STATIC_VAR:
-                // TODO: convert_static_var
+                ;
+                struct Amd64StaticVar *static_var = amd64_static_var_new(top_level->static_var->name, top_level->static_var->global, top_level->static_var->init_val);
+                amd64_program_add_static_var(program, static_var);
                 break;
         }
     }
@@ -102,7 +110,7 @@ static void copy_function_params(struct Amd64Function *function, struct IrFuncti
     }
 }
 static struct Amd64Function *convert_function(struct IrFunction *irFunction) {
-    struct Amd64Function *function = amd64_function_new(irFunction->name);
+    struct Amd64Function *function = amd64_function_new(irFunction->name, irFunction->global);
     copy_function_params(function, irFunction);
     
     amd64_function_append_instruction(function, amd64_instruction_new_comment("end of function prolog"));
@@ -415,8 +423,8 @@ static void fixup_stack_accesses(struct Amd64Function* function) {
             }
         }
         else if ((inst->instruction == INST_BINARY || inst->instruction == INST_MOV) &&
-                 inst->operand1.operand_kind == OPERAND_STACK &&
-                 inst->operand2.operand_kind == OPERAND_STACK) {
+                OPERAND_IS_MEMORY(inst->operand1.operand_kind) &&
+                OPERAND_IS_MEMORY(inst->operand2.operand_kind) ) {
             // Fix instructions that can't use two stack locations.
             // Look for "add -4(%rbp),-8(%rbp)" and use a scratch register.
             // Change the instruction to use the scratch register.
@@ -428,8 +436,8 @@ static void fixup_stack_accesses(struct Amd64Function* function) {
             // Fix up loop index to skip the instruction we've already fixed. One instruction inserted.
             i += 1;
         } else if (inst->instruction == INST_CMP) {
-            if (inst->operand1.operand_kind == OPERAND_STACK &&
-                inst->operand2.operand_kind == OPERAND_STACK) {
+            if (OPERAND_IS_MEMORY(inst->operand1.operand_kind) &&
+                OPERAND_IS_MEMORY(inst->operand2.operand_kind)) {
                 struct Amd64Operand operand1 = inst->operand1;
                 inst->operand1 = amd64_operand_reg(REG_R10);
                 // Load the scratch register before the instruction.
@@ -497,15 +505,29 @@ static int fixup_pseudo_register(struct set_of_pseudo_register* locations, struc
     int allocation = 0;
     struct pseudo_register pseudo_register_lookup_key = {.name = operand->name};
     struct pseudo_register pseudo_register_found;
-    int was_found = set_of_pseudo_register_find(locations, pseudo_register_lookup_key, &pseudo_register_found);
+    bool was_found = set_of_pseudo_register_find(locations, pseudo_register_lookup_key, &pseudo_register_found);
+    bool is_static = false;
+
     // If the space for this pseudo hasn't already been allocation, do so now.
     if (!was_found) {
-        allocation = 4; // when we have other sizes of stack variables, this will need to change.
-        pseudo_register_lookup_key.offset = -(previously_allocated + allocation);
-        pseudo_register_found = set_of_pseudo_register_insert(locations, pseudo_register_lookup_key);
+        // Maybe this is a static variable. Look up in symbol table.
+        struct Symbol symbol;
+        if (find_symbol_by_name(operand->name, &symbol) == SYMTAB_OK) {
+            is_static = SYMBOL_IS_STATIC_VAR(symbol.attrs);
+        }
+        if (!is_static) {
+            allocation = 4; // when we have other sizes of stack variables, this will need to change.
+            pseudo_register_lookup_key.offset = -(previously_allocated + allocation);
+            pseudo_register_found = set_of_pseudo_register_insert(locations, pseudo_register_lookup_key);
+        }
     }
-    operand->operand_kind = OPERAND_STACK;
-    operand->offset = pseudo_register_found.offset;
+    if (is_static) {
+        operand->operand_kind = OPERAND_DATA;
+        // name stays the same, of course.
+    } else {
+        operand->operand_kind = OPERAND_STACK;
+        operand->offset = pseudo_register_found.offset;
+    }
     return allocation;
 }
 
