@@ -14,7 +14,7 @@ struct Token {
 
 #define TYPE struct Token
 #define NAME list_of_token
-#include "../utils/list_of_item.h"
+#include "inc/list_of_item.h"
 
 extern int lex_openFile(char const *fname);
 

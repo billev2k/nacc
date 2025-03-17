@@ -41,6 +41,7 @@ struct list_of_top_level_helpers list_of_top_level_helpers = {
         .null = {},
 };
 #include "../utils/list_of_item.tmpl"
+#include "inc/constant.h"
 
 
 struct IrProgram * ir_program_new() {
@@ -94,11 +95,11 @@ void ir_function_append_instruction(struct IrFunction *function, struct IrInstru
 }
 
 //region IrStaticVar
-struct IrStaticVar *ir_static_var_new(const char *name, bool global, struct IrConstant init_val) {
+struct IrStaticVar *ir_static_var_new(const char *name, bool global, struct Constant init_value) {
     struct IrStaticVar *static_var = (struct IrStaticVar*)malloc(sizeof(struct IrStaticVar));
     static_var->name = name;
     static_var->global = global;
-    static_var->init_val = init_val;
+    static_var->init_value = init_value;
     return static_var;
 }
 void ir_static_var_delete(struct IrStaticVar *static_var) {
@@ -235,25 +236,19 @@ void IrInstruction_delete(struct IrInstruction *instruction) {
     free(instruction);
 }
 
-/**
- * Initialize a new IrValue.
- * @param valKind The kind of int_val, a member of IR_VAL.
- * @param valText The text representation; a variable name, register name, or constant literal (which
- *      must have a lifetime greater than the IrValue).
- * @return The new IrValue.
- */
-struct IrValue ir_value_new(enum IR_VAL valKind, const char *valText) {
-    struct IrValue result = {.kind = valKind, .text = valText};
+struct IrValue ir_value_new_id(const char* id) {
+    struct IrValue result = {.kind = IR_VAL_ID, .text = id};
     return result;
 }
-
-struct IrValue ir_value_new_id(const char* id) {
-    return ir_value_new(IR_VAL_ID, id);
-}
 struct IrValue ir_value_new_label(const char* label_name) {
-    return ir_value_new(IR_VAL_LABEL, label_name);
+    struct IrValue result = {.kind = IR_VAL_LABEL, .text = label_name};
+    return result;
 }
 struct IrValue ir_value_new_int(int int_val) {
-    struct IrValue result = {.kind = IR_VAL_CONST_INT, .int_val = int_val};
+    struct IrValue result = {.kind = IR_VAL_CONST, .const_value = mk_const_int(int_val)};
+    return result;
+}
+struct IrValue ir_value_new_const(struct Constant const_val) {
+    struct IrValue result = {.kind = IR_VAL_CONST, .const_value = const_val};
     return result;
 }

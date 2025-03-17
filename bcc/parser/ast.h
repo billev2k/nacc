@@ -5,7 +5,7 @@
 #ifndef BCC_AST_H
 #define BCC_AST_H
 #include "../ir/ir.h"
-#include "../utils/utils.h"
+#include "inc/utils.h"
 
 /*
  *  Current AST:
@@ -199,7 +199,7 @@ struct CIdentifier {
 };
 #define NAME list_of_CIdentifier
 #define TYPE struct CIdentifier
-#include "../utils/list_of_item.h"
+#include "inc/list_of_item.h"
 //endregion CIdentifier
    
 //region struct CLabel
@@ -218,14 +218,14 @@ extern void c_label_delete(struct CLabel label);
 
 #define NAME list_of_CLabel
 #define TYPE struct CLabel
-#include "../utils/list_of_item.h"
+#include "inc/list_of_item.h"
 //endregion struct CLabel
 
 //region struct CExpression
 struct CExpression;
 #define NAME list_of_CExpression
 #define TYPE struct CExpression*
-#include "../utils/list_of_item.h"
+#include "inc/list_of_item.h"
 struct CExpression {
     enum AST_EXP_KIND kind;
     union {
@@ -255,8 +255,8 @@ struct CExpression {
         } increment;
         struct {
             struct CExpression* left_exp;       // condition
-            struct CExpression* middle_exp;     // if true int_val
-            struct CExpression* right_exp;      // if false int_val
+            struct CExpression* middle_exp;     // if true int_value
+            struct CExpression* right_exp;      // if false int_value
         } conditional;
         struct {
             struct CIdentifier func;
@@ -292,7 +292,7 @@ extern struct CDeclaration* c_declaration_new_func(struct CFuncDecl* funcdecl);
 extern void c_declaration_delete(struct CDeclaration* declaration);
 #define TYPE struct CDeclaration*
 #define NAME list_of_CDeclaration
-#include "../utils/list_of_item.h"
+#include "inc/list_of_item.h"
 //endregion CDeclaration
 
 //region struct CVarDecl
@@ -335,7 +335,7 @@ extern void CBlockItem_delete(struct CBlockItem* blockItem);  // actually used i
 // Implementation of List<CBlockItem> (?list_of_CBlockItem")
 #define NAME list_of_CBlockItem
 #define TYPE struct CBlockItem*
-#include "../utils/list_of_item.h"
+#include "inc/list_of_item.h"
 //endregion CBlockItem
 
 //region struct CBlock
@@ -414,7 +414,7 @@ struct CFuncDecl {
 };
 #define NAME list_of_CFuncDecl
 #define TYPE struct CFuncDecl*
-#include "../utils/list_of_item.h"
+#include "inc/list_of_item.h"
 extern struct CFuncDecl* c_function_new(const char* name, enum STORAGE_CLASS storage_class);
 extern enum AST_RESULT c_function_add_param(struct CFuncDecl* function, const char* param_name);
 extern enum AST_RESULT c_function_add_body(struct CFuncDecl* function, struct CBlock* body);

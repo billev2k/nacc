@@ -95,6 +95,7 @@ struct list_of_amd64_top_level_helpers list_of_amd64_top_level_helpers = {
         .delete = amd64_top_level_delete,
 };
 #include "../utils/list_of_item.tmpl"
+#include "inc/constant.h"
 
 struct Amd64Program* amd64_program_new(void ) {
     struct Amd64Program *result = (struct Amd64Program *)malloc(sizeof(struct Amd64Program));
@@ -129,7 +130,7 @@ void amd64_function_delete(struct Amd64Function *function) {
     free(function);
 }
 
-struct Amd64StaticVar *amd64_static_var_new(const char *name, bool global, struct IrConstant init_val) {
+struct Amd64StaticVar *amd64_static_var_new(const char *name, bool global, struct Constant init_val) {
     struct Amd64StaticVar *result = (struct Amd64StaticVar *)malloc(sizeof(struct Amd64StaticVar));
     result->name = name;
     result->global = global;

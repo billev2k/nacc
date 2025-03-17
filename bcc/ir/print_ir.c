@@ -34,7 +34,7 @@ void print_ir_static_var(const struct IrStaticVar *static_var, FILE *file) {
     fprintf(file, "Var %s", static_var->name);
     if (static_var->global) fprintf(file, " (global)");
 //    if (static_var->has_init_val)
-        fprintf(file, " = %d", static_var->init_val.int_val);
+        fprintf(file, " = %d", static_var->init_value.int_value);
     fputc('\n', file);
 }
 
@@ -128,12 +128,12 @@ void print_ir_instruction(const struct IrInstruction *instruction, FILE *file) {
 
 void print_ir_value(struct IrValue value, FILE *file) {
     switch (value.kind) {
-        case IR_VAL_CONST_INT:
-            fprintf(file, "$%d", value.int_val);
+        case IR_VAL_CONST:
+            fprintf(file, "$%d", value.const_value.int_value);
             break;
         case IR_VAL_ID:
         case IR_VAL_LABEL:
-            fprintf(file, "%s", value.text);
+            fprintf(file, "%s", value.const_value.string_value);
             break;
     }
 }

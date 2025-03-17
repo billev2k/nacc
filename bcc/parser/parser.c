@@ -17,7 +17,7 @@
 // List of un-owned strings ("persistent strings" aka "pstr")
 #define NAME list_of_pstr
 #define TYPE const char*
-#include "../utils/list_of_item.h"
+#include "inc/list_of_item.h"
 #pragma clang diagnostic push
 #pragma ide diagnostic ignored "UnusedParameter"
 void no_op(const char * x) {}

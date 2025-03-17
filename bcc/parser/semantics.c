@@ -58,14 +58,11 @@ void semantic_analysis(const struct CProgram *program) {
     typecheck_program(program);
 }
 
+//region uniquify and resolve
 static void resolve_file_scope_vardecl(struct CDeclaration *decl) {
     if (!decl) return;
     struct CVarDecl *vardecl = decl->var;
-    vardecl->var.name =  add_identifier(IDENTIFIER_ID, vardecl->var.source_name, 1 /*has_linkage*/);
-    // File scope variables can only have constant initializers, so we don't need to resolve any initializer.
-    //if (vardecl->initializer) {
-    //    resolve_expression(vardecl->initializer);
-    //}
+    vardecl->var.name =  add_identifier(IDENTIFIER_ID, vardecl->var.source_name, true /*has_linkage*/);
 }
 
 static void analyze_function(struct CFuncDecl *function) {
@@ -112,11 +109,11 @@ static void resolve_block(const struct CBlock *block) {
 }
 
 static const char *resolve_label(const char *source_name) {
-    return resolve_identifier(IDENTIFIER_LABEL, source_name, NULL);
+    return lookup_identifier(IDENTIFIER_LABEL, source_name, NULL, NULL);
 }
 
 static const char *resolve_var(const char *source_name) {
-    return resolve_identifier(IDENTIFIER_ID, source_name, NULL);
+    return lookup_identifier(IDENTIFIER_ID, source_name, NULL, NULL);
 }
 
 static void resolve_expression(struct CExpression *exp) {
@@ -195,20 +192,25 @@ static void resolve_expression(struct CExpression *exp) {
 
 static void resolve_funcdecl(struct CFuncDecl *function) {
     // Doesn't decorate, just makes sure it doesn't collide with a non-extern.
-    add_identifier(IDENTIFIER_ID, function->name, 1 /*has_linkage*/);
+    add_identifier(IDENTIFIER_ID, function->name, true /*has_linkage*/);
 
     if (function->body) {
-        // Any parameters are in the same scope as function block declarations.
+        // Any parameters are in the same scope as function block declarations, so push a new id context,
+        // generate unique names for parameters, then continue on to the function body.
         push_id_context(1);
         for (int ix = 0; ix < function->params.num_items; ix++) {
             struct CIdentifier *var = &function->params.items[ix];
-            var->name =  add_identifier(IDENTIFIER_ID, var->source_name, 0 /*has_linkage*/);
+            var->name =  add_identifier(IDENTIFIER_ID, var->source_name, false /*has_linkage*/);
         }
         resolve_block(function->body);
         pop_id_context();
     }
 }
 
+/**
+ *
+ * @param vardecl
+ */
 static void resolve_vardecl(struct CVarDecl *vardecl) {
     if (!vardecl) return;
     bool has_linkage = false;
@@ -246,7 +248,7 @@ static void resolve_statement(const struct CStatement *statement) {
         for (int i=0; i<num_labels; ++i) {
             if (labels[i].kind == LABEL_DECL) {
                 struct CIdentifier *var = &labels[i].identifier;
-                var->name =  add_identifier(IDENTIFIER_LABEL, var->source_name, 0 /*has_linkage*/);
+                var->name =  add_identifier(IDENTIFIER_LABEL, var->source_name, false /*has_linkage*/);
             }
         }
     }
@@ -295,9 +297,15 @@ static void resolve_statement(const struct CStatement *statement) {
             break;
     }
 }
+//endregion
 
+//region resolve gotos
 /**
- * Matches "goto" statements with target labels. Labels are identified in "label_*_loops".
+ * Matches "goto" statements with their target labels.
+ *
+ * Searches the AST for goto statements, and matches them with their previously-uniquified
+ * label. Unique names were generated for all statement labels in "resolve_statement".
+ * 
  * @param statement A statement which may BE a goto, or may CONTAIN a goto.
  */
 static void resolve_goto(const struct CStatement *statement) {
@@ -348,7 +356,16 @@ static void resolve_goto(const struct CStatement *statement) {
             break;
     }
 }
+//endregion
 
+//region resolve loops & switches
+/**
+ * For every statement in a block, label the loops, switches, breaks, continues, and cases associated with
+ * the statement and any enclosed statements. (NB: doesn't include ordinary statement labels, like "exit:").
+ *
+ * @param block The block to process.
+ * @param context The enclosing switch/loop context (flow ids of enclosing switches and loops).
+ */
 static void label_block_loops(const struct CBlock *block, struct LoopLabelContext context) {
     for (int ix = 0; ix < block->items.num_items; ix++) {
         struct CBlockItem *bi = block->items.items[ix];
@@ -358,6 +375,31 @@ static void label_block_loops(const struct CBlock *block, struct LoopLabelContex
     }
 }
 
+/**
+ * Label loops and switch cases for a statement.
+ *
+ * Assigns a "flow id" to every loop and switch statement. These ids are used to generate unique
+ * branch labels needed by "break" and "continue" statements, and for "case X:" and "default:" labels
+ * in a switch statement.
+ *
+ * If the given statement is a loop or switch, assign it a new flow id, then examine the associated
+ * body and mark break and continue statements and case labels with the flow id.
+ *
+ * If the given statement is a break or continue, mark it with the enclosing loop or switch statement's
+ * flow id.
+ *
+ * If the statement as child statements (eg, if/else, blocks), handle them recursively.
+ *
+ * For any "case X:" or "default:" labels attached to the statement, mark those labels with the flow id
+ * of the enclosing switch statement.
+ *
+ * Later, when generating TACKY IR, the flow ids will be used to deterministicly create unique labels.
+ *
+ * @param statement to be labelled.
+ * @param context A context describing the enclosing scope(s). In particular this contains the flow id
+ *          of any loop or switch enclosing the statement. So, if this statement is a "break", it will
+ *          be marked with the flow id of the enclosing loop or switch.
+ */
 static void label_statement_loops(struct CStatement *statement, struct LoopLabelContext context) {
     if (!statement) return;
     int flow_id;
@@ -448,7 +490,9 @@ static void label_statement_loops(struct CStatement *statement, struct LoopLabel
         }
     }
 }
+//endregion
 
+//region typecheck
 void typecheck_program(const struct CProgram *program) {
     for (int ix=0; ix<program->declarations.num_items; ix++) {
         struct CDeclaration *decl = program->declarations.items[ix];
@@ -709,6 +753,6 @@ void typecheck_block_scope_vardecl(struct CVarDecl *vardecl) {
         }
     }
 }
-
+//endregion
 
 #pragma clang diagnostic pop

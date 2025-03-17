@@ -6,7 +6,7 @@
 #include <string.h>
 #include <stdio.h>
 #include <stdarg.h>
-#include "utils.h"
+#include "inc/utils.h"
 
 unsigned long hash_str(const char *str)
 {

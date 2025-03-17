@@ -8,6 +8,7 @@
 #include "ast.h"
 #include "ast2ir.h"
 #include "idtable.h"
+#include "inc/constant.h"
 
 static void tmp_vars_init(void);
 
@@ -55,16 +56,16 @@ void convert_symbols_to_ir(struct IrProgram *program) {
     for (int ix=0; ix<get_num_symbols(); ix++) {
         pSymbol = get_symbol(ix);
         if (SYMBOL_IS_STATIC_VAR(pSymbol->attrs)) {
-            struct IrConstant init_value = {.kind = CONST_INT, .int_val = 0};
+            struct Constant init_value = {.kind = CONST_INT, .int_value = 0};
             struct IrStaticVar *irStaticVar;
             switch (pSymbol->attrs & SYMBOL_STATIC_MASK) {
                 case SYMBOL_STATIC_INITIALIZED:
-                    init_value.int_val = pSymbol->int_val;
+                    init_value.int_value = pSymbol->int_val;
                     irStaticVar = ir_static_var_new(pSymbol->identifier.name,SYMBOL_IS_GLOBAL(pSymbol->attrs), init_value);
                     ir_program_add_static_var(program, irStaticVar);
                     break;
                 case SYMBOL_STATIC_TENTATIVE:
-                    init_value.int_val = 0;
+                    init_value.int_value = 0;
                     irStaticVar = ir_static_var_new(pSymbol->identifier.name,SYMBOL_IS_GLOBAL(pSymbol->attrs), init_value);
                     ir_program_add_static_var(program, irStaticVar);
                     break;
@@ -366,7 +367,7 @@ void compile_statement(const struct CStatement *statement, struct IrFunction *fu
  * @param cExpression An AST expression to be evaluated.
  * @param irFunction The IrFunction in which the expression appears, and which will receive the instructions
  *      to evaluate the expression.
- * @return An IrValue with the location of where the computed int_val is stored.
+ * @return An IrValue with the location of where the computed int_value is stored.
  */
 struct IrValue compile_expression(struct CExpression *cExpression, struct IrFunction *irFunction) {
     // NOLINT(*-no-recursion)
@@ -572,7 +573,7 @@ static const char *tmp_vars_insert(const char *str);
 static struct IrValue make_temporary(const struct IrFunction *function) {
     const char *name_buf = uniquify_name("%.100s.tmp.%d", function->name);
     const char *tmp_name = tmp_vars_insert(name_buf);
-    struct IrValue result = ir_value_new(IR_VAL_ID, tmp_name);
+    struct IrValue result = ir_value_new_id(tmp_name);
     return result;
 }
 

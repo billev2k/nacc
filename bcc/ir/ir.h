@@ -7,7 +7,8 @@
 
 #include <limits.h>
 #include <stdbool.h>
-#include "../utils/utils.h"
+#include "inc/constant.h"
+#include "inc/utils.h"
 
 enum IR_OP {
     IR_OP_VAR,
@@ -64,22 +65,10 @@ enum IR_BINARY_OP {
 };
 extern const char * const IR_BINARY_NAMES[];
 
-enum IR_CONSTANT {
-    CONST_INT,
-    // CONST_LONG, CONST_LONG_DOUBLE, ...
-};
-struct IrConstant {
-    enum IR_CONSTANT kind;
-    union {
-        int int_val;
-        // long i64_val, long double ld_val, ...
-    };
-};
-
 
 //region struct IrValue
 enum IR_VAL {
-    IR_VAL_CONST_INT,
+    IR_VAL_CONST,
     IR_VAL_ID,
     IR_VAL_LABEL,
 };
@@ -87,18 +76,18 @@ enum IR_VAL {
 struct IrValue {
     enum IR_VAL kind;
     union {
-        int int_val;
+        struct Constant const_value;
         const char *text;
     };
 };
-extern struct IrValue ir_value_new(enum IR_VAL valKind, const char *valText);
 extern struct IrValue ir_value_new_id(const char* id);
 extern struct IrValue ir_value_new_label(const char* label_name);
 extern struct IrValue ir_value_new_int(int int_val);
+extern struct IrValue ir_value_new_const(struct Constant value);
 
 #define NAME list_of_IrValue
 #define TYPE struct IrValue
-#include "../utils/list_of_item.h"
+#include "inc/list_of_item.h"
 //endregion VALUE
 
 //region struct IrInstruction
@@ -164,16 +153,16 @@ extern void IrInstruction_delete(struct IrInstruction *instruction);
 
 #define NAME list_of_IrInstruction
 #define TYPE struct IrInstruction*
-#include "../utils/list_of_item.h"
+#include "inc/list_of_item.h"
 //endregion
 
 //region struct IrStaticVar
 struct IrStaticVar {
     const char *name;
     bool global;
-    struct IrConstant init_val;
+    struct Constant init_value;
 };
-extern struct IrStaticVar *ir_static_var_new(const char *name, bool global, struct IrConstant init_val);
+extern struct IrStaticVar *ir_static_var_new(const char *name, bool global, struct Constant init_value);
 extern void ir_static_var_delete(struct IrStaticVar *static_var);
 //endregion
 
@@ -207,7 +196,8 @@ extern struct IrTopLevel* ir_top_level_new_static_var(struct IrStaticVar *static
 extern void ir_top_level_delete(struct IrTopLevel *top_level);
 #define NAME list_of_top_level
 #define TYPE struct IrTopLevel*
-#include "../utils/list_of_item.h"
+#include "inc/list_of_item.h"
+#include "inc/constant.h"
 //endregion
 
 //region struct IrProgram

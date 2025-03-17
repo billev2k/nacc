@@ -9,12 +9,12 @@
 #include <stdio.h>
 #include <assert.h>
 #include "idtable.h"
-#include "../utils/utils.h"
+#include "inc/utils.h"
 #include "../utils/startup.h"
 
 #define NAME list_of_symbol
 #define TYPE struct Symbol
-#include "../utils/list_of_item.h"
+#include "inc/list_of_item.h"
 struct list_of_symbol_helpers list_of_symbol_helpers = {
         .delete = symbol_delete,
         .null = {},

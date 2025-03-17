@@ -41,11 +41,11 @@ int amd64_top_level_print(struct Amd64TopLevel *pAmd64TopLevel, FILE *out) {
 int amd64_static_var_print(struct Amd64StaticVar *amd64StaticVar, FILE *out) {
     int nBytes = 4;
     if (amd64StaticVar->global) fprintf(out, "      .globl _%s\n", amd64StaticVar->name);
-    fprintf(out, "       %s\n", amd64StaticVar->init_val.int_val?".data":".bss");
+    fprintf(out, "       %s\n", amd64StaticVar->init_val.int_value ? ".data" : ".bss");
     fprintf(out, "       .balign %d\n", nBytes);
     fprintf(out, "_%s:\n", amd64StaticVar->name);
-    if (amd64StaticVar->init_val.int_val) {
-        fprintf(out, "       .long %d\n", amd64StaticVar->init_val.int_val);
+    if (amd64StaticVar->init_val.int_value) {
+        fprintf(out, "       .long %d\n", amd64StaticVar->init_val.int_value);
     } else {
         fprintf(out, "       .zero %d\n", nBytes);
     }

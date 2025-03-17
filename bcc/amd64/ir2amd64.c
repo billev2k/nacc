@@ -16,7 +16,7 @@ struct pseudo_register {
 };
 #define NAME set_of_pseudo_register
 #define TYPE struct pseudo_register
-#include "../utils/set_of_item.h"
+#include "inc/set_of_item.h"
 #undef NAME
 #undef TYPE
 unsigned long pseudo_register_hash(struct pseudo_register pl) {
@@ -79,7 +79,7 @@ struct Amd64Program *ir2amd64(struct IrProgram* irProgram) {
                 break;
             case IR_STATIC_VAR:
                 ;
-                struct Amd64StaticVar *static_var = amd64_static_var_new(top_level->static_var->name, top_level->static_var->global, top_level->static_var->init_val);
+                struct Amd64StaticVar *static_var = amd64_static_var_new(top_level->static_var->name, top_level->static_var->global, top_level->static_var->init_value);
                 amd64_program_add_static_var(program, static_var);
                 break;
         }
@@ -363,8 +363,8 @@ static int convert_instruction(struct Amd64Function *asmFunction, struct IrInstr
 static struct Amd64Operand make_operand(struct IrValue value) {
     struct Amd64Operand operand = {0};
     switch (value.kind) {
-        case IR_VAL_CONST_INT:
-            operand = amd64_operand_imm_int(value.int_val);
+        case IR_VAL_CONST:
+            operand = amd64_operand_imm_int(value.const_value.int_value);
             break;
         case IR_VAL_ID:
             operand = amd64_operand_pseudo(value.text);

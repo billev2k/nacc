@@ -3,6 +3,7 @@ project(bcc C)
 
 set(CMAKE_C_STANDARD 17)
 
+
 add_executable(bcc main.c
         utils/startup.c
         utils/startup.h
@@ -10,7 +11,7 @@ add_executable(bcc main.c
         lexer/lexer.h
         lexer/tokens.h
         utils/utils.c
-        utils/utils.h
+        inc/utils.h
         parser/parser.c
         parser/parser.h
         parser/ast.c
@@ -36,11 +37,14 @@ add_executable(bcc main.c
         parser/symtable.c
         parser/symtable.h
         parser/symtable.c
+        utils/constant.c
+        inc/constant.h
 )
+target_include_directories(bcc PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}")
 
 add_executable(bcc_test SetOfItemTest.c
         utils/utils.c
-        utils/utils.h
+        inc/utils.h
 )
 target_compile_definitions(bcc_test PRIVATE TESTING_SET_IMPL=1)
 

@@ -6,13 +6,13 @@
 #include <stdlib.h>
 #include <printf.h>
 
-#include "utils/utils.h"
+#include "inc/utils.h"
 
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wshadow"
 #define NAME set_of_str
 #define TYPE const char *
-#include "utils/set_of_item.h"
+#include "inc/set_of_item.h"
 extern struct set_of_str_helpers set_of_str_helpers;
 int set_of_str_is_null(const char* item) { return item == NULL;}
 struct set_of_str_helpers set_of_str_helpers = {
@@ -28,7 +28,7 @@ struct set_of_str_helpers set_of_str_helpers = {
 #undef TYPE
 #define NAME set_of_int
 #define TYPE int
-#include "utils/set_of_item.h"
+#include "inc/set_of_item.h"
 unsigned long set_of_int_hash(int i) { return i; }
 int set_of_int_cmp(int l, int r) { return r - l; }
 void set_of_int_no_delete(__attribute__((unused)) int x) {}
@@ -80,7 +80,7 @@ void str_set_checker(const char *string) {
     if (!result) {
         printf("Expected but not found: %s\n", string);
     } else if (strcmp(string, found) != 0) {
-        printf("Found but not expected int_val: %s -> %s\n", string, found);
+        printf("Found but not expected int_value: %s -> %s\n", string, found);
     }
     if (strcmp(string, protected_str) != 0) {
         set_of_str_remove(&str_set, string);

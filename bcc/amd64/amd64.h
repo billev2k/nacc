@@ -7,7 +7,7 @@
 
 #include <stdio.h>
 #include "../ir/ir.h"
-#include "../utils/utils.h"
+#include "inc/utils.h"
 
 enum INSTRUCTION {
     INST_ALLOC_STACK,
@@ -205,7 +205,7 @@ extern void Amd64Instruction_delete(struct Amd64Instruction *instruction);
 //region struct Amd64Function
 #define NAME list_of_Amd64Instruction
 #define TYPE struct Amd64Instruction*
-#include "../utils/list_of_item.h"
+#include "inc/list_of_item.h"
 
 struct Amd64Function {
     const char *name;
@@ -222,9 +222,9 @@ extern void amd64_function_delete(struct Amd64Function *function);
 struct Amd64StaticVar {
     const char *name;
     bool global;
-    struct IrConstant init_val;
+    struct Constant init_val;
 };
-extern struct Amd64StaticVar *amd64_static_var_new(const char *name, bool global, struct IrConstant init_val);
+extern struct Amd64StaticVar *amd64_static_var_new(const char *name, bool global, struct Constant init_val);
 extern void amd64_static_var_delete(struct Amd64StaticVar *static_var);
 //endregion
 
@@ -248,7 +248,9 @@ extern void amd64_top_level_delete(struct Amd64TopLevel *top_level);
 //region struct Amd64Program
 #define NAME list_of_amd64_top_level
 #define TYPE struct Amd64TopLevel*
-#include "../utils/list_of_item.h"
+#include "inc/list_of_item.h"
+#include "inc/constant.h"
+
 struct Amd64Program {
     struct list_of_amd64_top_level top_level;
 };

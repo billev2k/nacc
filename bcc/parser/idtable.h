@@ -17,7 +17,6 @@ extern void idtable_init(void);
 
 extern const char *add_identifier(enum IDENTIFIER_KIND kind, const char *source_name, bool has_linkage);
 extern const char *lookup_identifier(enum IDENTIFIER_KIND kind, const char *source_name, bool *pHas_linkage, bool *pCurrent_scope);
-extern const char *resolve_identifier(enum IDENTIFIER_KIND kind, const char *source_name, bool *pHas_linkage);
 
 extern void push_id_context(int is_function_context);
 extern void pop_id_context(void);

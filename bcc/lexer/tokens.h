@@ -35,7 +35,15 @@ extern enum TOKEN_FLAGS TOKEN_FLAGS[];
     X(TK_ELSE,          "else",             0),                                      \
     X(TK_GOTO,          "goto",             0),                                      \
     X(TK_IF,            "if",               0),                                      \
+    X(TK_CONST,         "const",            0),                                      \
     X(TK_INT,           "int",              0),                                      \
+    X(TK_LONG,          "long",             0),                                      \
+    X(TK_SHORT,         "short",            0),                                      \
+    X(TK_CHAR,          "char",             0),                                      \
+    X(TK_SIGNED,        "signed",           0),                                      \
+    X(TK_UNSIGNED,      "unsigned",         0),                                      \
+    X(TK_FLOAT,         "float",            0),                                      \
+    X(TK_DOUBLE,        "double",           0),                                      \
     X(TK_RETURN,        "return",           0),                                      \
     X(TK_VOID,          "void",             0),                                      \
     X(TK_STATIC,        "static",           0),                                      \
