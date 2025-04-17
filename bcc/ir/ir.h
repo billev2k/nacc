@@ -85,9 +85,7 @@ extern struct IrValue ir_value_new_label(const char* label_name);
 extern struct IrValue ir_value_new_int(int int_val);
 extern struct IrValue ir_value_new_const(struct Constant value);
 
-#define NAME list_of_IrValue
-#define TYPE struct IrValue
-#include "inc/list_of_item.h"
+LIST_OF_ITEM_DECL(list_of_IrValue,struct IrValue)
 //endregion VALUE
 
 //region struct IrInstruction
@@ -151,9 +149,7 @@ extern struct IrInstruction* ir_instruction_new_funcall(struct IrValue func_name
 extern struct IrInstruction* ir_instruction_new_comment(const char* text);
 extern void IrInstruction_delete(struct IrInstruction *instruction);
 
-#define NAME list_of_IrInstruction
-#define TYPE struct IrInstruction*
-#include "inc/list_of_item.h"
+LIST_OF_ITEM_DECL(list_of_IrInstruction, struct IrInstruction*)
 //endregion
 
 //region struct IrStaticVar
@@ -194,9 +190,7 @@ struct IrTopLevel {
 extern struct IrTopLevel* ir_top_level_new_function(struct IrFunction *function);
 extern struct IrTopLevel* ir_top_level_new_static_var(struct IrStaticVar *static_var);
 extern void ir_top_level_delete(struct IrTopLevel *top_level);
-#define NAME list_of_top_level
-#define TYPE struct IrTopLevel*
-#include "inc/list_of_item.h"
+LIST_OF_ITEM_DECL(list_of_top_level, struct IrTopLevel*)
 #include "inc/constant.h"
 //endregion
 

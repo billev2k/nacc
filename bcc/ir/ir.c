@@ -18,29 +18,23 @@ const char * const IR_BINARY_NAMES[] = {
 };
 
 
-#define NAME list_of_IrValue
-#define TYPE struct IrValue
 static void IrValue_delete(struct IrValue val) {}
 struct list_of_IrValue_helpers list_of_IrValue_helpers = {
         .delete = IrValue_delete,
         .null = {0},
 };
-#include "../utils/list_of_item.tmpl"
+LIST_OF_ITEM_DEFN(list_of_IrValue,struct IrValue)
 
-#define NAME list_of_IrInstruction
-#define TYPE struct IrInstruction*
 struct list_of_IrInstruction_helpers list_of_IrInstruction_helpers = {
         .delete = IrInstruction_delete
 };
-#include "../utils/list_of_item.tmpl"
+LIST_OF_ITEM_DEFN(list_of_IrInstruction,struct IrInstruction*)
 
-#define NAME list_of_top_level
-#define TYPE struct IrTopLevel*
 struct list_of_top_level_helpers list_of_top_level_helpers = {
         .delete = ir_top_level_delete,
         .null = {},
 };
-#include "../utils/list_of_item.tmpl"
+LIST_OF_ITEM_DEFN(list_of_top_level,struct IrTopLevel*)
 #include "inc/constant.h"
 
 

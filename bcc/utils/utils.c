@@ -6,6 +6,8 @@
 #include <string.h>
 #include <stdio.h>
 #include <stdarg.h>
+
+#include "inc/set_of.h"
 #include "inc/utils.h"
 
 unsigned long hash_str(const char *str)
@@ -49,11 +51,7 @@ long identity(long l) { return l; }
 //
 // Set implementation for "strings".
 //
-#define NAME set_of_str
-#define TYPE const char *
-#include "set_of_item.tmpl"
-#undef NAME
-#undef TYPE
+SET_OF_ITEM_DEFN(set_of_str, const char*)
 int set_of_str_is_null(const char* item) { return item == NULL;}
 struct set_of_str_helpers set_of_str_helpers = {
         .hash = hash_str,
@@ -68,11 +66,7 @@ struct set_of_str_helpers set_of_str_helpers = {
 //
 // Set implementation for int.
 //
-#define NAME set_of_int
-#define TYPE int
-#include "set_of_item.tmpl"
-#undef NAME
-#undef TYPE
+SET_OF_ITEM_DEFN(set_of_int, int)
 
 int intcmp(int l, int r) { return r - l; }
 void no_delete(int x) {;}
@@ -85,10 +79,8 @@ struct set_of_int_helpers set_of_int_helpers = {
         .is_null = (int (*)(int)) long_is_zero,
 };
 
-#define NAME list_of_int
-#define TYPE int
 struct list_of_int_helpers list_of_int_helpers = {
         .delete = no_delete,
         .null = 0,
 };
-#include "./list_of_item.tmpl"
+LIST_OF_ITEM_DEFN(list_of_int,int)

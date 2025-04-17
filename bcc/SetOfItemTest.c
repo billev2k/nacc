@@ -10,39 +10,6 @@
 
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wshadow"
-#define NAME set_of_str
-#define TYPE const char *
-#include "inc/set_of_item.h"
-extern struct set_of_str_helpers set_of_str_helpers;
-int set_of_str_is_null(const char* item) { return item == NULL;}
-struct set_of_str_helpers set_of_str_helpers = {
-        .hash = hash_str,
-        .cmp = strcmp,
-        .dup =(const char *(*)(const char *)) strdup,
-        .free = (void (*)(const char *)) free,
-        .is_null = set_of_str_is_null,
-};
-#include "utils/set_of_item.tmpl"
-
-#undef NAME
-#undef TYPE
-#define NAME set_of_int
-#define TYPE int
-#include "inc/set_of_item.h"
-unsigned long set_of_int_hash(int i) { return i; }
-int set_of_int_cmp(int l, int r) { return r - l; }
-void set_of_int_no_delete(__attribute__((unused)) int x) {}
-int set_of_int_is_null(int x) { return x == 0; }
-struct set_of_int_helpers set_of_int_helpers = {
-        .hash = set_of_int_hash,
-        .cmp = set_of_int_cmp,
-        .dup = set_of_int_no_dup,
-        .free = set_of_int_no_delete,
-        .is_null = set_of_int_is_null,
-        .null = 0,
-};
-#include "utils/set_of_item.tmpl"
-
 
 int unit_tests(__attribute__((unused)) int argc, __attribute__((unused)) char **argv);
 int main(int argc, char **argv) {

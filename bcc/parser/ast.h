@@ -197,9 +197,7 @@ struct CIdentifier {
     const char* name;
     const char* source_name;
 };
-#define NAME list_of_CIdentifier
-#define TYPE struct CIdentifier
-#include "inc/list_of_item.h"
+LIST_OF_ITEM_DECL(list_of_CIdentifier, struct CIdentifier)
 //endregion CIdentifier
    
 //region struct CLabel
@@ -216,16 +214,12 @@ extern struct CLabel c_label_new_switch_default();
 extern struct CLabel c_label_new_switch_case(struct CExpression *expr);
 extern void c_label_delete(struct CLabel label);
 
-#define NAME list_of_CLabel
-#define TYPE struct CLabel
-#include "inc/list_of_item.h"
+LIST_OF_ITEM_DECL(list_of_CLabel, struct CLabel)
 //endregion struct CLabel
 
 //region struct CExpression
 struct CExpression;
-#define NAME list_of_CExpression
-#define TYPE struct CExpression*
-#include "inc/list_of_item.h"
+LIST_OF_ITEM_DECL(list_of_CExpression, struct CExpression*)
 struct CExpression {
     enum AST_EXP_KIND kind;
     union {
@@ -290,9 +284,7 @@ struct CDeclaration {
 extern struct CDeclaration* c_declaration_new_var(struct CVarDecl* vardecl);
 extern struct CDeclaration* c_declaration_new_func(struct CFuncDecl* funcdecl);
 extern void c_declaration_delete(struct CDeclaration* declaration);
-#define TYPE struct CDeclaration*
-#define NAME list_of_CDeclaration
-#include "inc/list_of_item.h"
+LIST_OF_ITEM_DECL(list_of_CDeclaration,struct CDeclaration*)
 //endregion CDeclaration
 
 //region struct CVarDecl
@@ -333,9 +325,7 @@ extern struct CBlockItem* c_block_item_new_stmt(struct CStatement* statement);
 extern void c_block_item_delete(struct CBlockItem* blockItem);
 extern void CBlockItem_delete(struct CBlockItem* blockItem);  // actually used in c_blockitem_helpers
 // Implementation of List<CBlockItem> (?list_of_CBlockItem")
-#define NAME list_of_CBlockItem
-#define TYPE struct CBlockItem*
-#include "inc/list_of_item.h"
+LIST_OF_ITEM_DECL(list_of_CBlockItem, struct CBlockItem*)
 //endregion CBlockItem
 
 //region struct CBlock
@@ -412,9 +402,7 @@ struct CFuncDecl {
     struct CBlock* body;
     struct list_of_CIdentifier params;
 };
-#define NAME list_of_CFuncDecl
-#define TYPE struct CFuncDecl*
-#include "inc/list_of_item.h"
+LIST_OF_ITEM_DECL(list_of_CFuncDecl, struct CFuncDecl*)
 extern struct CFuncDecl* c_function_new(const char* name, enum STORAGE_CLASS storage_class);
 extern enum AST_RESULT c_function_add_param(struct CFuncDecl* function, const char* param_name);
 extern enum AST_RESULT c_function_add_body(struct CFuncDecl* function, struct CBlock* body);

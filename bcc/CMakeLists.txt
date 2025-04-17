@@ -3,8 +3,24 @@ project(bcc C)
 
 set(CMAKE_C_STANDARD 17)
 
+set(CMAKE_VERBOSE_MAKEFILE ON)
 
-add_executable(bcc main.c
+add_custom_command(
+        OUTPUT inc/set_of.h
+        COMMAND awk -f ${CMAKE_CURRENT_SOURCE_DIR}/defineify.awk ${CMAKE_CURRENT_SOURCE_DIR}/inc/set_of.def > ${CMAKE_CURRENT_SOURCE_DIR}/inc/set_of.h
+        DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/inc/set_of.def
+        VERBATIM)
+
+add_custom_command(
+        OUTPUT inc/list_of.h
+        COMMAND awk -f ${CMAKE_CURRENT_SOURCE_DIR}/defineify.awk ${CMAKE_CURRENT_SOURCE_DIR}/inc/list_of.def > ${CMAKE_CURRENT_SOURCE_DIR}/inc/list_of.h
+        DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/inc/list_of.def
+        VERBATIM)
+
+add_executable(bcc 
+        main.c
+        inc/set_of.h
+        inc/list_of.h
         utils/startup.c
         utils/startup.h
         lexer/lexer.c

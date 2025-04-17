@@ -6,15 +6,14 @@
 #define BCC_LEXER_H
 
 #include "tokens.h"
+#include "inc/list_of.h"
 
 struct Token {
     enum TK tk;
     const char *text;
 };
 
-#define TYPE struct Token
-#define NAME list_of_token
-#include "inc/list_of_item.h"
+LIST_OF_ITEM_DECL(list_of_token,struct Token)
 
 extern int lex_openFile(char const *fname);
 

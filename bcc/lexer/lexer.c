@@ -19,9 +19,7 @@ struct list_of_token_helpers list_of_token_helpers = {
         .delete = token_delete,
         .null = {},
 };
-#define TYPE struct Token
-#define NAME list_of_token
-#include "../utils/list_of_item.tmpl"
+LIST_OF_ITEM_DEFN(list_of_token,struct Token)
 
 
 // This is a pretty long line, but generated code can be longer.

@@ -203,9 +203,7 @@ extern void Amd64Instruction_delete(struct Amd64Instruction *instruction);
 //endregion
 
 //region struct Amd64Function
-#define NAME list_of_Amd64Instruction
-#define TYPE struct Amd64Instruction*
-#include "inc/list_of_item.h"
+LIST_OF_ITEM_DECL(list_of_Amd64Instruction,struct Amd64Instruction*)
 
 struct Amd64Function {
     const char *name;
@@ -246,9 +244,7 @@ extern void amd64_top_level_delete(struct Amd64TopLevel *top_level);
 //endregion
 
 //region struct Amd64Program
-#define NAME list_of_amd64_top_level
-#define TYPE struct Amd64TopLevel*
-#include "inc/list_of_item.h"
+LIST_OF_ITEM_DECL(list_of_amd64_top_level,struct Amd64TopLevel*)
 #include "inc/constant.h"
 
 struct Amd64Program {

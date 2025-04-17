@@ -28,6 +28,7 @@
 #include "idtable.h"
 #include "symtable.h"
 #include "inc/utils.h"
+#include "inc/set_of.h"
 #include "../utils/startup.h"
 
 /**
@@ -67,10 +68,8 @@ int identifier_item_is_null(struct identifier_item item) {
 /*
  * Declare a set of identifier_item, keyed by source_name and kind.
  */
-#define NAME set_of_identifier_item
-#define TYPE struct identifier_item
-#include "inc/set_of_item.h"
-#include "../utils/set_of_item.tmpl"
+SET_OF_ITEM_DECL(set_of_identifier_item, struct identifier_item)
+SET_OF_ITEM_DEFN(set_of_identifier_item, struct identifier_item)
 struct set_of_identifier_item_helpers set_of_identifier_item_helpers = {
         .hash = identifier_item_hash,
         .cmp = identifier_item_cmp,
@@ -79,8 +78,6 @@ struct set_of_identifier_item_helpers set_of_identifier_item_helpers = {
         .null = {},
         .is_null = identifier_item_is_null
 };
-#undef NAME
-#undef TYPE
 
 /*
  * A scoped identifier table. 'prev' points to any containing scope. 'push_id_context' allocates

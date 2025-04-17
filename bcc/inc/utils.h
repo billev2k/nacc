@@ -6,6 +6,8 @@
 #define BCC_UTILS_H
 
 #include <memory.h>
+#include "inc/set_of.h"
+#include "inc/list_of.h"
 
 extern unsigned long hash_str(const char *str);
 extern int long_is_zero(long l);
@@ -15,20 +17,10 @@ extern void failf(const char* fmt, ...);
 
 extern int next_uniquifier(void);
 
-#define NAME set_of_str
-#define TYPE const char*
-#include "set_of_item.h"
-#undef NAME
-#undef TYPE
+SET_OF_ITEM_DECL(set_of_str, const char*)
 
-#define NAME set_of_int
-#define TYPE int
-#include "set_of_item.h"
-#undef NAME
-#undef TYPE
+SET_OF_ITEM_DECL(set_of_int, int)
 
-#define NAME list_of_int
-#define TYPE int
-#include "list_of_item.h"
+LIST_OF_ITEM_DECL(list_of_int,int)
 
 #endif //BCC_UTILS_H

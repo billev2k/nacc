@@ -1,0 +1,266 @@
+#ifndef SET_OF_DEF
+#define SET_OF_DEF
+
+
+#define SET_OF_ITEM_DECL(NAME,TYPE)                                                                 \
+struct NAME##_helpers {                                                                             \
+    unsigned long (*hash)(TYPE item);                                                               \
+    int (*cmp)(TYPE left, TYPE right);                                                              \
+    TYPE (*dup)(TYPE);                                                                              \
+    void (*delete)(TYPE);                                                                           \
+    int (*is_null)(TYPE item);                                                                      \
+    TYPE null;                                                                                      \
+};                                                                                                  \
+struct NAME {                                                                                       \
+    struct NAME##_helpers v_helpers;                                                                \
+    TYPE *items;                                                                                    \
+    unsigned int num_items;                                                                         \
+    unsigned int max_num_items;                                                                     \
+    unsigned int collisions;                                                                        \
+    TYPE null_item;                                                                                 \
+    int is_null_item_set;                                                                           \
+};                                                                                                  \
+extern TYPE NAME##_no_dup(TYPE value);                                                              \
+extern struct NAME##_helpers NAME##_helpers;                                                        \
+extern void NAME##_init(struct NAME *set, int init_size);                                           \
+extern TYPE NAME##_insert(struct NAME *set, TYPE newItem);                                          \
+extern void NAME##_remove(struct NAME *set, TYPE oldItem);                                          \
+extern int NAME##_find(struct NAME *set, TYPE item, TYPE* found_item);                              \
+extern void NAME##_delete(struct NAME *set);                                                        \
+
+
+
+#define SET_OF_ITEM_DEFN(NAME,TYPE)                                                                 \
+void NAME##_init(struct NAME *set, int init_size) {                                                 \
+    set->v_helpers = NAME##_helpers;                                                                \
+    set->collisions = set->num_items = 0;                                                           \
+    set->max_num_items = init_size;                                                                 \
+    set->items = (TYPE *)malloc(set->max_num_items * sizeof(TYPE));                                 \
+    set->is_null_item_set = 0;                                                                      \
+    memset(set->items, 0, set->max_num_items * sizeof(TYPE));                                       \
+}                                                                                                   \
+static int NAME##_mod(struct NAME* set, int x) {                                                    \
+    return (((x)%set->max_num_items + set->max_num_items) % set->max_num_items);                    \
+}                                                                                                   \
+TYPE NAME##_no_dup(TYPE value) {                                                                    \
+    return value;                                                                                   \
+}                                                                                                   \
+void NAME##_grow(struct NAME *set) {                                                                \
+    /* New larger set to which to move the old set's contents.  */                                  \
+    struct NAME newSet;                                                                             \
+    NAME##_init(&newSet, set->max_num_items*2);                                                     \
+    /* Reuse existing values; don't copy as new ones. */                                            \
+    newSet.v_helpers.dup = NAME##_no_dup;                                                           \
+    /* For every active slot in the old set, insert it into the new set. */                         \
+    for (int ix=0; ix<set->max_num_items; ++ix) {                                                   \
+        TYPE val = set->items[ix];                                                                  \
+        if (!set->v_helpers.is_null(val)) NAME##_insert(&newSet, val);                              \
+    }                                                                                               \
+    /* Clean up old set's memory. */                                                                \
+    free(set->items);                                                                               \
+    /* And replace with the new set. */                                                             \
+    set->items = newSet.items;                                                                      \
+    set->collisions = newSet.collisions;                                                            \
+    set->max_num_items = newSet.max_num_items;                                                      \
+}                                                                                                   \
+TYPE NAME##_insert(struct NAME *set, TYPE newItem) {                                                \
+    if (set->collisions > set->max_num_items/3 || set->num_items > set->max_num_items*3/4) {        \
+        NAME##_grow(set);                                                                           \
+    }                                                                                               \
+    if (set->v_helpers.is_null(newItem)) {                                                          \
+        if (set->is_null_item_set) set->v_helpers.delete(set->null_item);                           \
+        set->is_null_item_set = 1;                                                                  \
+        set->null_item = newItem;                                                                   \
+        return newItem;                                                                             \
+    }                                                                                               \
+    unsigned long h = set->v_helpers.hash(newItem);                                                 \
+    int ix = (int)(h % set->max_num_items);                                                         \
+    int isCollision = 0;                                                                            \
+    /* Search until we find a match or there's nothing else to inspect.  */                         \
+    while (!set->v_helpers.is_null(set->items[ix]) && set->v_helpers.cmp(newItem, set->items[ix])!=0) {\
+        if (++ix >= set->max_num_items) ix=0;                                                       \
+        isCollision = 1;                                                                            \
+    }                                                                                               \
+    /* ix either indexes an existing match or an empty slot. If not a match, add it. */             \
+    if (set->v_helpers.is_null(set->items[ix])) {                                                   \
+        set->items[ix] = set->v_helpers.dup(newItem);                                               \
+        set->num_items++;                                                                           \
+        set->collisions += isCollision;                                                             \
+    }                                                                                               \
+    return set->items[ix];                                                                          \
+}                                                                                                   \
+                                                                                                    \
+/**                                                                                                 \
+ * Notes on set_of_T_remove:                                                                        \
+ *                                                                                                  \
+ * These definitions will be used in this discussion:                                               \
+ * "Natural slot" is the slot in which an item would appear if there were no collisions.            \
+ * "Top items", the largest contiguous set of filled slots immediately following a                  \
+ *    given item's natural slot, not including any that may have wrapped around to slot 0.          \
+ *    Set ix_top to the first index _after_ the set of filled slots. This may be past the           \
+ *    end of the array.                                                                             \
+ * "Bottom items", the largest contiguous set of filled slots immediately preceding a               \
+ *    given item's natural slot, not including any that may have wrapped around to slot 0.          \
+ *    Set ix_bottom to the first element in the bottom items. This may be equal to the              \
+ *    index being cleared, the current location of the item being deleted.                          \
+ * - Either the following or the preceding items may wrap around the array of slots; not both.      \
+ *    If the preceding items wraps around to the top of the array, that is an "underflow            \
+ *    items". If the following items wraps around to the bottom of the array, that is an            \
+ *    "overflow items".                                                                             \
+ * - Because we grow the array when the load factor reaches ~0.75, empty slots are guaranteed.      \
+ *    There may sometimes be an underflow items, or sometimes may be an overflow items, but         \
+ *    it is not possible that there will be both.                                                   \
+ *                                                                                                  \
+ * The general process is as follows:                                                               \
+ * 1) Find the item in the array. If not found, done. Otherwise, set ix_delete to the location      \
+ *    of the item in the array.                                                                     \
+ * 2) Set ix_top, ix_bottom, ix_overflow, and ix_underflow appropriately.                           \
+ * 3) Delete the item, clear slot ix_delete.                                                        \
+ * 4) Iterate the top items: for (int ix=ix_delete+1; ix<ix_top; ++ix)                              \
+ * 5)   For each ix, get the "natural slot" for the item in that slot. Call that ix_item.           \
+ * 6)   If (ix_item <= ix_delete || ix_item > ix_underflow), move the item at ix_item to ix_delete, \
+ *      clear the slot at ix_item, and set ix_delete = ix_item.                                     \
+ * 7)   Continue                                                                                    \
+ * 8) Iterate the overflow items: for (int ix=0; ix<ix_overflow; ++ix)                              \
+ * 9)   For each ix, get the "natural slot" for the item in that slot. Call that ix_item.           \
+ * 10)  If (ix_delete < ix_overflow ? (ix_item <= ix_delete || ix_item > ix_overflow)               \
+ *                                : (ix_item <= ix_delete && ix_item >= ix_bottom) ),               \
+ *        move the item at ix_item to ix_delete, clear the slot at ix_item, and set ix_delete = ix_item.\
+ * 11)  Continue                                                                                    \
+ *                                                                                                  \
+ * Given this population (with much omitted):                                                       \
+ *     Slot: |  0|  1|  2|  3|  4|  5| ... | 44| 45| 46| 47| 48| 49| ... | 94| 95| 96| 97| 98| 99|  \
+ *           +---+---+---+---+---+---+-...-+---+---+---+---+---+---+-...-+---+---+---+---+---+---+  \
+ * Contents: |  0|197|  1|  3|100|   | ... |   | 45|146|145| 46|   | ... |   | 95|195| 97|295|199|  \
+ *                                                                                                  \
+ *                                                                                                  \
+ * Consider deleting item 45, natural slot 45, in slot 45.                                          \
+ * - ix_top = 49, ix_bottom = 45, ix_underflow = 100, ix_overflow = 0                               \
+ * 1) Clear slot 45. set ix_delete=45                                                               \
+ * 2) Examine slot 46, ix_item = 46, not <= ix_delete, don't move.                                  \
+ * 3) Examine slot 47, ix_item = 45, <= ix_delete, move. Set ix_delete=47.                          \
+ * 4) Examine slot 48, ix_item = 46, <= ix_delete, move. Set ix_delete=48.                          \
+ * 5) Finished.                                                                                     \
+ *                                                                                                  \
+ * Now consider deleting item 0, natural slot 0, in slot 0.                                         \
+ * - ix_top = 5, ix_bottom = 0, ix_underflow = 95, ix_overflow = 0                                  \
+ * 1) Clear slot 0. Set ix_delete=0.                                                                \
+ * 2) Examine slot 1, ix_item = 99, not <= ix_delete, but in underflow items, move.                 \
+ *     Set ix_delete=1.                                                                             \
+ * 3) Examine slot 2, ix_item = 1, <= ix_delete, move. Set ix_delete=2.                             \
+ * 4) Examine slot 3, ix_item = 3, not <= ix_delete, don't move.                                    \
+ * 5) Examine slot 4, ix_item = 0, <= ix_delete, move. Set ix_delete=4.                             \
+ * 6) Finished.                                                                                     \
+ *                                                                                                  \
+ * Finally, consider deleting item 195 (natural slot 95, in slot 96).                               \
+ * - ix_top = 100, ix_bottom = 95, ix_underflow = 100, ix_overflow = 5                              \
+ * 1) Clear slot 96. Set ix_delete=96.                                                              \
+ * 2) Examine slot 97, ix_item = 97, not <= ix_delete, don't move.                                  \
+ * 3) Examine slot 98, ix_item = 95, <= ix_delete, move. Set ix_delete=98.                          \
+ * 4) Examine slot 99, ix_item = 99, not <= ix_delete, don't move.                                  \
+ * -- process overflow items --                                                                     \
+ * 5) Examine slot 0, ix_item = 0, FALSE, don't move.                                               \
+ * 6) Examine slot 1, ix_item = 97, TRUE, move, set ix_delete=1.                                    \
+ * 7) Examine slot 2, ix_item = 1, TRUE, move, set ix_delete=2;                                     \
+ * 8) Examine slot 3, ix_item = 3, FALSE, don't move.                                               \
+ * 9) Examine slot 4, ix_item = 0, TRUE, move, set ix_delete=4.                                     \
+ *                                                                                                  \
+ */                                                                                                 \
+void NAME##_remove(struct NAME *set, TYPE oldItem) {                                                \
+    if (set->v_helpers.is_null(oldItem)) {                                                          \
+        if (set->is_null_item_set) {                                                                \
+            set->is_null_item_set = 0;                                                              \
+            set->v_helpers.delete(set->null_item);                                                  \
+            set->null_item = set->v_helpers.null;                                                   \
+        }                                                                                           \
+        return;                                                                                     \
+    }                                                                                               \
+    /* Find the item to be deleted */                                                               \
+    unsigned long h = set->v_helpers.hash(oldItem);                                                 \
+    int ix_delete = (int) (h % set->max_num_items);                                                 \
+    int cmp = 1;                                                                                    \
+    while (!set->v_helpers.is_null(set->items[ix_delete]) &&                                        \
+            (cmp = set->v_helpers.cmp(oldItem, set->items[ix_delete]))) {                           \
+        if (++ix_delete >= set->max_num_items)                                                      \
+            ix_delete = 0;                                                                          \
+    }                                                                                               \
+    /* Was the oldItem in the set? */                                                               \
+    if (cmp != 0) return;  /* No, done. */                                                          \
+                                                                                                    \
+    /* Yes. Free the oldItem and fix up any affected collisions. */                                 \
+    /* First, find ix_underflow, ix_bottom, ix_top, ix_overflow */                                  \
+    int ix_underflow = ix_delete;                                                                   \
+    while (!set->v_helpers.is_null(set->items[NAME##_mod(set, ix_underflow - 1)])) --ix_underflow;  \
+    int ix_bottom = ix_underflow >= 0 ? ix_underflow : 0;                                           \
+    ix_underflow = ix_underflow < 0 ? NAME##_mod(set, ix_underflow) : set->max_num_items;           \
+                                                                                                    \
+    int ix_overflow = ix_delete;                                                                    \
+    while (!set->v_helpers.is_null(set->items[NAME##_mod(set, ix_overflow)])) ++ix_overflow;        \
+    int ix_top = ix_overflow <= set->max_num_items ? ix_overflow : set->max_num_items;              \
+    ix_overflow = ix_overflow <= set->max_num_items ? 0 : NAME##_mod(set, ix_overflow);             \
+                                                                                                    \
+    /* Free the oldItem */                                                                          \
+    set->v_helpers.delete(set->items[ix_delete]);                                                   \
+    set->items[ix_delete] = set->v_helpers.null;                                                    \
+                                                                                                    \
+    /* Handle the "top items" */                                                                    \
+    for (int ix = ix_delete + 1; ix < ix_top; ++ix) {                                               \
+        int ix_item = (int) (set->v_helpers.hash(set->items[ix]) % set->max_num_items);             \
+        int do_move = ix_item <= ix_delete || ix_item > ix_underflow;                               \
+        if (do_move) {                                                                              \
+            set->items[ix_delete] = set->items[ix];                                                 \
+            set->items[ix] = set->v_helpers.null;                                                   \
+            ix_delete = ix;                                                                         \
+        }                                                                                           \
+    }                                                                                               \
+    /* Handle any "overflow items" */                                                               \
+    for (int ix = 0; ix < ix_overflow; ++ix) {                                                      \
+        int ix_item = (int) (set->v_helpers.hash(set->items[ix]) % set->max_num_items);             \
+        int do_move = ix_delete < ix_overflow ? (ix_item <= ix_delete || ix_item > ix_overflow)     \
+                                              : (ix_item <= ix_delete && ix_item >= ix_bottom);     \
+        if (do_move) {                                                                              \
+            set->items[ix_delete] = set->items[ix];                                                 \
+            set->items[ix] = set->v_helpers.null;                                                   \
+            ix_delete = ix;                                                                         \
+        }                                                                                           \
+    }                                                                                               \
+}                                                                                                   \
+int NAME##_find(struct NAME *set, TYPE item, TYPE* found_item) {                                    \
+    if (set->v_helpers.is_null(item)) {                                                             \
+        if (!set->is_null_item_set) return 0;                                                       \
+        if (found_item) {                                                                           \
+            *found_item = set->null_item;                                                           \
+        }                                                                                           \
+        return 1;                                                                                   \
+    }                                                                                               \
+                                                                                                    \
+    unsigned long h = set->v_helpers.hash(item);                                                    \
+    int ix = (int)(h % set->max_num_items);                                                         \
+    int cmp=1; /* init to 'not equal'  */                                                           \
+    /* Search until we find a match or there's nothing else to inspect.  */                         \
+    while (!set->v_helpers.is_null(set->items[ix]) && (cmp=set->v_helpers.cmp(item, set->items[ix]))) {\
+        if (++ix >= set->max_num_items) ix=0;                                                       \
+    }                                                                                               \
+    /* return item if we found a match. */                                                          \
+    if (cmp==0) {                                                                                   \
+        if (found_item) {                                                                           \
+            *found_item = set->items[ix];                                                           \
+        }                                                                                           \
+        return 1;                                                                                   \
+    }                                                                                               \
+    return 0;                                                                                       \
+}                                                                                                   \
+void NAME##_delete(struct NAME *set) {                                                              \
+    for (int i=0; i<set->max_num_items; ++i) {                                                      \
+        if (!set->v_helpers.is_null(set->items[i])) {                                               \
+            set->v_helpers.delete(set->items[i]);                                                   \
+        }                                                                                           \
+    }                                                                                               \
+    if (set->is_null_item_set) set->v_helpers.delete(set->null_item);                               \
+    free(set->items);                                                                               \
+}                                                                                                   \
+
+
+#endif
+
+

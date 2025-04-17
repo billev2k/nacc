@@ -20,36 +20,24 @@
 void c_variable_delete(struct CIdentifier var) {}
 #pragma clang diagnostic pop
 struct list_of_CIdentifier_helpers list_of_CIdentifier_helpers = { .delete = c_variable_delete, .null = {0} };
-#define NAME list_of_CIdentifier
-#define TYPE struct CIdentifier
-#include "../utils/list_of_item.tmpl"
+LIST_OF_ITEM_DEFN(list_of_CIdentifier,struct CIdentifier)
 //endregion struct CIdentifier
 
 struct list_of_CLabel_helpers list_of_CLabel_helpers = { .delete = c_label_delete, .null = {0} };
-#define NAME list_of_CLabel
-#define TYPE struct CLabel
-#include "../utils/list_of_item.tmpl"
+LIST_OF_ITEM_DEFN(list_of_CLabel,struct CLabel)
 
 struct list_of_CExpression_helpers list_of_CExpression_helpers = { .delete = c_expression_delete };
-#define NAME list_of_CExpression
-#define TYPE struct CExpression*
-#include "../utils/list_of_item.tmpl"
+LIST_OF_ITEM_DEFN(list_of_CExpression,struct CExpression*)
 
 struct list_of_CBlockItem_helpers list_of_CBlockItem_helpers = { .delete = c_block_item_delete };
-#define NAME list_of_CBlockItem
-#define TYPE struct CBlockItem*
-#include "../utils/list_of_item.tmpl"
+LIST_OF_ITEM_DEFN(list_of_CBlockItem,struct CBlockItem*)
 
 struct list_of_CFuncDecl_helpers list_of_CFuncDecl_helpers = { .delete = c_function_delete };
-#define NAME list_of_CFuncDecl
-#define TYPE struct CFuncDecl*
-#include "../utils/list_of_item.tmpl"
+LIST_OF_ITEM_DEFN(list_of_CFuncDecl,struct CFuncDecl*)
 //endregion list and set definitions
 
 struct list_of_CDeclaration_helpers list_of_CDeclaration_helpers = { .delete = c_declaration_delete };
-#define TYPE struct CDeclaration*
-#define NAME list_of_CDeclaration
-#include "../utils/list_of_item.tmpl"
+LIST_OF_ITEM_DEFN(list_of_CDeclaration,struct CDeclaration*)
 
 const char * const AST_BINARY_NAMES[] = {
 #define X(a,b,c,d) b

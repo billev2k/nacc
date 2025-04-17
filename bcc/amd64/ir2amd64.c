@@ -5,20 +5,19 @@
 //
 
 #include <stddef.h>
+#include <stdlib.h>
 #include <string.h>
 #include "amd64.h"
 #include "ir2amd64.h"
 #include "../parser/symtable.h"
+#include "inc/set_of.h"
 
 struct pseudo_register {
     const char *name;
     int offset;
 };
-#define NAME set_of_pseudo_register
-#define TYPE struct pseudo_register
-#include "inc/set_of_item.h"
-#undef NAME
-#undef TYPE
+SET_OF_ITEM_DECL(set_of_pseudo_register, struct pseudo_register)
+SET_OF_ITEM_DEFN(set_of_pseudo_register, struct pseudo_register)
 unsigned long pseudo_register_hash(struct pseudo_register pl) {
     return hash_str(pl.name);
 }
@@ -42,12 +41,6 @@ struct set_of_pseudo_register_helpers set_of_pseudo_register_helpers = {
         .is_null=pseudo_register_is_null,
         .null={0}
 };
-#define NAME set_of_pseudo_register
-#define TYPE struct pseudo_register
-#include "../utils/set_of_item.tmpl"
-
-#undef NAME
-#undef TYPE
 
 static enum REGISTER param_registers[] = {REG_DI, REG_SI, REG_DX, REG_CX, REG_R8, REG_R9};
 

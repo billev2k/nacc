@@ -1,0 +1,78 @@
+//
+// Created by Bill Evans on 1/15/25.
+//
+
+#ifndef LIST_OF_DEF
+#define LIST_OF_DEF
+
+
+#define LIST_OF_ITEM_DECL(NAME,TYPE)                                                                \
+struct NAME##_helpers {                                                                             \
+    void (*delete)(TYPE item);                                                                      \
+    TYPE null;                                                                                      \
+};                                                                                                  \
+struct NAME {                                                                                       \
+    struct NAME##_helpers helpers;                                                                  \
+    TYPE* items;                                                                                    \
+    int num_items;                                                                                  \
+    int max_num_items;                                                                              \
+};                                                                                                  \
+extern void NAME##_init(struct NAME *list, int init_size);                                          \
+extern void NAME##_append(struct NAME* list, TYPE new_item);                                        \
+extern void NAME##_insert(struct NAME* list, TYPE new_item, int atIx);                              \
+extern void NAME##_clear(struct NAME* list);                                                        \
+extern void NAME##_delete(struct NAME* list);                                                       \
+extern int NAME##_is_empty(struct NAME* list);                                                      \
+
+
+#define LIST_OF_ITEM_DEFN(NAME,TYPE)                                                                \
+void NAME##_init(struct NAME *list, int init_size) {                                                \
+    list->helpers = NAME##_helpers;                                                                 \
+    list->num_items = 0;                                                                            \
+    list->max_num_items = init_size;                                                                \
+    list->items = (TYPE *)malloc(list->max_num_items * sizeof(TYPE));                               \
+    memset(list->items, 0, list->max_num_items * sizeof(TYPE));                                     \
+}                                                                                                   \
+void NAME##_grow(struct NAME* list) {                                                               \
+    list->max_num_items *= 2;                                                                       \
+    /* One extra so that lists of pointers have a NULL entry at the end */                          \
+    TYPE* new_list = malloc((list->max_num_items+1) * sizeof(TYPE));                                \
+    for (int i=0; i<list->num_items; ++i) {                                                         \
+        new_list[i] = list->items[i];                                                               \
+    };                                                                                              \
+    free(list->items);                                                                              \
+    list->items = new_list;                                                                         \
+}                                                                                                   \
+void NAME##_append(struct NAME* list, TYPE new_item) {                                              \
+    if (list->num_items == list->max_num_items) {                                                   \
+        NAME##_grow(list);                                                                          \
+    }                                                                                               \
+    list->items[(list->num_items)++] = new_item;                                                    \
+}                                                                                                   \
+void NAME##_insert(struct NAME* list, TYPE new_item, int atIx) {                                    \
+    if (list->num_items == list->max_num_items) {                                                   \
+        NAME##_grow(list);                                                                          \
+    }                                                                                               \
+    for (int i=list->num_items++; i>atIx; --i) {                                                    \
+        list->items[i] = list->items[i-1];                                                          \
+    }                                                                                               \
+    list->items[atIx] = new_item;                                                                   \
+}                                                                                                   \
+void NAME##_delete(struct NAME* list) {                                                             \
+    NAME##_clear(list);                                                                             \
+    free(list->items);                                                                              \
+}                                                                                                   \
+extern void NAME##_clear(struct NAME* list) {                                                       \
+    for (int i=0; i<list->num_items; ++i) {                                                         \
+        list->helpers.delete(list->items[i]);                                                       \
+        list->items[i] = list->helpers.null;                                                        \
+    }                                                                                               \
+    list->num_items = 0;                                                                            \
+}                                                                                                   \
+int NAME##_is_empty(struct NAME* list) {                                                            \
+    return (list->num_items == 0);                                                                  \
+}                                                                                                   \
+
+#endif
+
+

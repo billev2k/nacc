@@ -15,9 +15,7 @@
 #include "semantics.h"
 
 // List of un-owned strings ("persistent strings" aka "pstr")
-#define NAME list_of_pstr
-#define TYPE const char*
-#include "inc/list_of_item.h"
+LIST_OF_ITEM_DECL(list_of_pstr, const char*)
 #pragma clang diagnostic push
 #pragma ide diagnostic ignored "UnusedParameter"
 void no_op(const char * x) {}
@@ -26,9 +24,7 @@ struct list_of_pstr_helpers list_of_pstr_helpers = {
         .delete = no_op,
         .null = NULL,
 };
-#define NAME list_of_pstr
-#define TYPE const char*
-#include "../utils/list_of_item.tmpl"
+LIST_OF_ITEM_DEFN(list_of_pstr,const char*)
 
 static struct CProgram * parse_program(void);
 static struct CDeclaration *parse_declaration(void);

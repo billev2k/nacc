@@ -12,16 +12,12 @@
 #include "inc/utils.h"
 #include "../utils/startup.h"
 
-#define NAME list_of_symbol
-#define TYPE struct Symbol
-#include "inc/list_of_item.h"
+LIST_OF_ITEM_DECL(list_of_symbol, struct Symbol)
 struct list_of_symbol_helpers list_of_symbol_helpers = {
         .delete = symbol_delete,
         .null = {},
 };
-#define NAME list_of_symbol
-#define TYPE struct Symbol
-#include "../utils/list_of_item.tmpl"
+LIST_OF_ITEM_DEFN(list_of_symbol,struct Symbol)
 
 
 struct list_of_symbol symbol_table;

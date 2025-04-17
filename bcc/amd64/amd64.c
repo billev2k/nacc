@@ -85,16 +85,12 @@ const enum OPCODE cond_code_to_setXX[] = {
 struct list_of_Amd64Instruction_helpers list_of_Amd64Instruction_helpers = {
     .delete = Amd64Instruction_delete
 };
-#define NAME list_of_Amd64Instruction
-#define TYPE struct Amd64Instruction*
-#include "../utils/list_of_item.tmpl"
+LIST_OF_ITEM_DEFN(list_of_Amd64Instruction,struct Amd64Instruction*)
 
-#define NAME list_of_amd64_top_level
-#define TYPE struct Amd64TopLevel*
 struct list_of_amd64_top_level_helpers list_of_amd64_top_level_helpers = {
         .delete = amd64_top_level_delete,
 };
-#include "../utils/list_of_item.tmpl"
+LIST_OF_ITEM_DEFN(list_of_amd64_top_level,struct Amd64TopLevel*)
 #include "inc/constant.h"
 
 struct Amd64Program* amd64_program_new(void ) {

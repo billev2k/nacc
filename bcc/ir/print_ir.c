@@ -133,7 +133,7 @@ void print_ir_value(struct IrValue value, FILE *file) {
             break;
         case IR_VAL_ID:
         case IR_VAL_LABEL:
-            fprintf(file, "%s", value.const_value.string_value);
+            fprintf(file, "%s", value.text);
             break;
     }
 }
